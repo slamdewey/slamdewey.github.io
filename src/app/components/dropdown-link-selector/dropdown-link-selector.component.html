@@ -1,8 +1,10 @@
 <div #container class="dropdown">
-  <div class="dropdown-body">{{ dropdownText }}</div>
-  <div class="dropdown-content" [class]="isOverflowing ? 'overflowing' : ''">
-    @for (item of items; track $index) {
-    <a [routerLink]="item.url" [queryParams]="item.queryParams">{{ item.text }}</a>
+  <button class="dropdown__placeholder">{{ placeholderText() }}</button>
+  <div class="dropdown__items" [class]="isOverflowing() ? 'translate-up' : ''">
+    @for (item of items(); track item.queryParams) {
+    <a class="dropdown__items__item" [routerLink]="item.url" [queryParams]="item.queryParams">{{
+      item.text
+    }}</a>
     }
   </div>
 </div>

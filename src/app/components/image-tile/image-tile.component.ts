@@ -1,4 +1,4 @@
-import { Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
 import { SkeletonLoaderComponent } from '../skeleton-loader/skeleton-loader.component';
 
 const animationDuration = 500;
@@ -18,6 +18,7 @@ export class ImageTileData {
   styleUrls: ['./image-tile.component.scss'],
   standalone: true,
   imports: [SkeletonLoaderComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ImageTileComponent {
   public imageTileData = input.required<ImageTileData>();

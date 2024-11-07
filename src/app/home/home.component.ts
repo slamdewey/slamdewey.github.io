@@ -1,4 +1,10 @@
-import { Component, ViewEncapsulation, OnInit, inject } from '@angular/core';
+import {
+  Component,
+  ViewEncapsulation,
+  OnInit,
+  inject,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Backdrop } from '../components/backdrop/backdrop';
 import { UVColorCycleBackground } from '../components/backdrop/UVColorCycleBackground';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
@@ -32,6 +38,7 @@ function getRandomIndex(arr: string[]) {
   encapsulation: ViewEncapsulation.None,
   standalone: true,
   imports: [BackdropComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomeComponent implements OnInit {
   public bgAnimation: Backdrop = new UVColorCycleBackground();
@@ -41,6 +48,6 @@ export class HomeComponent implements OnInit {
   private readonly titleService = inject(Title);
 
   ngOnInit(): void {
-    this.titleService.setTitle('Jared Massa | Software Engineer');
+    this.titleService.setTitle('Jared.Systems');
   }
 }

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { SpinnerComponent } from '../spinner/spinner.component';
 
 export interface ZoomOptions {
@@ -9,6 +9,14 @@ export interface ZoomOptions {
   start: { x: number; y: number };
 }
 
+const DEFAULT_ZOOM: ZoomOptions = {
+  scale: 1,
+  panning: false,
+  pointX: 0,
+  pointY: 0,
+  start: { x: 0, y: 0 },
+};
+
 const ZoomScalar = 1.2;
 
 @Component({
@@ -17,32 +25,25 @@ const ZoomScalar = 1.2;
   styleUrls: ['./image-viewer-modal.component.scss'],
   standalone: true,
   imports: [SpinnerComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ImageViewerModalComponent implements OnInit {
-  @Input() imageSource: string;
-  @Output() onOpen: EventEmitter<void> = new EventEmitter<void>();
-  @Output() onClose: EventEmitter<void> = new EventEmitter<void>();
+export class ImageViewerModalComponent {
+  public imageSource = input<string>();
+  public onOpen = output<void>();
+  public onClose = output<void>();
 
-  public shouldDisplaySpinner: boolean = false;
-
-  public zoomOptions: ZoomOptions;
-  public isModalOpen: boolean = false;
-
-  constructor() {}
-
-  ngOnInit(): void {
-    this.resetZoomOptions();
-  }
+  public isModalOpen = signal<boolean>(false);
+  public shouldDisplaySpinner = signal<boolean>(false);
+  public zoomOptions = signal<ZoomOptions>(DEFAULT_ZOOM);
 
   private resetZoomOptions() {
-    this.zoomOptions = {
-      scale: 1,
-      panning: false,
-      pointX: 0,
-      pointY: 0,
-      start: { x: 0, y: 0 },
-    };
+    this.zoomOptions.set(DEFAULT_ZOOM);
   }
+
+  public zoomOptionsViewTransform = computed<string>(() => {
+    const z = this.zoomOptions();
+    return `translate(${z.pointX}px, ${z.pointY}px) scale(${z.scale}`;
+  });
 
   public checkIfImageLoadingComplete(event: Event) {
     const element = event.target;
@@ -56,58 +57,83 @@ export class ImageViewerModalComponent implements OnInit {
   }
 
   public onImageLoad() {
-    this.shouldDisplaySpinner = false;
+    this.shouldDisplaySpinner.set(false);
   }
 
   public openModal(): void {
-    this.isModalOpen = true;
-    this.shouldDisplaySpinner = true;
+    this.isModalOpen.set(true);
+    this.shouldDisplaySpinner.set(true);
     this.onOpen.emit();
   }
 
   public closeModal(): void {
-    this.isModalOpen = false;
-    this.shouldDisplaySpinner = false;
+    this.isModalOpen.set(false);
+    this.shouldDisplaySpinner.set(false);
     this.resetZoomOptions();
     this.onClose.emit();
   }
 
   public zoomIn(): void {
-    this.zoomOptions.scale *= ZoomScalar;
-    this.zoomOptions.pointX *= ZoomScalar;
-    this.zoomOptions.pointY *= ZoomScalar;
+    this.zoomOptions.update((current) => ({
+      ...current,
+      scale: (current.scale *= ZoomScalar),
+      pointX: (current.pointX *= ZoomScalar),
+      pointY: (current.pointY *= ZoomScalar),
+    }));
   }
+
   public zoomOut(): void {
-    this.zoomOptions.scale /= ZoomScalar;
-    this.zoomOptions.pointX /= ZoomScalar;
-    this.zoomOptions.pointY /= ZoomScalar;
+    this.zoomOptions.update((current) => ({
+      ...current,
+      scale: (current.scale /= ZoomScalar),
+      pointX: (current.pointX /= ZoomScalar),
+      pointY: (current.pointY /= ZoomScalar),
+    }));
   }
 
   public onModalWheel(e: WheelEvent): void {
     e.preventDefault();
+
     if (e.deltaY < 0) {
       this.zoomIn();
     } else {
       this.zoomOut();
     }
   }
+
   public onModalMouseDown(e: MouseEvent): void {
     e.preventDefault();
-    this.zoomOptions.start = {
-      x: e.clientX - this.zoomOptions.pointX,
-      y: e.clientY - this.zoomOptions.pointY,
-    };
-    this.zoomOptions.panning = true;
+
+    this.zoomOptions.update((current) => ({
+      ...current,
+      start: {
+        x: e.clientX - current.pointX,
+        y: e.clientY - current.pointY,
+      },
+      panning: true,
+    }));
   }
+
   public onModalMouseUp(e: MouseEvent): void {
     e.preventDefault();
-    this.zoomOptions.panning = false;
+
+    this.zoomOptions.update((current) => ({
+      ...current,
+      panning: false,
+    }));
   }
+
   public onModalMouseMove(e: MouseEvent): void {
     e.preventDefault();
-    if (!this.zoomOptions.panning) return;
 
-    this.zoomOptions.pointX = e.clientX - this.zoomOptions.start.x;
-    this.zoomOptions.pointY = e.clientY - this.zoomOptions.start.y;
+    if (!this.zoomOptions().panning) {
+      return;
+    }
+
+    this.zoomOptions.update((current) => ({
+      ...current,
+      pointX: e.clientX - current.start.x,
+      pointY: e.clientY - current.start.y,
+    }));
   }
 }

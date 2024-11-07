@@ -1,17 +1,16 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { ReactiveWebGLBackground } from './pages/fragmentwriter/ReactiveWebGLBackground';
-import { MOUSE_POSITION_NEWTONS_FRACTAL_SHADER } from './pages/fragmentwriter/shader-programs';
+import {
+  MOUSE_POSITION_EXAMPLE,
+  MOUSE_POSITION_NEWTONS_FRACTAL_SHADER,
+  SHADER_TOY_UV,
+  ShaderProgramData,
+} from './pages/fragmentwriter/shader-programs';
 import { PerlinNoiseBackdrop } from '../components/backdrop/PerlinNoiseBackdrop';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { Title } from '@angular/platform-browser';
-import { Backdrop } from '../components/backdrop';
-
-export type ProjectTileData = {
-  routerLink: string;
-  labelText: string;
-  backdrop: Backdrop;
-};
+import { ProjectTileData } from '../shapes/projects';
 
 @Component({
   selector: 'x-projects',
@@ -19,6 +18,7 @@ export type ProjectTileData = {
   styleUrls: ['./projects.component.scss'],
   standalone: true,
   imports: [BackdropComponent, RouterOutlet, RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectsComponent implements OnInit {
   private readonly titleService = inject(Title);
@@ -27,15 +27,26 @@ export class ProjectsComponent implements OnInit {
   public fragmentWriterTileBackdrop: ReactiveWebGLBackground;
   public projects: ProjectTileData[];
 
+  private updateShaderCode(backdrop: ReactiveWebGLBackground, shaderProgram: ShaderProgramData) {
+    backdrop.shaderProgramData = shaderProgram;
+    backdrop.reInitialize();
+  }
+
   constructor() {
     this.fragmentWriterTileBackdrop = new ReactiveWebGLBackground();
-    this.fragmentWriterTileBackdrop.shaderProgramData = MOUSE_POSITION_NEWTONS_FRACTAL_SHADER;
+    this.fragmentWriterTileBackdrop.shaderProgramData = SHADER_TOY_UV;
 
     this.projects = [
       {
         routerLink: 'fragmentwriter',
-        labelText: 'Web Based GLSL Shader Editor',
+        labelText: 'GLSL Editor',
         backdrop: this.fragmentWriterTileBackdrop,
+        onMouseEnter: () => {
+          this.updateShaderCode(this.fragmentWriterTileBackdrop, MOUSE_POSITION_EXAMPLE);
+        },
+        onMouseExit: () => {
+          this.updateShaderCode(this.fragmentWriterTileBackdrop, SHADER_TOY_UV);
+        },
       },
     ];
   }

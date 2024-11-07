@@ -6,54 +6,69 @@ $color-black: black;
 .dropdown {
   position: relative;
   display: inline-block;
-  z-index: 6; // monaco editor has a z-index of 5!?
+  overflow: visible;
 
-  &:hover .dropdown-content {
-    display: block;
-    transition: all 0.45s;
+  &:hover .dropdown__items {
+    visibility: visible;
+    opacity: 1;
   }
 
-  &:hover .dropdown-body {
+  &:hover .dropdown__placeholder {
     background-color: var(--highlight-color);
     color: var(--secondary-color);
-    transition: all 0.2s;
   }
+}
 
-  & .dropdown-body {
-    background-color: var(--secondary-color);
-    padding: 1rem 4rem 1rem 4rem;
-    font-size: 2rem;
-    border: none;
-    cursor: pointer;
-    transition: all 0.45s;
-  }
+.translate-up {
+  transform: translateY(-100%);
+}
 
-  & .dropdown-content {
-    width: 100%;
-    display: none;
-    position: absolute;
+.dropdown__placeholder {
+  background-color: var(--secondary-color);
+  color: var(--highlight-color);
+
+  padding: 1rem 4rem;
+  font-size: 2rem;
+  border: none;
+  cursor: pointer;
+
+  &:focus {
     background-color: var(--highlight-color);
-    box-shadow: 0 1rem 2rem 0 rgba(0, 0, 0, 1);
-
-    & a {
-      height: 4rem;
-      justify-content: center;
-      align-items: center;
-      margin: auto;
-      flex-direction: column;
-      text-decoration: none;
-      display: flex;
-      transition: all 0.2s;
-
-      &:hover {
-        color: var(--tertiary-color);
-        background-color: $color-white;
-        transition: all 0.2s;
-      }
-    }
+    color: var(--secondary-color);
   }
 
-  & .overflowing {
-    transform: translateY(-100%);
+  & > .dropdown__items {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+
+.dropdown__items {
+  z-index: 6; // monaco editor has a z-index of 5!?
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+
+  box-shadow: 0 1rem 2rem 0 rgba(0, 0, 0, 1);
+}
+
+.dropdown__items__item {
+  color: var(--highlight-color);
+  background-color: var(--primary-color);
+
+  height: 4rem;
+  align-items: center;
+  margin: auto;
+  justify-content: center;
+
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--secondary-color);
+    background-color: $color-white;
   }
 }

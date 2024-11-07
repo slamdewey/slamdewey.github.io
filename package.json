@@ -27,18 +27,16 @@
     "ngx-monaco-editor-v2": "18.1.0",
     "rxjs": "7.5.0",
     "simplex-noise": "4.0.0",
-    "tslib": "2.3.0",
-    "zone.js": "0.14.7"
+    "tslib": "2.3.0"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "18.2.7",
+    "@angular-devkit/build-angular": "^18.2.11",
     "@angular/build": "^18.0.7",
     "@angular/cli": "~18.0.7",
     "@angular/compiler-cli": "^18.0.6",
     "@eslint/compat": "^1.1.1",
     "@eslint/js": "^9.11.0",
     "@types/jasmine": "~4.0.0",
-    "angular-cli-ghpages": "^2.0.1",
     "eslint": "^9.11.0",
     "globals": "^15.9.0",
     "typescript": "~5.4.5",

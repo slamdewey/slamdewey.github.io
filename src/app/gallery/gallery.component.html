@@ -3,29 +3,25 @@
   [shouldPauseAnimation]="isModalOpen"
   [fullscreen]="true"
 ></x-backdrop>
-<div class="gallery" [style]="isModalOpen ? 'overflow: hidden;' : 'overflow: auto;'">
-  <x-info-banner [variant]="'basic'">
+<div class="gallery">
+  <x-banner [variant]="'basic'">
     <p style="font-size: 1rem; margin: 1rem">
       Some images are very large. Even if the image displays, the zoom tools may be jumpy while
       everything finishes loading
     </p>
-  </x-info-banner>
+  </x-banner>
 
   <div class="gallery__dropdown">
-    @if (imageFolderLinks) {
     <x-dropdown-link-selector
-      [dropdownText]="'Select Folder'"
-      [items]="imageFolderLinks"
+      [placeholderText]="'Select Folder'"
+      [items]="imageFolderLinks()"
     ></x-dropdown-link-selector>
-    } @else {
-    <spinner [shouldDisplaySpinner]="true"></spinner>
-    }
   </div>
 
-  @if (imageTileDataSet && currentImageFolder) {
+  @if (imageTileDataSet() && currentImageFolder) {
   <div class="gallery__images">
-    @for (image of imageTileDataSet.get(currentImageFolder); track image.img_src) {
-    <x-image-tile class="gallery__images__tile" [imageTileData]="image"></x-image-tile>
+    @for (image of imageTileDataSet().get(currentImageFolder); track image.img_src) {
+    <x-image-tile class="gallery__images__item" [imageTileData]="image"></x-image-tile>
     }
   </div>
   }

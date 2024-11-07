@@ -7,6 +7,7 @@ import {
   input,
   viewChild,
   ChangeDetectionStrategy,
+  signal,
 } from '@angular/core';
 import { Backdrop } from './backdrop';
 import { Vector2 } from 'src/app/shapes/coordinate';
@@ -25,6 +26,10 @@ export class BackdropComponent implements OnDestroy {
   fullscreen = input<boolean>(false);
 
   bgCanvas = viewChild.required<ElementRef>('bgCanvas');
+
+  public isResizing = signal<boolean>(false);
+  private resizeEventTimeout: any | undefined;
+  private isInitialized: boolean = false;
 
   public static isWebGlEnabled: boolean;
 
@@ -55,11 +60,11 @@ export class BackdropComponent implements OnDestroy {
     this.ctx = context;
 
     backdrop.initializeContext(this.ctx);
-    backdrop.setSize(this.canvasElement.width, this.canvasElement.height);
-    backdrop.initialize();
 
     this.resizeObserver = new ResizeObserver(this.onResize.bind(this));
-    this.resizeObserver.observe(this.canvasElement);
+    this.resizeObserver.observe(
+      this.fullscreen() ? this.canvasElement : this.canvasElement.parentElement!
+    );
 
     this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
   }
@@ -73,7 +78,7 @@ export class BackdropComponent implements OnDestroy {
   @HostListener('document:mousemove', ['$event'])
   onMouseMove(e: MouseEvent) {
     const backdrop = this.backdrop();
-    const rect = this.canvasElement.getBoundingClientRect();
+    const rect = this.bgCanvas().nativeElement.getBoundingClientRect();
     backdrop.mousePosition.set([e.clientX - rect.left, rect.height - (e.clientY - rect.top)]);
   }
 
@@ -90,19 +95,25 @@ export class BackdropComponent implements OnDestroy {
 
   public renderLoop(): void {
     this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
-    if (this.shouldPauseAnimation()) {
+    if (this.shouldPauseAnimation() || this.isResizing()) {
       return;
     }
     this.backdrop().clear();
     this.backdrop().tick();
   }
 
-  @HostListener('mousewheel', ['$event'])
-  public onSroll(e: WheelEvent) {}
-
-  private onResize(entries: ResizeObserverEntry[]) {
+  private updateBufferSizeAndReinitialize(newWidth: number, newHeight: number) {
     const backdrop = this.backdrop();
     const canvas = this.ctx.canvas;
+    this.canvasBufferSize.set([newWidth, newHeight]);
+    [canvas.width, canvas.height] = [newWidth, newHeight];
+
+    backdrop.setSize(newWidth, newHeight);
+    backdrop.initialize();
+    this.isInitialized = true;
+  }
+
+  private onResize(entries: ResizeObserverEntry[]) {
     let newWidth: number, newHeight: number;
 
     if (this.fullscreen()) {
@@ -113,14 +124,32 @@ export class BackdropComponent implements OnDestroy {
       newHeight = entries[0].contentRect.height;
     }
 
+    /**
+     * ensure we actually resized and should disable rendering
+     */
     if (newWidth === this.canvasBufferSize.x && newHeight === this.canvasBufferSize.y) {
       return;
     }
 
-    this.canvasBufferSize.set([newWidth, newHeight]);
-
-    [canvas.width, canvas.height] = [newWidth, newHeight];
-    backdrop.setSize(newWidth, newHeight);
-    backdrop.initialize();
+    /**
+     * A resize event happens upon this components creation,
+     * for this first event we only want to initialize the
+     * backdrop.  We don't want to stop rendering
+     */
+    if (this.isInitialized) {
+      // reset any existing timeouts
+      if (this.resizeEventTimeout) {
+        clearTimeout(this.resizeEventTimeout);
+      }
+      this.isResizing.set(true);
+      // start new timer
+      this.resizeEventTimeout = setTimeout(() => {
+        this.updateBufferSizeAndReinitialize(newWidth, newHeight);
+        this.isResizing.set(false);
+        this.resizeEventTimeout = undefined;
+      }, 300);
+    } else {
+      this.updateBufferSizeAndReinitialize(newWidth, newHeight);
+    }
   }
 }

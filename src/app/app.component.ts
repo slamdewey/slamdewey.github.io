@@ -1,6 +1,6 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { FaviconService } from './services/favicon.service';
-import { SiteHeaderComponent } from './components/site-header/site-header.component';
+import { NavigationComponent } from './components/navigation/navigation.component';
 import { RouterOutlet } from '@angular/router';
 
 @Component({
@@ -8,7 +8,8 @@ import { RouterOutlet } from '@angular/router';
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
   standalone: true,
-  imports: [SiteHeaderComponent, RouterOutlet],
+  imports: [NavigationComponent, RouterOutlet],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {
   constructor(readonly faviconService: FaviconService) {}

@@ -6,11 +6,10 @@
   width: 80%;
   padding-top: 10vh;
   margin: auto;
-  margin-bottom: 10rem;
   display: flex;
   justify-content: flex-start;
   flex-direction: column;
-  min-height: 600px;
+  margin-bottom: 10rem;
 }
 
 .gallery__dropdown {
@@ -34,7 +33,7 @@
   max-width: 1200px;
 }
 
-.gallery__images__tile {
+.gallery__images__item {
   display: flex;
   justify-content: center;
   margin: auto;

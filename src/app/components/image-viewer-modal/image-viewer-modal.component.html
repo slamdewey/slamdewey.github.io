@@ -1,36 +1,25 @@
-@if (isModalOpen) {
+@if (isModalOpen()) {
 <div
-  class="modal"
+  class="image-modal"
   (wheel)="onModalWheel($event)"
   (mousedown)="onModalMouseDown($event)"
   (mouseup)="onModalMouseUp($event)"
   (mousemove)="onModalMouseMove($event)"
 >
-  @if (shouldDisplaySpinner) {
-  <div class="modal-spinner">
-    <div style="margin: auto">
-      <spinner [shouldDisplaySpinner]="shouldDisplaySpinner"></spinner>
-    </div>
-  </div>
+  @if (shouldDisplaySpinner()) {
+  <spinner class="image-modal__spinner" />
   }
-  <div class="modal-controls">
-    <span class="modal-control-button" (click)="zoomOut()">-</span>
-    <span class="modal-control-button" (click)="zoomIn()">+</span>
-    <span class="modal-control-button" (click)="closeModal()">&times;</span>
+  <div class="image-modal__controls">
+    <span class="image-modal__controls__button" (click)="zoomOut()">-</span>
+    <span class="image-modal__controls__button" (click)="zoomIn()">+</span>
+    <span class="image-modal__controls__button" (click)="closeModal()">&times;</span>
   </div>
-  <div
-    class="modal-content"
-    [style]="
-      'transform: translate(' +
-      zoomOptions.pointX +
-      'px, ' +
-      zoomOptions.pointY +
-      'px) scale(' +
-      zoomOptions.scale +
-      ');'
-    "
-  >
-    <img loading="lazy" (load)="checkIfImageLoadingComplete($event)" [attr.src]="imageSource" />
-  </div>
+  <img
+    class="image-modal__content"
+    loading="lazy"
+    [style.transform]="zoomOptionsViewTransform()"
+    (load)="checkIfImageLoadingComplete($event)"
+    [attr.src]="imageSource()"
+  />
 </div>
 }
