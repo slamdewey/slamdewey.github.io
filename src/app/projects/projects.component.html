@@ -1,12 +1,20 @@
+<x-backdrop [backdrop]="bgAnimation" [fullscreen]="true"></x-backdrop>
 <div class="projects">
-  <x-backdrop [backdrop]="bgAnimation" [fullscreen]="true"></x-backdrop>
   <div class="projects__gallery">
-    @for(project of projects; track project.routerLink) {
-    <a class="projects__gallery__item" [routerLink]="project.routerLink">
-      <x-backdrop [backdrop]="project.backdrop"></x-backdrop>
-      <div class="projects__gallery__item__hover">
+    @for(projectData of projects; track projectData.routerLink) {
+    <a
+      [title]="projectData.labelText"
+      class="projects__gallery__item"
+      [routerLink]="projectData.routerLink"
+    >
+      <x-backdrop [backdrop]="projectData.backdrop"></x-backdrop>
+      <div
+        class="projects__gallery__item__hover"
+        (mouseenter)="projectData.onMouseEnter?.()"
+        (mouseleave)="projectData.onMouseExit?.()"
+      >
         <div class="projects__gallery__item__hover-content">
-          {{ project.labelText }}
+          {{ projectData.labelText }}
         </div>
       </div>
     </a>

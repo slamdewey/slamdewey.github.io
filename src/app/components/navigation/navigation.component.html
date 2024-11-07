@@ -1,0 +1,59 @@
+<div class="navigation">
+  <div title="slamdewey" class="navigation__logo">
+    <svg class="navigation__logo__svg" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+      <g>
+        <circle class="navigation__logo__svg-circle" cx="300" cy="300" r="250" />
+      </g>
+    </svg>
+    <h1 class="navigation__logo__label">SD</h1>
+  </div>
+  <div class="navigation__links">
+    <!-- internal and external links use routerLink XOR href; mixing the conditional property bindings on one anchor causes errors -->
+    @for (internalLink of internalLinks(); track internalLink.key) {
+    <a
+      [class]="getStyles(internalLink)"
+      [attr.id]="internalLink.key"
+      [routerLink]="internalLink.routerLink"
+      [attr.target]="internalLink.target ?? null"
+      [attr.tabindex]="$index === 0 ? '0' : null"
+      [attr.aria-label]="internalLink.ariaLabel ?? internalLink.label"
+    >
+      <svg aria-hidden="true" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+        <title>{{ internalLink.label }}</title>
+        <g>
+          <circle class="navigation__links__item__circle" cx="300" cy="300" r="250" />
+        </g>
+        <g [attr.transform]="internalLink.svgGroupTransform ?? null">
+          <path
+            class="navigation__links__item__icon"
+            [attr.viewBox]="internalLink.svgPathViewBox ?? null"
+            [attr.d]="internalLink.svgPathData"
+          />
+        </g>
+      </svg>
+    </a>
+    } @for (externalLink of externalLinks(); track externalLink.key) {
+    <a
+      [class]="getStyles(externalLink)"
+      [attr.id]="externalLink.key"
+      [attr.href]="externalLink.href"
+      [attr.target]="externalLink.target"
+      [attr.aria-label]="externalLink.ariaLabel ?? externalLink.label"
+    >
+      <svg aria-hidden="true" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+        <title>{{ externalLink.label }}</title>
+        <g>
+          <circle class="navigation__links__item__circle" cx="300" cy="300" r="250" />
+        </g>
+        <g [attr.transform]="externalLink.svgGroupTransform ?? null">
+          <path
+            class="navigation__links__item__icon"
+            [attr.viewBox]="externalLink.svgPathViewBox ?? null"
+            [attr.d]="externalLink.svgPathData"
+          />
+        </g>
+      </svg>
+    </a>
+    }
+  </div>
+</div>

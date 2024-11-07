@@ -1,11 +1,15 @@
-import { Component, ElementRef, Input, ViewChild, ChangeDetectorRef, AfterViewInit } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  AfterViewInit,
+  OnDestroy,
+  viewChild,
+  ChangeDetectionStrategy,
+  input,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
-
-export class DropdownLinkData {
-  public text: string;
-  public url: string;
-  queryParams: { [key: string]: string };
-}
+import { DropdownItemData } from 'src/app/shapes/dropdown';
 
 @Component({
   selector: 'x-dropdown-link-selector',
@@ -13,33 +17,32 @@ export class DropdownLinkData {
   styleUrls: ['./dropdown-link-selector.component.scss'],
   standalone: true,
   imports: [RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DropdownLinkSelectorComponent implements AfterViewInit {
-  @Input('dropdownText') dropdownText: string;
-  @Input('items') items: DropdownLinkData[];
+export class DropdownLinkSelectorComponent implements AfterViewInit, OnDestroy {
+  public placeholderText = input.required<string>();
+  public items = input.required<DropdownItemData[]>();
 
-  @ViewChild('container') container: ElementRef;
-
-  constructor(private ref: ChangeDetectorRef) {}
-
-  public isOverflowing: boolean = false;
+  public container = viewChild.required<ElementRef>('container');
+  private resizeObserver: ResizeObserver;
+  public isOverflowing = signal<boolean>(false);
 
   ngAfterViewInit() {
-    this.checkForOverflow();
+    this.resizeObserver = new ResizeObserver(this.checkForOverflow.bind(this));
+    this.resizeObserver.observe(document.documentElement);
+  }
 
-    const resizeObserver = new ResizeObserver(() => {
-      this.checkForOverflow();
-    });
-    resizeObserver.observe(document.documentElement);
+  ngOnDestroy(): void {
+    this.resizeObserver.disconnect();
   }
 
   checkForOverflow() {
-    if (this.container) {
-      const element = this.container.nativeElement;
-      const box = element.getBoundingClientRect();
-      const contentSpaceReq = 4 * parseFloat(getComputedStyle(document.documentElement).fontSize) * this.items.length;
-      this.isOverflowing = contentSpaceReq + box.bottom > (window.innerHeight || document.documentElement.clientHeight);
-      this.ref.detectChanges();
-    }
+    const nativeElement = this.container().nativeElement;
+    const rect = nativeElement.getBoundingClientRect();
+    const clientHeight = window.innerHeight || document.documentElement.clientHeight;
+    const REM = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    // our items are 4 REM tall
+    const spaceRequired = 4 * REM * this.items().length;
+    return this.isOverflowing.set(spaceRequired + rect.bottom > clientHeight);
   }
 }

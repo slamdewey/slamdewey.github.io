@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 @Component({
   selector: 'x-skeleton-loader',
@@ -6,6 +6,7 @@ import { Component, input } from '@angular/core';
   styleUrl: './skeleton-loader.component.scss',
   standalone: true,
   imports: [],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SkeletonLoaderComponent {
   public loadingMessage = input<string>('');

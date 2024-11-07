@@ -11,13 +11,11 @@ import { BackdropComponent } from 'src/app/components/backdrop/backdrop.componen
 import { ReactiveWebGLBackground } from './ReactiveWebGLBackground';
 import { DEFAULT_SHADER_PROGRAMS, SHADER_HEADER, UNIFORM_DEFS } from './shader-programs';
 import { ActivatedRoute } from '@angular/router';
-import {
-  DropdownLinkData,
-  DropdownLinkSelectorComponent,
-} from 'src/app/components/dropdown-link-selector/dropdown-link-selector.component';
+import { DropdownLinkSelectorComponent } from 'src/app/components/dropdown-link-selector/dropdown-link-selector.component';
 import { MonacoOptions } from 'src/app/shapes/fragment-writer';
 import { EditorComponent, NgxEditorModel } from 'ngx-monaco-editor-v2';
 import { SkeletonLoaderComponent } from 'src/app/components/skeleton-loader/skeleton-loader.component';
+import { DropdownItemData } from 'src/app/shapes/dropdown';
 
 const initialModel: NgxEditorModel = {
   value: SHADER_HEADER + UNIFORM_DEFS + DEFAULT_SHADER_PROGRAMS[0].fragmentShader,
@@ -39,14 +37,18 @@ export const defaultMonacoOptions: MonacoOptions = {
   templateUrl: './fragmentwriter.component.html',
   styleUrls: ['./fragmentwriter.component.scss'],
   standalone: true,
+  imports: [
+    SkeletonLoaderComponent,
+    BackdropComponent,
+    DropdownLinkSelectorComponent,
+    EditorComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SkeletonLoaderComponent, BackdropComponent, DropdownLinkSelectorComponent, EditorComponent],
-  schemas: [NO_ERRORS_SCHEMA],
 })
 export class FragmentwriterComponent implements AfterViewInit, OnDestroy {
   public bgAnimation = new ReactiveWebGLBackground();
   public isWebGlEnabled: boolean = BackdropComponent.isWebGlEnabled;
-  public defaultShaderLinks: DropdownLinkData[] = DEFAULT_SHADER_PROGRAMS.map((p) => {
+  public defaultShaderLinks: DropdownItemData[] = DEFAULT_SHADER_PROGRAMS.map((p) => {
     return {
       text: p.name,
       url: '/projects/fragmentwriter',
@@ -59,7 +61,6 @@ export class FragmentwriterComponent implements AfterViewInit, OnDestroy {
   public options: MonacoOptions = { ...defaultMonacoOptions };
   public model = this.options.model;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private monacoEditorInstance: any;
 
   private readonly activatedRoute = inject(ActivatedRoute);

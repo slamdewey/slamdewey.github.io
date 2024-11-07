@@ -1,0 +1,183 @@
+@import url('../../../styles.scss');
+
+$logo--default-color: var(--highlight-color);
+$logo--default-bg-color: var(--primary-color);
+$logo--hover-color: var(--primary-color);
+$logo--hover-bg-color: var(--highlight-color);
+
+$navigation-icon--default-color: var(--highlight-color);
+$navigation-icon--default-bg-color: transparent;
+$navigation-icon--hover-color: white;
+
+$home-link-color: #fa0000;
+$projects-link-color: #fac000;
+$gallery-link-color: #630091;
+$source-code-link-color: #108d00;
+$github-link-color: black;
+$linked-in-link-color: #2d76b0;
+
+$header-size: 80px;
+
+.navigation {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: $header-size;
+
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+
+  user-select: none;
+  padding-bottom: 10%;
+
+  transition: all 0.2s;
+
+  @media only screen and (max-height: 1000px) {
+    padding-bottom: 0;
+  }
+}
+
+.navigation__logo {
+  width: 100%;
+  flex-grow: 2;
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+
+  &:hover,
+  &:focus {
+    .navigation__logo__svg {
+      transform: scale(2);
+    }
+
+    .navigation__logo__label {
+      color: $logo--hover-color;
+    }
+
+    .navigation__logo__svg-circle {
+      fill: $logo--hover-bg-color;
+    }
+  }
+}
+
+.navigation__logo__svg {
+  transition: all 0.45s;
+  position: absolute;
+  transform: scale(1.5);
+}
+
+.navigation__logo__svg-circle {
+  transition: all 0.45s;
+  fill: $logo--default-bg-color;
+}
+
+.navigation__logo__label {
+  transition: all 0.45s;
+  color: $logo--default-color;
+  z-index: 1;
+  font-weight: 600;
+  font-size: 2rem;
+}
+
+.navigation__links {
+  width: 100%;
+  transition: all ease 0.1s;
+  display: flex;
+  flex-grow: 6;
+
+  align-items: center;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+
+.navigation__links__item--home {
+  color: $home-link-color;
+  &:hover,
+  &:focus,
+  &.active {
+    color: $home-link-color;
+  }
+}
+
+.navigation__links__item--projects {
+  color: $projects-link-color;
+  &:hover,
+  &:focus,
+  &.active {
+    color: $projects-link-color;
+  }
+}
+
+.navigation__links__item--gallery {
+  color: $gallery-link-color;
+  &:hover,
+  &:focus,
+  &.active {
+    color: $gallery-link-color;
+  }
+}
+
+.navigation__links__item--sourcecode {
+  color: $source-code-link-color;
+  &:hover,
+  &:focus,
+  &.active {
+    color: $source-code-link-color;
+  }
+}
+
+.navigation__links__item--github {
+  color: $github-link-color;
+  &:hover,
+  &:focus,
+  &.active {
+    color: $github-link-color;
+  }
+}
+
+.navigation__links__item--linkedin {
+  color: $linked-in-link-color;
+  &:hover,
+  &:focus,
+  &.active {
+    color: $linked-in-link-color;
+  }
+}
+
+.navigation__links__item {
+  width: 100%;
+
+  &:hover,
+  &:focus,
+  &.active {
+    .nav-navigation__links__item__icon {
+      fill: $navigation-icon--hover-color;
+      transition: all 0.2s;
+    }
+
+    .navigation__links__item__circle {
+      fill: currentcolor;
+      transform: scale(1.1);
+      transition: all 0.2s;
+    }
+  }
+}
+
+.navigation__links__item__icon {
+  fill: $navigation-icon--default-color;
+  transition: all 0.45s;
+}
+
+.navigation__links__item__circle {
+  color: inherit;
+  fill: $navigation-icon--default-bg-color;
+  transform-origin: 50% 50%;
+  transform: scale(0.8);
+  transition: all 0.45s;
+}
