@@ -1,22 +1,25 @@
 <div class="navigation">
-  <div title="slamdewey" class="navigation__logo">
+  <div title="Jared.Systems" class="navigation__logo">
     <svg class="navigation__logo__svg" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
       <g>
         <circle class="navigation__logo__svg-circle" cx="300" cy="300" r="250" />
       </g>
     </svg>
-    <h1 class="navigation__logo__label">SD</h1>
+    <h1 class="navigation__logo__label">JS</h1>
   </div>
   <div class="navigation__links">
-    <!-- internal and external links use routerLink XOR href; mixing the conditional property bindings on one anchor causes errors -->
+    <!-- 
+    internal and external links use routerLink XOR href.
+    mixing the conditional property bindings on one anchor causes errors..
+    So, keep these for loops seperate
+    -->
     @for (internalLink of internalLinks(); track internalLink.key) {
     <a
       [class]="getStyles(internalLink)"
       [attr.id]="internalLink.key"
       [routerLink]="internalLink.routerLink"
-      [attr.target]="internalLink.target ?? null"
-      [attr.tabindex]="$index === 0 ? '0' : null"
       [attr.aria-label]="internalLink.ariaLabel ?? internalLink.label"
+      [attr.tabindex]="$index === 0 ? '0' : null"
     >
       <svg aria-hidden="true" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
         <title>{{ internalLink.label }}</title>
