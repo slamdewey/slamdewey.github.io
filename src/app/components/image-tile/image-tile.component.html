@@ -1,10 +1,13 @@
-<div class="tile" (click)="imageTileData().onClick($event)">
+<button
+  class="tile"
+  (click)="imageTileData().onClick($event)"
+  [attr.title]="imageTileData().title ?? null"
+>
   <img
     class="tile__image"
     [class]="isLoaded() ? 'tile-visible' : 'tile-hidden'"
     (load)="onImageLoad()"
     loading="eager"
-    alt="{{ imageTileData().title }}"
     [attr.src]="imageTileData().placeholder_src"
   />
   @if (shouldDisplaySkeletonLoader()) {
@@ -12,4 +15,4 @@
     <x-skeleton-loader></x-skeleton-loader>
   </div>
   }
-</div>
+</button>

@@ -5,22 +5,20 @@ $animation-duration: 0.5s;
 $box-shadow-color: var(--highlight-color);
 
 .tile {
-  border-radius: 5px;
+  border: none;
+  border-radius: 6px;
   margin: 0.5rem;
   cursor: pointer;
 
   display: flex;
-  flex-direction: row;
   justify-content: center;
-
-  max-width: $max-any-dimension;
+  padding: 0;
 
   transition: width $animation-duration, height $animation-duration ease-in-out;
 }
 
 .tile__image {
   border-radius: 5px;
-  margin: auto;
 
   max-width: $max-any-dimension;
   max-height: $max-any-dimension;

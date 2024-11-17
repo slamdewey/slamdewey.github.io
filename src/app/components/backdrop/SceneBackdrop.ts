@@ -15,7 +15,7 @@ class Canvas2DEcsScene extends EcsScene<CanvasRenderingContext2D> {
   }
 }
 class ControllableCamera extends EcsCamera {
-  private readonly cameraMoveSpeed = 10;
+  private readonly panSpeed = 500;
   private downUpInput: VirtualAxis;
   private leftRightInput: VirtualAxis;
 
@@ -29,7 +29,7 @@ class ControllableCamera extends EcsCamera {
   public override update(deltaTime: number): void {
     const transform = this.transform!;
     const rawInput = new Vector2(this.leftRightInput.rawValue, this.downUpInput.rawValue);
-    const moveDelta = Vector2.scale(rawInput, this.cameraMoveSpeed);
+    const moveDelta = Vector2.scale(rawInput, (this.panSpeed / this.getZoom()) * deltaTime);
     transform.position = Vector2.plus(transform.position, moveDelta);
   }
 }
@@ -78,7 +78,7 @@ export class EcsSceneBackdrop extends Backdrop {
     );
     uvGradient.addColorStop(0, 'green');
     uvGradient.addColorStop(1, 'red');
-    for (let x = -dimension; x < dimension; x++) {
+    for (let x = -dimension; x < dimension + 1; x++) {
       this.ctx.beginPath();
       this.ctx.strokeStyle = x == 0 ? 'white' : uvGradient;
       this.ctx.lineWidth = 1;
@@ -87,7 +87,7 @@ export class EcsSceneBackdrop extends Backdrop {
       this.ctx.stroke();
     }
 
-    for (let y = -dimension; y < dimension; y++) {
+    for (let y = -dimension; y < dimension + 1; y++) {
       this.ctx.beginPath();
       this.ctx.strokeStyle = y == 0 ? 'white' : uvGradient;
       this.ctx.lineWidth = 1;

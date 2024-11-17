@@ -77,6 +77,9 @@ export class BackdropComponent implements OnDestroy {
 
   @HostListener('document:mousemove', ['$event'])
   onMouseMove(e: MouseEvent) {
+    if (!this.isInitialized) {
+      return;
+    }
     const backdrop = this.backdrop();
     const rect = this.bgCanvas().nativeElement.getBoundingClientRect();
     backdrop.mousePosition.set([e.clientX - rect.left, rect.height - (e.clientY - rect.top)]);
@@ -84,6 +87,9 @@ export class BackdropComponent implements OnDestroy {
 
   @HostListener('window:scroll', ['$event'])
   onScroll() {
+    if (!this.isInitialized) {
+      return;
+    }
     const backdrop = this.backdrop();
     const deltaOffset = new Vector2(
       window.scrollX - backdrop.scrollOffset.x,
@@ -95,7 +101,7 @@ export class BackdropComponent implements OnDestroy {
 
   public renderLoop(): void {
     this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
-    if (this.shouldPauseAnimation() || this.isResizing()) {
+    if (!this.isInitialized || this.shouldPauseAnimation() || this.isResizing()) {
       return;
     }
     this.backdrop().clear();
