@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  HostListener,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { SpinnerComponent } from '../spinner/spinner.component';
 
 export interface ZoomOptions {
@@ -53,6 +61,13 @@ export class ImageViewerModalComponent {
     const imgElement: HTMLImageElement = element;
     if (imgElement.complete && imgElement.naturalWidth !== 0) {
       this.onImageLoad();
+    }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKeydownHandler(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      this.closeModal();
     }
   }
 

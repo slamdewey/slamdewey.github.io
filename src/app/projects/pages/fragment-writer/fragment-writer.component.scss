@@ -3,7 +3,7 @@
 $color-white: white;
 $color-black: black;
 
-.fragmentwriter {
+.fragment-writer {
   color: $color-white;
   margin-left: auto;
   margin-right: auto;
@@ -21,7 +21,7 @@ $color-black: black;
   }
 }
 
-.fragmentwriter__editor {
+.fragment-writer__editor {
   width: 50%;
   height: 100%;
   justify-content: space-evenly;
@@ -35,13 +35,13 @@ $color-black: black;
   }
 }
 
-.fragmentwriter__editor__monaco {
+.fragment-writer__editor__monaco {
   width: 100%;
   height: 82.5%;
   padding: none;
 }
 
-.fragmentwriter__editor__controls {
+.fragment-writer__editor__controls {
   display: flex;
   flex-direction: row;
   justify-content: space-evenly;
@@ -80,7 +80,7 @@ $color-black: black;
   }
 }
 
-.fragmentwriter__canvas {
+.fragment-writer__canvas {
   width: 50%;
   height: 100%;
   position: relative;
@@ -93,7 +93,7 @@ $color-black: black;
   }
 }
 
-.fragmentwriter__canvas__overlay {
+.fragment-writer__canvas__overlay {
   position: absolute;
   width: 100%;
   height: 100%;

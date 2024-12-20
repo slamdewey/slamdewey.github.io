@@ -28,8 +28,6 @@ export class ImageTileComponent {
 
   public onImageLoad() {
     this.isLoaded.set(true);
-    setInterval(() => {
-      this.shouldDisplaySkeletonLoader.set(false);
-    }, animationDuration);
+    this.shouldDisplaySkeletonLoader.set(false);
   }
 }

@@ -4,16 +4,13 @@
   [fullscreen]="true"
 ></x-backdrop>
 <div class="gallery">
-  <x-banner [variant]="'basic'">
-    <p style="font-size: 1rem; margin: 1rem">
-      Some images are very large. Even if the image displays, the zoom tools may be jumpy while
-      everything finishes loading
-    </p>
+  <x-banner>
+    <ng-container ngProjectAs="title">Gallery</ng-container>
   </x-banner>
 
   <div class="gallery__dropdown">
     <x-dropdown-link-selector
-      [placeholderText]="'Select Folder'"
+      [placeholderText]="'Select Image Folder'"
       [items]="imageFolderLinks()"
     ></x-dropdown-link-selector>
   </div>

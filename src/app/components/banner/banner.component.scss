@@ -1,69 +1,8 @@
-@import url("../../../styles.scss");
+@use '../../../styles.scss';
 
-.banner-container {
-  font-size: 1.5rem;
-  margin-bottom: 3rem;
-  display: flex;
-  justify-content: center;
-
-  & .banner-constrainer {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-evenly;
-
-    background-color: var(--highlight-color);
-    color: black;
-
-    border-left: solid 10px;
-
-    &--basic {
-      border-color: var(--tertiary-color);
-      & .icon svg {
-        color: var(--tertiary-color);
-        fill: currentColor;
-      }
-    }
-
-    &--success {
-      border-color: var(--success-color);
-      & .icon svg {
-        color: var(--success-color);
-        fill: currentColor;
-      }
-    }
-
-    &--warning {
-      border-color: var(--warning-color);
-      & .icon svg {
-        color: var(--warning-color);
-        fill: currentColor;
-      }
-    }
-
-    &--error {
-      border-color: var(--error-color);
-      & .icon svg {
-        color: var(--error-color);
-        fill: currentColor;
-      }
-    }
-
-    & .icon {
-      display: flex;
-      float: left;
-      width: 100px;
-      margin: auto;
-      justify-content: center;
-
-      & svg {
-        max-width: 40px;
-      }
-    }
-
-    & .banner-content {
-      float: right;
-      max-width: 700px;
-      font-size: 1rem;
-    }
-  }
+.banner__title {
+  justify-self: center;
+  font-weight: 600;
+  font-size: 4rem;
+  text-align: center;
 }

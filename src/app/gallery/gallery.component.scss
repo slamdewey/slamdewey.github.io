@@ -3,12 +3,13 @@
 .gallery {
   position: relative;
   color: var(--highlight-color);
-  width: 80%;
-  padding-top: 10vh;
-  margin: auto;
+
+  padding-top: 3vh;
+  margin: 0 auto;
   display: flex;
   justify-content: flex-start;
   flex-direction: column;
+  width: 75%;
   margin-bottom: 10rem;
 }
 
@@ -20,7 +21,6 @@
 }
 
 .gallery__images {
-  z-index: 1;
   margin: auto;
   margin-top: 5rem;
 
