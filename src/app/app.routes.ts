@@ -3,7 +3,7 @@ import { GalleryComponent } from './gallery/gallery.component';
 import { HomeComponent } from './home/home.component';
 import { ProjectsComponent } from './projects/projects.component';
 import { FragmentWriterComponent } from './projects/pages/fragment-writer/fragment-writer.component';
-import { UnitTaskingComponent } from './projects/pages/unittasking/unittasking.component';
+import { UnitTaskingComponent } from './projects/pages/unit-tasking/unit-tasking.component';
 
 export type FaviconStorage = {
   faviconPath: string;

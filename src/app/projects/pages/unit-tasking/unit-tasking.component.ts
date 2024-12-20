@@ -25,9 +25,9 @@ import { SpecularHexMapGenerator } from 'src/app/util/map-generation';
 export const ZoomScalar = 100;
 
 @Component({
-  selector: 'x-unittasking',
-  templateUrl: './unittasking.component.html',
-  styleUrls: ['./unittasking.component.scss'],
+  selector: 'x-unit-tasking',
+  templateUrl: './unit-tasking.component.html',
+  styleUrls: ['./unit-tasking.component.scss'],
   standalone: true,
   imports: [BackdropComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
