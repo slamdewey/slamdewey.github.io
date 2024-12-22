@@ -82,12 +82,11 @@ const EXTERNAL_LINKS: ExternalLink[] = [
 ];
 
 @Component({
-  selector: 'x-navigation',
-  templateUrl: './navigation.component.html',
-  styleUrls: ['./navigation.component.scss'],
-  imports: [RouterLink],
-  standalone: true,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-navigation',
+    templateUrl: './navigation.component.html',
+    styleUrls: ['./navigation.component.scss'],
+    imports: [RouterLink],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NavigationComponent implements OnInit {
   public internalLinks = signal(INTERNAL_LINKS.slice());

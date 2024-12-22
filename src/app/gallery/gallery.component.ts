@@ -24,18 +24,17 @@ import { DropdownItemData } from '../shapes/dropdown';
 const IMAGES_JSON = (imagesJsonModule as any).default as ImagesJson;
 
 @Component({
-  selector: 'x-gallery',
-  templateUrl: './gallery.component.html',
-  styleUrls: ['./gallery.component.scss'],
-  standalone: true,
-  imports: [
-    BackdropComponent,
-    BannerComponent,
-    DropdownLinkSelectorComponent,
-    ImageTileComponent,
-    ImageViewerModalComponent,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-gallery',
+    templateUrl: './gallery.component.html',
+    styleUrls: ['./gallery.component.scss'],
+    imports: [
+        BackdropComponent,
+        BannerComponent,
+        DropdownLinkSelectorComponent,
+        ImageTileComponent,
+        ImageViewerModalComponent,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GalleryComponent implements OnInit {
   @ViewChild('imageViewerModal') imageViewerModal: ImageViewerModalComponent;

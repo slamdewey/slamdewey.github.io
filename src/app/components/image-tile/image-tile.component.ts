@@ -13,12 +13,11 @@ export class ImageTileData {
 }
 
 @Component({
-  selector: 'x-image-tile',
-  templateUrl: './image-tile.component.html',
-  styleUrls: ['./image-tile.component.scss'],
-  standalone: true,
-  imports: [SkeletonLoaderComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-image-tile',
+    templateUrl: './image-tile.component.html',
+    styleUrls: ['./image-tile.component.scss'],
+    imports: [SkeletonLoaderComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageTileComponent {
   public imageTileData = input.required<ImageTileData>();

@@ -14,12 +14,11 @@ import { BannerComponent } from '../components/banner/banner.component';
 import { Backdrop } from '../components/backdrop';
 
 @Component({
-  selector: 'x-projects',
-  templateUrl: './projects.component.html',
-  styleUrls: ['./projects.component.scss'],
-  standalone: true,
-  imports: [BackdropComponent, RouterLink, BannerComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-projects',
+    templateUrl: './projects.component.html',
+    styleUrls: ['./projects.component.scss'],
+    imports: [BackdropComponent, RouterLink, BannerComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProjectsComponent implements OnInit {
   private readonly titleService = inject(Title);

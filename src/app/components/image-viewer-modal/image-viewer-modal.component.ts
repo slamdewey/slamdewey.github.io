@@ -28,12 +28,11 @@ const DEFAULT_ZOOM: ZoomOptions = {
 const ZoomScalar = 1.2;
 
 @Component({
-  selector: 'x-image-viewer-modal',
-  templateUrl: './image-viewer-modal.component.html',
-  styleUrls: ['./image-viewer-modal.component.scss'],
-  standalone: true,
-  imports: [SpinnerComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-image-viewer-modal',
+    templateUrl: './image-viewer-modal.component.html',
+    styleUrls: ['./image-viewer-modal.component.scss'],
+    imports: [SpinnerComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageViewerModalComponent {
   public imageSource = input<string>();

@@ -33,17 +33,16 @@ export const defaultMonacoOptions: MonacoOptions = {
 };
 
 @Component({
-  selector: 'x-fragment-writer',
-  templateUrl: './fragment-writer.component.html',
-  styleUrls: ['./fragment-writer.component.scss'],
-  standalone: true,
-  imports: [
-    SkeletonLoaderComponent,
-    BackdropComponent,
-    DropdownLinkSelectorComponent,
-    EditorComponent,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-fragment-writer',
+    templateUrl: './fragment-writer.component.html',
+    styleUrls: ['./fragment-writer.component.scss'],
+    imports: [
+        SkeletonLoaderComponent,
+        BackdropComponent,
+        DropdownLinkSelectorComponent,
+        EditorComponent,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FragmentWriterComponent implements AfterViewInit, OnDestroy {
   public bgAnimation = new ReactiveWebGLBackground();

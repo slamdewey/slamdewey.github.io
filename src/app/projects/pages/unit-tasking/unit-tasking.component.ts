@@ -25,12 +25,11 @@ import { SpecularHexMapGenerator } from 'src/app/util/map-generation';
 export const ZoomScalar = 100;
 
 @Component({
-  selector: 'x-unit-tasking',
-  templateUrl: './unit-tasking.component.html',
-  styleUrls: ['./unit-tasking.component.scss'],
-  standalone: true,
-  imports: [BackdropComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-unit-tasking',
+    templateUrl: './unit-tasking.component.html',
+    styleUrls: ['./unit-tasking.component.scss'],
+    imports: [BackdropComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UnitTaskingComponent implements AfterViewInit, OnDestroy {
   private readonly mapService = inject(MapGeneratorService);

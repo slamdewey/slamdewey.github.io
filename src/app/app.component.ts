@@ -4,12 +4,11 @@ import { NavigationComponent } from './components/navigation/navigation.componen
 import { RouterOutlet } from '@angular/router';
 
 @Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.scss'],
-  standalone: true,
-  imports: [NavigationComponent, RouterOutlet],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-root',
+    templateUrl: './app.component.html',
+    styleUrls: ['./app.component.scss'],
+    imports: [NavigationComponent, RouterOutlet],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppComponent {
   constructor(readonly faviconService: FaviconService) {}
