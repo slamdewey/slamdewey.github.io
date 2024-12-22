@@ -1,5 +1,9 @@
-<x-backdrop [backdrop]="bgAnimation" [fullscreen]="true"></x-backdrop>
+<x-backdrop [backdrop]="bgAnimation()" [fullscreen]="true"></x-backdrop>
 <div class="projects">
+  <x-banner>
+    <ng-container ngProjectAs="title">Projects</ng-container>
+  </x-banner>
+
   <div class="projects__gallery">
     @for(projectData of projects; track projectData.routerLink) {
     <a
@@ -21,4 +25,3 @@
     }
   </div>
 </div>
-<router-outlet></router-outlet>

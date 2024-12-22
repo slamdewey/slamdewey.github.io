@@ -12,12 +12,11 @@ import { RouterLink } from '@angular/router';
 import { DropdownItemData } from 'src/app/shapes/dropdown';
 
 @Component({
-  selector: 'x-dropdown-link-selector',
-  templateUrl: './dropdown-link-selector.component.html',
-  styleUrls: ['./dropdown-link-selector.component.scss'],
-  standalone: true,
-  imports: [RouterLink],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-dropdown-link-selector',
+    templateUrl: './dropdown-link-selector.component.html',
+    styleUrls: ['./dropdown-link-selector.component.scss'],
+    imports: [RouterLink],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DropdownLinkSelectorComponent implements AfterViewInit, OnDestroy {
   public placeholderText = input.required<string>();

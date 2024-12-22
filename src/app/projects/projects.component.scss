@@ -1,26 +1,27 @@
 @import url('../../styles.scss');
 
 .projects {
+  position: relative;
   color: var(--highlight-color);
-  display: flex;
-  flex-direction: column;
+
+  padding-top: 3vh;
   margin: 0 auto;
-  padding-top: 10vh;
+  display: flex;
   justify-content: center;
-  width: 60%;
+  flex-direction: column;
+  width: 75%;
+  margin-bottom: 10rem;
 }
 
 .projects__gallery {
-  z-index: 1;
-  margin-top: 5rem;
+  margin: auto;
 
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-
-  @media only screen and (max-width: 1200px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+  max-width: 1200px;
 }
 
 .projects__gallery__item {
@@ -31,8 +32,8 @@
   height: 250px;
 
   display: flex;
-  justify-self: center;
-  align-self: center;
+  justify-content: center;
+  margin: auto;
 
   &:hover {
     box-shadow: 0 4px 8px 0 black, 0 6px 20px 0 black;

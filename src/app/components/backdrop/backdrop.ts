@@ -21,20 +21,25 @@ export abstract class Backdrop {
     this.clear();
   }
 
-  public initializeContext(ctx: RenderingContext) {
+  /**
+   * T
+   * @param ctx
+   */
+  public setContext(ctx: RenderingContext) {
     this.ctx = ctx as CanvasRenderingContext2D;
   }
-  public reInitialize(): void {
-    this.initializeContext(this.ctx);
-  }
+
   public initialize(): void {
-    this.init();
+    this.start();
     this.clear();
   }
   /**
    * Final Init Step
+   *
+   * This function is also called as part of the re-initialization process after
+   * the user updates the viewport.
    */
-  protected init(): void {}
+  protected start(): void {}
 
   public clear(): void {
     (this.ctx as CanvasRenderingContext2D).clearRect(0, 0, this.width, this.height);
@@ -147,12 +152,11 @@ void main() {
     });
   }
 
-  public override initializeContext(ctx: RenderingContext): void {
-    this.gl = ctx as WebGLRenderingContext;
-    this.initWebGL(this.gl);
+  public override setContext(ctx: WebGLRenderingContext): void {
+    this.gl = ctx;
   }
 
-  public override reInitialize(): void {
+  public override initialize(): void {
     this.initWebGL(this.gl);
     this.clear();
   }

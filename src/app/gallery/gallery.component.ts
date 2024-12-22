@@ -3,7 +3,6 @@ import {
   Component,
   computed,
   inject,
-  NO_ERRORS_SCHEMA,
   OnInit,
   signal,
   ViewChild,
@@ -20,27 +19,22 @@ import { env } from '../../environments/environment';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
 import { BannerComponent } from '../components/banner/banner.component';
 import * as imagesJsonModule from '../../../images.json';
-import { SkeletonLoaderComponent } from '../components/skeleton-loader/skeleton-loader.component';
 import { DropdownItemData } from '../shapes/dropdown';
-import { SpinnerComponent } from '../components/spinner/spinner.component';
 
 const IMAGES_JSON = (imagesJsonModule as any).default as ImagesJson;
 
 @Component({
-  selector: 'x-gallery',
-  templateUrl: './gallery.component.html',
-  styleUrls: ['./gallery.component.scss'],
-  standalone: true,
-  imports: [
-    BackdropComponent,
-    BannerComponent,
-    DropdownLinkSelectorComponent,
-    ImageTileComponent,
-    ImageViewerModalComponent,
-    SkeletonLoaderComponent,
-    SpinnerComponent,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-gallery',
+    templateUrl: './gallery.component.html',
+    styleUrls: ['./gallery.component.scss'],
+    imports: [
+        BackdropComponent,
+        BannerComponent,
+        DropdownLinkSelectorComponent,
+        ImageTileComponent,
+        ImageViewerModalComponent,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GalleryComponent implements OnInit {
   @ViewChild('imageViewerModal') imageViewerModal: ImageViewerModalComponent;
@@ -96,7 +90,7 @@ export class GalleryComponent implements OnInit {
         this.currentImageFolder = folder;
         this.titleService.setTitle(this.formatFolderName(folder) + ' | Gallery');
       } else {
-        this.currentImageFolder = '';
+        this.currentImageFolder = undefined;
         this.titleService.setTitle('Gallery');
       }
     });

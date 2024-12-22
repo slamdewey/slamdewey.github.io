@@ -1,7 +1,7 @@
 import { WebGLBackdrop } from './backdrop';
 
 export class ShaderTestAnimatedBackground extends WebGLBackdrop {
-  protected override init(): void {}
+  protected override start(): void {}
 
   readonly FragmentShader: string = `
   precision mediump float;

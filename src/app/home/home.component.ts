@@ -32,13 +32,12 @@ function getRandomIndex(arr: string[]) {
 }
 
 @Component({
-  selector: 'x-home',
-  templateUrl: './home.component.html',
-  styleUrls: ['./home.component.scss'],
-  encapsulation: ViewEncapsulation.None,
-  standalone: true,
-  imports: [BackdropComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-home',
+    templateUrl: './home.component.html',
+    styleUrls: ['./home.component.scss'],
+    encapsulation: ViewEncapsulation.None,
+    imports: [BackdropComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HomeComponent implements OnInit {
   public bgAnimation: Backdrop = new UVColorCycleBackground();

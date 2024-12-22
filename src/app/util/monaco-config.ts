@@ -1,5 +1,5 @@
 import { NgxMonacoEditorConfig } from 'ngx-monaco-editor-v2';
-import { UNIFORM_NAMES } from '../projects/pages/fragmentwriter/shader-programs';
+import { UNIFORM_NAMES } from '../projects/pages/fragment-writer/shader-programs';
 import parsedOpenGlDocs from './parsedOpenGlDocs';
 
 export const monacoConfig: NgxMonacoEditorConfig = {
@@ -240,7 +240,11 @@ export function configureMonaco() {
         [/[/*]/, 'comment'],
       ],
 
-      lineComment: [[/^/, '@rematch', '@pop'], { include: '@commentDecorators' }, [/.*/, 'comment']],
+      lineComment: [
+        [/^/, '@rematch', '@pop'],
+        { include: '@commentDecorators' },
+        [/.*/, 'comment'],
+      ],
 
       whitespace: [
         [/\s+/, 'white'],

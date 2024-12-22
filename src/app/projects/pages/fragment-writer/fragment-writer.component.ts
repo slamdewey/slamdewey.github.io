@@ -33,25 +33,24 @@ export const defaultMonacoOptions: MonacoOptions = {
 };
 
 @Component({
-  selector: 'x-fragmentwriter',
-  templateUrl: './fragmentwriter.component.html',
-  styleUrls: ['./fragmentwriter.component.scss'],
-  standalone: true,
-  imports: [
-    SkeletonLoaderComponent,
-    BackdropComponent,
-    DropdownLinkSelectorComponent,
-    EditorComponent,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-fragment-writer',
+    templateUrl: './fragment-writer.component.html',
+    styleUrls: ['./fragment-writer.component.scss'],
+    imports: [
+        SkeletonLoaderComponent,
+        BackdropComponent,
+        DropdownLinkSelectorComponent,
+        EditorComponent,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class FragmentwriterComponent implements AfterViewInit, OnDestroy {
+export class FragmentWriterComponent implements AfterViewInit, OnDestroy {
   public bgAnimation = new ReactiveWebGLBackground();
   public isWebGlEnabled: boolean = BackdropComponent.isWebGlEnabled;
   public defaultShaderLinks: DropdownItemData[] = DEFAULT_SHADER_PROGRAMS.map((p) => {
     return {
       text: p.name,
-      url: '/projects/fragmentwriter',
+      url: '/projects/fragment-writer',
       queryParams: {
         shader: p.url,
       },

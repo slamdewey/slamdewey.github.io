@@ -2,8 +2,8 @@ import { Route } from '@angular/router';
 import { GalleryComponent } from './gallery/gallery.component';
 import { HomeComponent } from './home/home.component';
 import { ProjectsComponent } from './projects/projects.component';
-import { FragmentwriterComponent } from './projects/pages/fragmentwriter/fragmentwriter.component';
-import { UnitTaskingComponent } from './projects/pages/unittasking/unittasking.component';
+import { FragmentWriterComponent } from './projects/pages/fragment-writer/fragment-writer.component';
+import { UnitTaskingComponent } from './projects/pages/unit-tasking/unit-tasking.component';
 
 export type FaviconStorage = {
   faviconPath: string;
@@ -29,13 +29,13 @@ export const routes: (Route & FaviconStorage)[] = [
     path: 'projects',
     children: [
       {
-        path: 'fragmentwriter',
+        path: 'fragment-writer',
         title: 'Web based GLSL Fragment Shader Editor',
-        component: FragmentwriterComponent,
+        component: FragmentWriterComponent,
       },
       {
-        path: 'unittasking',
-        title: 'Web based GLSL Fragment Shader Editor',
+        path: 'unit-tasking',
+        title: 'An experimental page',
         component: UnitTaskingComponent,
       },
     ],

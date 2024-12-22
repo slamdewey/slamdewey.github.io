@@ -13,12 +13,11 @@ export class ImageTileData {
 }
 
 @Component({
-  selector: 'x-image-tile',
-  templateUrl: './image-tile.component.html',
-  styleUrls: ['./image-tile.component.scss'],
-  standalone: true,
-  imports: [SkeletonLoaderComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-image-tile',
+    templateUrl: './image-tile.component.html',
+    styleUrls: ['./image-tile.component.scss'],
+    imports: [SkeletonLoaderComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageTileComponent {
   public imageTileData = input.required<ImageTileData>();
@@ -28,8 +27,6 @@ export class ImageTileComponent {
 
   public onImageLoad() {
     this.isLoaded.set(true);
-    setInterval(() => {
-      this.shouldDisplaySkeletonLoader.set(false);
-    }, animationDuration);
+    this.shouldDisplaySkeletonLoader.set(false);
   }
 }

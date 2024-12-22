@@ -1,19 +1,19 @@
-<div class="fragmentwriter">
-  <div class="fragmentwriter__editor">
+<div class="fragment-writer">
+  <div class="fragment-writer__editor">
     @defer {
     <ngx-monaco-editor
-      class="fragmentwriter__editor__monaco"
+      class="fragment-writer__editor__monaco"
       [insideNg]="true"
       [options]="options"
       [model]="options.model!"
       (onInit)="onMonacoInit($event)"
     ></ngx-monaco-editor>
     } @placeholder {
-    <div class="fragmentwriter__editor__monaco">
+    <div class="fragment-writer__editor__monaco">
       <x-skeleton-loader [loadingMessage]="'Loading Monaco Editor...'"></x-skeleton-loader>
     </div>
     }
-    <div class="fragmentwriter__editor__controls">
+    <div class="fragment-writer__editor__controls">
       <div class="control button" (click)="tryShaderUpdate()">
         <h1>Run</h1>
         <i>Ctrl + S</i>
@@ -26,10 +26,10 @@
       </div>
     </div>
   </div>
-  <div class="fragmentwriter__canvas">
+  <div class="fragment-writer__canvas">
     <x-backdrop [backdrop]="bgAnimation"></x-backdrop>
     @if(compilationErrors) {
-    <div class="fragmentwriter__canvas__overlay">
+    <div class="fragment-writer__canvas__overlay">
       <h3>A compilation error has occurred!</h3>
       <br />
       <h3>{{ compilationErrors }}</h3>

@@ -5,28 +5,26 @@ $animation-duration: 0.5s;
 $box-shadow-color: var(--highlight-color);
 
 .tile {
-  border-radius: 5px;
+  border: none;
+  border-radius: 6px;
   margin: 0.5rem;
   cursor: pointer;
 
   display: flex;
-  flex-direction: row;
   justify-content: center;
+  padding: 0;
 
-  max-width: $max-any-dimension;
-
-  transition: width $animation-duration, height $animation-duration ease-in-out;
+  background-color: transparent;
 }
 
 .tile__image {
   border-radius: 5px;
-  margin: auto;
 
   max-width: $max-any-dimension;
   max-height: $max-any-dimension;
 
   opacity: 0;
-  transition: visibility 0s, opacity $animation-duration ease-in;
+  transition: visibility $animation-duration, opacity $animation-duration linear;
 
   &:hover {
     -webkit-box-shadow: 0 0 10px $box-shadow-color;
@@ -35,23 +33,17 @@ $box-shadow-color: var(--highlight-color);
 }
 
 .tile-hidden {
-  opacity: 0;
   visibility: hidden;
+  opacity: 0;
 }
 
 .tile-visible {
-  opacity: 1;
   visibility: visible;
+  opacity: 1;
 }
 
 .tile__loader {
-  display: block;
   width: $max-any-dimension;
   height: $max-any-dimension;
-  transition: visibility 0s, opacity $animation-duration ease-in;
-
-  &.tile-hidden {
-    width: 0;
-    height: 0;
-  }
+  transition: visibility $animation-duration, opacity $animation-duration linear;
 }

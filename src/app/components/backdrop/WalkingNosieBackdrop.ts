@@ -1,7 +1,7 @@
 import { WebGLBackdrop } from './backdrop';
 
 export class WalkingNoiseBackdrop extends WebGLBackdrop {
-  protected override init(): void {}
+  protected override start(): void {}
 
   readonly FragmentShader = `\
 #version 300 es

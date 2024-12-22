@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  HostListener,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { SpinnerComponent } from '../spinner/spinner.component';
 
 export interface ZoomOptions {
@@ -20,12 +28,11 @@ const DEFAULT_ZOOM: ZoomOptions = {
 const ZoomScalar = 1.2;
 
 @Component({
-  selector: 'x-image-viewer-modal',
-  templateUrl: './image-viewer-modal.component.html',
-  styleUrls: ['./image-viewer-modal.component.scss'],
-  standalone: true,
-  imports: [SpinnerComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-image-viewer-modal',
+    templateUrl: './image-viewer-modal.component.html',
+    styleUrls: ['./image-viewer-modal.component.scss'],
+    imports: [SpinnerComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageViewerModalComponent {
   public imageSource = input<string>();
@@ -53,6 +60,13 @@ export class ImageViewerModalComponent {
     const imgElement: HTMLImageElement = element;
     if (imgElement.complete && imgElement.naturalWidth !== 0) {
       this.onImageLoad();
+    }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKeydownHandler(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      this.closeModal();
     }
   }
 

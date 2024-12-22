@@ -1,35 +1,34 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
-import { ReactiveWebGLBackground } from './pages/fragmentwriter/ReactiveWebGLBackground';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import { ReactiveWebGLBackground } from './pages/fragment-writer/ReactiveWebGLBackground';
 import {
   MOUSE_POSITION_EXAMPLE,
-  MOUSE_POSITION_NEWTONS_FRACTAL_SHADER,
   SHADER_TOY_UV,
   ShaderProgramData,
-} from './pages/fragmentwriter/shader-programs';
+} from './pages/fragment-writer/shader-programs';
 import { PerlinNoiseBackdrop } from '../components/backdrop/PerlinNoiseBackdrop';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { ProjectTileData } from '../shapes/projects';
+import { BannerComponent } from '../components/banner/banner.component';
+import { Backdrop } from '../components/backdrop';
 
 @Component({
-  selector: 'x-projects',
-  templateUrl: './projects.component.html',
-  styleUrls: ['./projects.component.scss'],
-  standalone: true,
-  imports: [BackdropComponent, RouterOutlet, RouterLink],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'x-projects',
+    templateUrl: './projects.component.html',
+    styleUrls: ['./projects.component.scss'],
+    imports: [BackdropComponent, RouterLink, BannerComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProjectsComponent implements OnInit {
   private readonly titleService = inject(Title);
 
-  public bgAnimation = new PerlinNoiseBackdrop();
+  public bgAnimation = signal<Backdrop>(new PerlinNoiseBackdrop());
   public fragmentWriterTileBackdrop: ReactiveWebGLBackground;
   public projects: ProjectTileData[];
 
   private updateShaderCode(backdrop: ReactiveWebGLBackground, shaderProgram: ShaderProgramData) {
     backdrop.shaderProgramData = shaderProgram;
-    backdrop.reInitialize();
   }
 
   constructor() {
@@ -38,7 +37,7 @@ export class ProjectsComponent implements OnInit {
 
     this.projects = [
       {
-        routerLink: 'fragmentwriter',
+        routerLink: 'fragment-writer',
         labelText: 'GLSL Editor',
         backdrop: this.fragmentWriterTileBackdrop,
         onMouseEnter: () => {

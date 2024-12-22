@@ -1,6 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, OnInit } from '@angular/core';
-
-export type BannerVariant = 'basic' | 'error' | 'warning' | 'success';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 @Component({
   selector: 'x-banner',
@@ -9,10 +7,4 @@ export type BannerVariant = 'basic' | 'error' | 'warning' | 'success';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class BannerComponent implements OnInit {
-  public variant = input.required<BannerVariant>();
-
-  constructor() {}
-
-  ngOnInit(): void {}
-}
+export class BannerComponent {}
