@@ -30,7 +30,6 @@ export class ProjectsComponent implements OnInit {
 
   private updateShaderCode(backdrop: ReactiveWebGLBackground, shaderProgram: ShaderProgramData) {
     backdrop.shaderProgramData = shaderProgram;
-    backdrop.reInitialize();
   }
 
   constructor() {

@@ -57,14 +57,14 @@ export class BackdropComponent implements OnDestroy {
     if (!context) {
       throw new Error(`Failed to create context: ${contextId}`);
     }
-    this.ctx = context;
-
-    backdrop.initializeContext(this.ctx);
-
     this.resizeObserver = new ResizeObserver(this.onResize.bind(this));
     this.resizeObserver.observe(
       this.fullscreen() ? this.canvasElement : this.canvasElement.parentElement!
     );
+
+    this.ctx = context;
+    backdrop.setContext(this.ctx);
+    backdrop.initialize();
 
     this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
   }

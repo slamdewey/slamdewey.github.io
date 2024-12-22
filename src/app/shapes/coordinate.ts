@@ -62,6 +62,14 @@ export class Vector2 extends Coordinate {
     return Math.sqrt(this.x ** 2 + this.y ** 2);
   }
 
+  public normalize(): this {
+    const magnitude = this.magnitude();
+    if (!magnitude || magnitude === 0) {
+      return this;
+    }
+    return this.set([this.x / magnitude, this.y / magnitude]);
+  }
+
   public static plus<T extends Vector2>(x0: T, x1: T) {
     return Coordinate.operate(x0, x1, (a, b) => a + b, Vector2) as T;
   }

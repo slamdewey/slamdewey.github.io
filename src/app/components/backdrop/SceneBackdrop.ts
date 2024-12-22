@@ -29,6 +29,7 @@ class ControllableCamera extends EcsCamera {
   public override update(deltaTime: number): void {
     const transform = this.transform!;
     const rawInput = new Vector2(this.leftRightInput.rawValue, this.downUpInput.rawValue);
+    rawInput.normalize();
     const moveDelta = Vector2.scale(rawInput, (this.panSpeed / this.getZoom()) * deltaTime);
     transform.position = Vector2.plus(transform.position, moveDelta);
   }
@@ -46,7 +47,7 @@ export class EcsSceneBackdrop extends Backdrop {
     this.scene.add(this.cameraEntity);
   }
 
-  override init(): void {
+  override start(): void {
     /**
      * Every time we init here, we must re-create the camera, as the view port could have changed.
      * View port change is actually the most likely scenario to re-call this init.
