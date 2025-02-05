@@ -4,26 +4,42 @@ import { HomeComponent } from './home/home.component';
 import { ProjectsComponent } from './projects/projects.component';
 import { FragmentWriterComponent } from './projects/pages/fragment-writer/fragment-writer.component';
 import { UnitTaskingComponent } from './projects/pages/unit-tasking/unit-tasking.component';
+import { FAVICON_URL } from './tokens/favicon-url.token';
+import { faviconResolverFn } from './resolvers/favicon.resolver';
 
-export type FaviconStorage = {
-  faviconPath: string;
-};
-
-export const routes: (Route & FaviconStorage)[] = [
+export const routes: Route[] = [
   {
     path: '',
     component: HomeComponent,
-    faviconPath: 'home-favicon.ico',
+    providers: [
+      {
+        provide: FAVICON_URL,
+        useValue: 'home-favicon.ico',
+      },
+    ],
+    resolve: [faviconResolverFn],
   },
   {
     path: 'gallery',
     component: GalleryComponent,
-    faviconPath: 'photo-favicon.ico',
+    providers: [
+      {
+        provide: FAVICON_URL,
+        useValue: 'photo-favicon.ico',
+      },
+    ],
+    resolve: [faviconResolverFn],
   },
   {
     path: 'projects',
     component: ProjectsComponent,
-    faviconPath: 'project-favicon.ico',
+    providers: [
+      {
+        provide: FAVICON_URL,
+        useValue: 'project-favicon.ico',
+      },
+    ],
+    resolve: [faviconResolverFn],
   },
   {
     path: 'projects',
@@ -39,12 +55,16 @@ export const routes: (Route & FaviconStorage)[] = [
         component: UnitTaskingComponent,
       },
     ],
-    faviconPath: 'projects-favicon.ico',
+    providers: [
+      {
+        provide: FAVICON_URL,
+        useValue: 'project-favicon.ico',
+      },
+    ],
+    resolve: [faviconResolverFn],
   },
   {
     path: '**',
-    pathMatch: 'full',
-    component: HomeComponent,
-    faviconPath: '',
+    redirectTo: '',
   },
 ];
