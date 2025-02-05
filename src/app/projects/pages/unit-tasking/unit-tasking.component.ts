@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
 import { MapGeneratorService } from 'src/app/services/map-generator.service';
-import { AxialCoordinate, Vector2 } from 'src/app/shapes/coordinate';
+import { AxialCoordinate } from 'src/app/shapes/coordinate';
 import { EcsEntity } from 'src/app/shapes/ecs';
 import {
   MapGenerationRequest,
@@ -20,16 +20,16 @@ import { Unit } from 'src/app/shapes/unit-tasking';
 import { SpecularHexMapGenerator } from 'src/app/util/map-generation';
 
 /**
- * Scroll events are for some reason in delta intervals of 100
+ * Scroll events are, for some reason, in delta intervals of 100
  */
 export const ZoomScalar = 100;
 
 @Component({
-    selector: 'x-unit-tasking',
-    templateUrl: './unit-tasking.component.html',
-    styleUrls: ['./unit-tasking.component.scss'],
-    imports: [BackdropComponent],
-    changeDetection: ChangeDetectionStrategy.OnPush
+  selector: 'x-unit-tasking',
+  templateUrl: './unit-tasking.component.html',
+  styleUrls: ['./unit-tasking.component.scss'],
+  imports: [BackdropComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UnitTaskingComponent implements AfterViewInit, OnDestroy {
   private readonly mapService = inject(MapGeneratorService);

@@ -16,8 +16,6 @@ import { Vector2 } from 'src/app/shapes/coordinate';
   selector: 'x-backdrop',
   templateUrl: './backdrop.component.html',
   styleUrls: ['./backdrop.component.scss'],
-  encapsulation: ViewEncapsulation.Emulated,
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BackdropComponent implements OnDestroy {
