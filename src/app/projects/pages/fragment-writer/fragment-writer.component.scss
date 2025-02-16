@@ -12,7 +12,7 @@ $color-black: black;
   display: flex;
   justify-content: space-evenly;
 
-  width: 85%;
+  width: 80%;
   height: 95vh;
   flex-direction: row;
 
@@ -54,29 +54,11 @@ $color-black: black;
     align-items: center;
     text-align: center;
     color: var(--highlight-color);
-    flex-grow: 1;
   }
 
   & .button {
-    background-color: rgb(31, 31, 31);
-    border-width: 1rem;
-    border-style: outset;
-    border-color: rgb(34, 34, 34);
-    border-radius: 0.25rem;
-    flex-direction: column;
-    justify-content: center;
-    display: flex;
-    cursor: pointer;
-    user-select: none;
-
-    &:active {
-      border-style: inset;
-    }
-
-    & h1 {
-      margin: 0;
-      font-size: 2rem;
-    }
+    margin: 12px;
+    height: 60px;
   }
 }
 

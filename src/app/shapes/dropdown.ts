@@ -1,5 +1,6 @@
-export class DropdownItemData {
-  public text: string;
-  public url: string;
+export interface DropdownItemData {
+  key: string;
+  label: string;
+  url: string;
   queryParams: { [key: string]: string };
 }

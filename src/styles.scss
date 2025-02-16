@@ -1,6 +1,10 @@
+//https://material.angular.io/guide/theming
+@use '@angular/material' as mat;
+@use './theme-colors' as my-theme;
+
 :root {
   /* color palette */
-  --primary-color: #fa7921;
+  --primary-color: #ff7c24;
   --secondary-color: #942911;
   --tertiary-color: #2066a8;
   --highlight-color: #fffef8;
@@ -8,13 +12,27 @@
 
   --background-color: #181818;
 
-  --success-color: #39a518;
+  --success-color: #40ce14;
   --warning-color: #ffc320;
-  --error-color: #df4040;
+  --error-color: #f01818;
 
   /* links */
   --link-color: var(--secondary-color);
   --link-hover-color: var(--tertiary-color);
+}
+
+html {
+  @include mat.theme(
+    (
+      color: (
+        theme-type: dark,
+        primary: my-theme.$primary-palette,
+        tertiary: my-theme.$tertiary-palette,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
 }
 
 html,
@@ -35,4 +53,13 @@ a {
   &:focus {
     color: var(--link-hover-color);
   }
+}
+
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
 }

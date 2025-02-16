@@ -8,3 +8,7 @@ export interface MonacoOptions {
   formatOnType: true;
   model: NgxEditorModel | undefined;
 }
+
+export type FragmentWriterQueryParams = {
+  shader: string;
+};
