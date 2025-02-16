@@ -1,6 +1,6 @@
 export interface ShaderProgramData {
+  key: string;
   name: string;
-  url: string;
   vertexShader: string;
   fragmentShader: string;
 }
@@ -31,7 +31,7 @@ export const UNIFORM_NAMES: string[] = ['screenSize', 'mousePosition', 'totalTim
 
 export const UV_SHADER: ShaderProgramData = {
   name: 'UV Coordinates',
-  url: 'uv',
+  key: 'uv',
   vertexShader: DEFAULT_VERTEX_SHADER,
   fragmentShader: `
 void main() {
@@ -44,7 +44,7 @@ void main() {
 };
 export const SHADER_TOY_UV: ShaderProgramData = {
   name: 'Shadertoy UV',
-  url: 'suv',
+  key: 'suv',
   vertexShader: DEFAULT_VERTEX_SHADER,
   fragmentShader: `
 void main() {
@@ -57,7 +57,7 @@ void main() {
 };
 export const MOUSE_POSITION_EXAMPLE: ShaderProgramData = {
   name: 'MousePosition Example',
-  url: 'mouse_example',
+  key: 'mouse_example',
   vertexShader: DEFAULT_VERTEX_SHADER,
   fragmentShader: `
 vec2 getRelativeCoordinate(vec2 x) {
@@ -91,7 +91,7 @@ void main() {
 };
 export const BASIC_NEWTONS_FRACTAL_SHADER: ShaderProgramData = {
   name: "Newton's Fractal",
-  url: 'newtons_fractal_basic',
+  key: 'newtons_fractal_basic',
   vertexShader: DEFAULT_VERTEX_SHADER,
   fragmentShader: `
 const int NUM_ITERATIONS = 20;
@@ -161,7 +161,7 @@ void main() {
 };
 export const ANIMATED_NEWTONS_FRACTAL_SHADER: ShaderProgramData = {
   name: "Animated Newton's Fractal Example",
-  url: 'newtons_fractal_animated',
+  key: 'newtons_fractal_animated',
   vertexShader: DEFAULT_VERTEX_SHADER,
   fragmentShader: `
 const int NUM_ITERATIONS = 20;
@@ -235,7 +235,7 @@ void main() {
 };
 export const MOUSE_POSITION_NEWTONS_FRACTAL_SHADER: ShaderProgramData = {
   name: "MousePosition Example With Newton's Fractal",
-  url: 'newtons_fractal_mouse',
+  key: 'newtons_fractal_mouse',
   vertexShader: DEFAULT_VERTEX_SHADER,
   fragmentShader: `
 const int NUM_ITERATIONS = 10;
@@ -321,7 +321,7 @@ void main() {
 };
 export const MANDELBROT_SET_SHADER: ShaderProgramData = {
   name: 'Mandelbrot Set Shader',
-  url: 'mandelbrot_zoom',
+  key: 'mandelbrot_zoom',
   vertexShader: DEFAULT_VERTEX_SHADER,
   fragmentShader: `
 const int MAX_ITERATIONS = 500;

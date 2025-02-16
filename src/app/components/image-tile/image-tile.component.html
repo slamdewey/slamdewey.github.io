@@ -1,14 +1,14 @@
 <button
   class="tile"
-  (click)="imageTileData().onClick($event)"
-  [attr.title]="imageTileData().title ?? null"
+  (click)="onClick.emit(imageData())"
+  [attr.title]="imageData().title"
 >
   <img
     class="tile__image"
     [class]="isLoaded() ? 'tile-visible' : 'tile-hidden'"
     (load)="onImageLoad()"
     loading="eager"
-    [attr.src]="imageTileData().placeholder_src"
+    [attr.src]="imageData().placeholder_src"
   />
   @if (shouldDisplaySkeletonLoader()) {
   <div class="tile__loader" [class]="isLoaded() ? 'tile-hidden' : 'tile-visible'">

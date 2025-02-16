@@ -1,113 +1,87 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
+  DestroyRef,
   inject,
   OnInit,
   signal,
-  ViewChild,
+  viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Backdrop } from '../components/backdrop/backdrop';
-import { ImageTileComponent, ImageTileData } from '../components/image-tile/image-tile.component';
+import { ImageTileComponent } from '../components/image-tile/image-tile.component';
 import { ImageViewerModalComponent } from '../components/image-viewer-modal/image-viewer-modal.component';
-import { DropdownLinkSelectorComponent } from '../components/dropdown-link-selector/dropdown-link-selector.component';
 import { WalkingNoiseBackdrop } from '../components/backdrop/WalkingNosieBackdrop';
-import { GalleryImageData, GalleryRouteQueryParams, ImagesJson } from '../shapes/gallery';
-import { env } from '../../environments/environment';
+import { GalleryDirectory, GalleryImageData, GalleryRouteQueryParams } from '../shapes/gallery';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
 import { BannerComponent } from '../components/banner/banner.component';
-import * as imagesJsonModule from '../../../images.json';
 import { DropdownItemData } from '../shapes/dropdown';
-
-const IMAGES_JSON = (imagesJsonModule as any).default as ImagesJson;
+import { DropdownMenuComponent } from '../components/dropdown-menu/dropdown-menu.component';
+import { GalleryService } from '../services/gallery.service';
 
 @Component({
-    selector: 'x-gallery',
-    templateUrl: './gallery.component.html',
-    styleUrls: ['./gallery.component.scss'],
-    imports: [
-        BackdropComponent,
-        BannerComponent,
-        DropdownLinkSelectorComponent,
-        ImageTileComponent,
-        ImageViewerModalComponent,
-    ],
-    changeDetection: ChangeDetectionStrategy.OnPush
+  selector: 'x-gallery',
+  templateUrl: './gallery.component.html',
+  styleUrls: ['./gallery.component.scss'],
+  imports: [
+    BackdropComponent,
+    BannerComponent,
+    DropdownMenuComponent,
+    ImageTileComponent,
+    ImageViewerModalComponent,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GalleryComponent implements OnInit {
-  @ViewChild('imageViewerModal') imageViewerModal: ImageViewerModalComponent;
+  public imageViewerModal = viewChild.required(ImageViewerModalComponent);
+  public bgAnimation = signal<Backdrop>(new WalkingNoiseBackdrop());
+  public isModalOpen = signal<boolean>(false);
+  public currentDirectory = signal<GalleryDirectory | undefined>(undefined);
 
-  public bgAnimation: Backdrop = new WalkingNoiseBackdrop();
+  public imageSelectedForModal = signal<GalleryImageData | undefined>(undefined);
 
-  // imagesJson was once async loaded, and may return that way again.
-  public imagesJson = signal<ImagesJson>(IMAGES_JSON);
-
-  public imageFolderLinks = computed<DropdownItemData[]>(() => {
-    return this.imagesJson().directories.map((folder) => ({
-      text: this.formatFolderName(folder),
-      url: '/gallery',
-      queryParams: { folder },
-    }));
-  });
-  public imageTileDataSet = computed<Map<string, ImageTileData[]>>(() => {
-    const imageTileData = new Map<string, ImageTileData[]>();
-    const imageSet = this.imagesJson().img;
-
-    this.imagesJson().directories.forEach((folder) => {
-      const imageTilesForThisFolder = imageSet[folder].map((image: GalleryImageData) => {
-        return {
-          ...image,
-          placeholder_src: env.imageCdnUrl + image.placeholder_src,
-          img_src: env.imageCdnUrl + image.img_src,
-          onClick: () => this.onImageTileClick(env.imageCdnUrl + image.img_src),
-        } as ImageTileData;
-      });
-      imageTileData.set(folder, imageTilesForThisFolder);
-    });
-    return imageTileData;
-  });
-
-  public currentImageFolder: string | undefined;
-  public currentImageSourceUrl: string;
-
-  public isModalOpen: boolean = false;
-
+  private readonly destroyRef = inject(DestroyRef);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly titleService = inject(Title);
-
-  constructor() {
-    this.parseImageDataSet();
-  }
+  private readonly router = inject(Router);
+  public readonly galleryService = inject(GalleryService);
 
   ngOnInit() {
     this.titleService.setTitle('Gallery');
 
-    this.activatedRoute.queryParams.subscribe((params) => {
-      const { folder } = params as GalleryRouteQueryParams;
-      if (folder) {
-        this.currentImageFolder = folder;
-        this.titleService.setTitle(this.formatFolderName(folder) + ' | Gallery');
-      } else {
-        this.currentImageFolder = undefined;
-        this.titleService.setTitle('Gallery');
-      }
-    });
+    this.activatedRoute.queryParams
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const { folder } = params as GalleryRouteQueryParams;
+        if (!folder) {
+          this.currentDirectory.set(undefined);
+          return;
+        }
+
+        const folderData = this.galleryService
+          .galleryFolderDropownItems()
+          .find((item) => item.key === folder)!;
+
+        this.currentDirectory.set({
+          path: folder,
+          label: folderData.label,
+        });
+
+        this.titleService.setTitle(folderData.label + ' | Gallery');
+      });
   }
 
-  private parseImageDataSet(): void {}
-
-  private onImageTileClick(fullResolutionImageSource: string): void {
-    this.currentImageSourceUrl = fullResolutionImageSource;
-    this.imageViewerModal.openModal();
-  }
-
-  public formatFolderName(folderName: string): string {
-    const noSpecialChar = folderName.replace(/[^a-zA-Z0-9]/g, ' ');
-    if (noSpecialChar.length < 1) {
-      return noSpecialChar;
+  public onFolderSelectionChange(selectedItem: DropdownItemData | undefined) {
+    if (!selectedItem) {
+      return;
     }
-    return noSpecialChar.charAt(0).toUpperCase() + noSpecialChar.slice(1);
+    this.router.navigate([selectedItem.url], { queryParams: selectedItem.queryParams });
+  }
+
+  public onImageTileClick(selectedImage: GalleryImageData): void {
+    this.imageSelectedForModal.set(selectedImage);
+    this.imageViewerModal().openModal();
   }
 }

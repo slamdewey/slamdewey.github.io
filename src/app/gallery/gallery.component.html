@@ -1,32 +1,42 @@
 <x-backdrop
-  [backdrop]="bgAnimation"
-  [shouldPauseAnimation]="isModalOpen"
+  [backdrop]="bgAnimation()"
+  [shouldPauseAnimation]="isModalOpen()"
   [fullscreen]="true"
 ></x-backdrop>
+
 <div class="gallery">
   <x-banner>
     <ng-container ngProjectAs="title">Gallery</ng-container>
   </x-banner>
 
+  @let directory = currentDirectory();
+  
   <div class="gallery__dropdown">
-    <x-dropdown-link-selector
-      [placeholderText]="'Select Image Folder'"
-      [items]="imageFolderLinks()"
-    ></x-dropdown-link-selector>
+    <x-dropdown-menu
+      [placeholderLabel]="'Select an image directory'"
+      [initialValue]="directory?.label"
+      [items]="galleryService.galleryFolderDropownItems()"
+      (onItemSelect)="onFolderSelectionChange($event)"
+    ></x-dropdown-menu>
   </div>
 
-  @if (imageTileDataSet() && currentImageFolder) {
-  <div class="gallery__images">
-    @for (image of imageTileDataSet().get(currentImageFolder); track image.img_src) {
-    <x-image-tile class="gallery__images__item" [imageTileData]="image"></x-image-tile>
-    }
-  </div>
+  @let imagesByFolder = galleryService.galleryImageDataByFolder();
+  @if (imagesByFolder && directory) {
+    <div class="gallery__images">
+      @for (image of imagesByFolder.get(directory.path); track image.img_src) {
+        <x-image-tile
+          (onClick)="onImageTileClick($event)"
+          class="gallery__images__item"
+          [imageData]="image" 
+        />
+      }
+    </div>
   }
 
   <x-image-viewer-modal
     #imageViewerModal
-    [imageSource]="currentImageSourceUrl"
-    (onOpen)="isModalOpen = true"
-    (onClose)="isModalOpen = false"
+    [imageSource]="imageSelectedForModal()?.img_src"
+    (onOpen)="isModalOpen.set(true)"
+    (onClose)="isModalOpen.set(false)"
   ></x-image-viewer-modal>
 </div>
