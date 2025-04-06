@@ -2,7 +2,9 @@ import { AxialCoordinate } from '../shapes/coordinate';
 import { MapGenerationRequest } from '../shapes/map-generation';
 import { HexTile, HexTileMap, ALL_TILE_TERRAINS } from '../shapes/tilemap';
 
-export async function SpecularHexMapGenerator(request: MapGenerationRequest<AxialCoordinate>): Promise<void> {
+export async function SpecularHexMapGenerator(
+  request: MapGenerationRequest<AxialCoordinate>
+): Promise<void> {
   request.onStatusChange?.('Initializing');
 
   const tiles: HexTile[] = [];
@@ -31,7 +33,7 @@ export async function SpecularHexMapGenerator(request: MapGenerationRequest<Axia
   tileMap.setTiles(tiles);
 
   request.onStatusChange?.('Done');
-  request.callback({
+  request.onComplete({
     columns: request.columns,
     columnHeight: request.columnHeight,
     tileMap: tileMap,

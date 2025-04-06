@@ -1,12 +1,9 @@
-/**
- * this is a simple ts port of my custom ECS
- */
-
-import { input } from '@angular/core';
 import { Vector2 } from './coordinate';
 
 export type InputCallback = (e: KeyboardEvent) => void;
+
 export type KeyEventType = 'down' | 'up';
+
 export type VirtualAxis = {
   negativeKey: string;
   positiveKey: string;
@@ -202,40 +199,63 @@ export class EcsCamera extends EcsComponent {
   }
 }
 
+export abstract class EcsRenderer<ctx extends RenderingContext> {
+  public abstract render(ctx: ctx, renderables: Set<EcsRenderableComponent>): void;
+}
+
+export class CanvasContext2DRenderer extends EcsRenderer<CanvasRenderingContext2D> {
+  public render(ctx: CanvasRenderingContext2D, renderables: Set<EcsRenderableComponent>): void {
+    const cameraTransform = ctx.getTransform();
+    ctx.save();
+    renderables.forEach((c) => {
+      const componentTransform = c.transform?.getTransformationMatrix() ?? new DOMMatrix();
+      ctx.setTransform(cameraTransform.multiply(componentTransform));
+      c.render(ctx);
+      ctx.restore();
+    });
+  }
+}
+
 /**
  * no lights, no collision detection, no problem!
  */
-export abstract class EcsScene<ctx extends RenderingContext> {
+export class EcsScene<ctx extends RenderingContext> {
   public name: string;
   /**
    * must be manually assigned to the camera you wish to use
    */
-  public camera: EcsCamera | undefined;
+  public camera: EcsCamera | undefined = undefined;
 
   protected readonly entities: Set<EcsEntity> = new Set();
   protected readonly components: Set<EcsComponent> = new Set();
   protected readonly renderables: Set<EcsRenderableComponent> = new Set();
+  protected readonly renderer: EcsRenderer<ctx>;
   protected readonly inputMap = new Map<string, InputCallback[]>();
   protected readonly keyStateMap = new Map<string, KeyEventType>();
   protected readonly virtualAxes = new Set<VirtualAxis>();
 
-  constructor(name: string) {
+  constructor(name: string, renderer: EcsRenderer<ctx>) {
     this.name = name;
+    this.renderer = renderer;
   }
 
   public registerInputCallback(key: string, type: KeyEventType, callback: InputCallback): void {
     const inputCode = buildInputCode(key, type);
-    if (!this.inputMap.has(inputCode)) {
-      this.inputMap.set(inputCode, []);
+    const registeredCallbacks = this.inputMap.get(inputCode);
+    if (!registeredCallbacks) {
+      this.inputMap.set(inputCode, [callback]);
+    } else {
+      registeredCallbacks.push(callback);
     }
-    this.inputMap.get(inputCode)!.push(callback);
   }
 
   public deleteInputCallback(key: string, type: KeyEventType, callback: InputCallback): void {
     const inputCode = buildInputCode(key, type);
-    if (this.inputMap.has(inputCode)) {
-      this.inputMap.get(inputCode)!.filter((cb) => cb !== callback);
+    const registeredCallbacks = this.inputMap.get(inputCode);
+    if (!registeredCallbacks) {
+      return;
     }
+    registeredCallbacks.filter((cb) => cb !== callback);
   }
 
   public registerVirtualAxis(negativeKey: string, positiveKey: string): VirtualAxis {
@@ -292,7 +312,9 @@ export abstract class EcsScene<ctx extends RenderingContext> {
     this.components.forEach((c) => c.lateUpdate());
   }
 
-  public abstract render(ctx: ctx): void;
+  public render(ctx: ctx) {
+    this.renderer.render(ctx, this.renderables);
+  }
 
   public add(item: EcsComponent | EcsEntity): void {
     if (item instanceof EcsEntity) {

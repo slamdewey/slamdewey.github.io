@@ -110,6 +110,8 @@ export class HexTileMap extends TileMap<AxialCoordinate> {
   private readonly hexTilePolygon: Vector2[];
   // this offset aligns the map to the edge of the fourth quadrant of worldspace
   private readonly tilePositionOffset = new AxialCoordinate(2 / 3, 2 / 3);
+  // this offset aligns map's origin to it's center
+  private readonly mapPositionOffset: AxialCoordinate;
 
   private tileSet: Set<HexTile>;
   private tileLookupByCoordinateHash: Map<number, HexTile>;
@@ -117,6 +119,7 @@ export class HexTileMap extends TileMap<AxialCoordinate> {
   constructor(columns: number, columnHeight: number) {
     super(columns, columnHeight);
     this.hexTilePolygon = this.createHexTilePolygon();
+    this.mapPositionOffset = new AxialCoordinate(columns / 2, columnHeight / 2);
 
     this.tileSet = new Set();
     this.tileLookupByCoordinateHash = new Map<number, HexTile>();
@@ -124,7 +127,9 @@ export class HexTileMap extends TileMap<AxialCoordinate> {
 
   public setTiles(tileSet?: HexTile[]): void {
     if (tileSet?.length != this.numTiles) {
-      throw new Error(`Can't setTiles with tileSet of size ${tileSet?.length}.  Expecting length of: ${this.numTiles}`);
+      throw new Error(
+        `Can't setTiles with tileSet of size ${tileSet?.length}.  Expecting length of: ${this.numTiles}`
+      );
     }
     this.tileSet = new Set(tileSet);
     this.tileLookupByCoordinateHash = new Map<number, HexTile>();
@@ -151,10 +156,12 @@ export class HexTileMap extends TileMap<AxialCoordinate> {
   }
 
   public render(ctx: CanvasRenderingContext2D): void {
+    const localTileOffset = AxialCoordinate.minus(this.tilePositionOffset, this.mapPositionOffset);
+
     this.tileSet.forEach((tile: HexTile) => {
       const fillStyleFn: FillStyleFn = TileTerrainFillStyles.get(tile.terrainType)!;
       const fillStyle = fillStyleFn(ctx);
-      const offsetTilePosition = AxialCoordinate.plus(tile.position, this.tilePositionOffset);
+      const offsetTilePosition = AxialCoordinate.plus(tile.position, localTileOffset);
       const position = HexTile.TileToWorld(offsetTilePosition, true);
       drawPolygon(ctx, this.hexTilePolygon, fillStyle, position);
       // draw feature?

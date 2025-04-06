@@ -9,7 +9,19 @@ export type NoiseVariables = {
   lacunarity: number;
 };
 
-export type MapGenerationAlgorithm = <C extends Coordinate>(request: MapGenerationRequest<C>) => Promise<void>;
+export type MapGenerationAlgorithm = <C extends Coordinate>(
+  request: MapGenerationRequest<C>
+) => Promise<void>;
+
+export async function generateTileMap<C extends Coordinate>(
+  request: MapGenerationRequest<C>
+): Promise<void> {
+  try {
+    return request.algorithm(request);
+  } catch (e) {
+    request.error?.(e as Error);
+  }
+}
 
 export interface MapGenerationRequest<C extends Coordinate> {
   columns: number;
@@ -17,7 +29,7 @@ export interface MapGenerationRequest<C extends Coordinate> {
   noiseVariables: NoiseVariables;
   waterPercentage: number;
   algorithm: MapGenerationAlgorithm;
-  callback: (response: MapGenerationResponse<C>) => void;
+  onComplete: (response: MapGenerationResponse<C>) => void;
   error?: (error: Error) => void;
   onStatusChange?: (...status: any) => void;
 }

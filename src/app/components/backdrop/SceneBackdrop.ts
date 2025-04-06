@@ -2,18 +2,6 @@ import { Backdrop } from './backdrop';
 import { Vector2 } from 'src/app/shapes/coordinate';
 import { EcsCamera, EcsEntity, EcsScene, VirtualAxis } from 'src/app/shapes/ecs';
 
-class Canvas2DEcsScene extends EcsScene<CanvasRenderingContext2D> {
-  public override render(ctx: CanvasRenderingContext2D): void {
-    const cameraTransform = ctx.getTransform();
-    ctx.save();
-    this.renderables.forEach((c) => {
-      const componentTransform = c.transform?.getTransformationMatrix() ?? new DOMMatrix();
-      ctx.setTransform(cameraTransform.multiply(componentTransform));
-      c.render(ctx);
-      ctx.restore();
-    });
-  }
-}
 class ControllableCamera extends EcsCamera {
   private readonly panSpeed = 500;
   private downUpInput: VirtualAxis;
@@ -36,13 +24,13 @@ class ControllableCamera extends EcsCamera {
 }
 
 export class EcsSceneBackdrop extends Backdrop {
-  public scene: Canvas2DEcsScene;
+  public scene: EcsScene<CanvasRenderingContext2D>;
   public cameraEntity: EcsEntity;
   private activeCamera: EcsCamera | undefined;
 
-  constructor() {
+  constructor(scene: EcsScene<CanvasRenderingContext2D>) {
     super();
-    this.scene = new Canvas2DEcsScene('EcsSceneBackdrop Scene');
+    this.scene = scene;
     this.cameraEntity = new EcsEntity('Main Camera');
     this.scene.add(this.cameraEntity);
   }
