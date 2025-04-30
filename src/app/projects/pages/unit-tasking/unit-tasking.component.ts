@@ -1,16 +1,15 @@
 import {
-  AfterViewInit,
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   HostListener,
-  inject,
   OnDestroy,
 } from '@angular/core';
 import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
-import { MapGeneratorService } from 'src/app/services/map-generator.service';
 import { AxialCoordinate } from 'src/app/shapes/coordinate';
-import { EcsEntity } from 'src/app/shapes/ecs';
+import { CanvasContext2DRenderer, EcsEntity, EcsScene } from 'src/app/shapes/ecs';
 import {
+  generateTileMap,
   MapGenerationRequest,
   MapGenerationResponse,
   NoiseVariables,
@@ -24,6 +23,12 @@ import { SpecularHexMapGenerator } from 'src/app/util/map-generation';
  */
 export const ZoomScalar = 100;
 
+class MyScene extends EcsScene<CanvasRenderingContext2D> {
+  constructor() {
+    super('EcsSceneBackdrop Scene', new CanvasContext2DRenderer());
+  }
+}
+
 @Component({
   selector: 'x-unit-tasking',
   templateUrl: './unit-tasking.component.html',
@@ -31,38 +36,37 @@ export const ZoomScalar = 100;
   imports: [BackdropComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class UnitTaskingComponent implements AfterViewInit, OnDestroy {
-  private readonly mapService = inject(MapGeneratorService);
-
+export class UnitTaskingComponent implements OnDestroy {
   public units: Unit[];
-  public sceneBackdrop = new EcsSceneBackdrop();
+  public sceneBackdrop = new EcsSceneBackdrop(new MyScene());
   public tileMapEntity = new EcsEntity('HexMap');
   public tileMap: HexTileMap | undefined;
 
   constructor() {
     this.sceneBackdrop.scene.add(this.tileMapEntity);
-  }
 
-  ngAfterViewInit() {
-    const req = {
-      columns: 50,
-      columnHeight: 50,
-      algorithm: SpecularHexMapGenerator,
-      noiseVariables: {} as NoiseVariables,
-      waterPercentage: 0.5,
-      onStatusChange: console.log,
-      callback: this.setTileMap.bind(this),
-      error: console.error,
-    } as MapGenerationRequest<AxialCoordinate>;
+    afterNextRender(() => {
+      const req = {
+        columns: 50,
+        columnHeight: 50,
+        algorithm: SpecularHexMapGenerator,
+        noiseVariables: {} as NoiseVariables,
+        waterPercentage: 0.5,
+        onStatusChange: console.log,
+        onComplete: this.setTileMap.bind(this),
+        error: console.error,
+      } as MapGenerationRequest<AxialCoordinate>;
 
-    this.mapService.generateTileMap(req);
+      generateTileMap(req);
 
-    window.onkeydown = this.onkeydown.bind(this);
-    window.onkeyup = this.onkeyup.bind(this);
+      window.addEventListener('keydown', this.onkeydown.bind(this));
+      window.addEventListener('keyup', this.onkeyup.bind(this));
+    });
   }
 
   ngOnDestroy(): void {
-    window.onkeydown = window.onkeyup = null;
+    window.removeEventListener('keydown', this.onkeydown.bind(this));
+    window.removeEventListener('keyup', this.onkeyup.bind(this));
   }
 
   onkeydown(e: KeyboardEvent) {
