@@ -10,21 +10,60 @@ import { UVColorCycleBackground } from '../components/backdrop/UVColorCycleBackg
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
 import { Title } from '@angular/platform-browser';
 
-const HELLOS: string[] = ['hello', 'hi', 'howdy', 'hey'];
+const HELLOS: string[] = [
+  'hello',
+  'hi',
+  'howdy',
+  'hey',
+  'yo',
+  'sup',
+  'salutations',
+  'ahoy',
+  'welcome',
+  'beep boop',
+  'greetings, user',
+];
 
 const GREETING_MESSAGES: string[] = [
   'thanks for visiting',
   'enjoy your stay',
   "how'd you end up here?",
-  'welcome to my site',
   'stay a while',
   'thanks for checking in',
   "congratulations, you've made it",
-  'welcome to the other side',
   'do you come here often?',
   'there is nothing suspicious here',
   "now that you're here, you can never leave",
   "what's that behind you?",
+  '404: greeting not found',
+  'I can see your browser history',
+  "you're the chosen one (for now)",
+  'this site is gluten free',
+  "if you read this, you're paying too much attention",
+  'this is totally not a trap',
+  'this is a test of the emergency broadcast system',
+  'if you see this message you are in the right place',
+  '<greeting-message />',
+  'the adventure begins over there',
+  "if you're looking for Google, you've come to the wrong place",
+  'this sentence could have been funny',
+  'mind the gap',
+  'this website exists',
+  'you are now slightly older',
+  'please enjoy this free welcome message',
+  'set the bar a little lower',
+  'this message is intentionally meaningless',
+  'this page is not a 404',
+  'was it worth the wait?',
+  "this isn't the sign you were looking for",
+  'this site runs on 100% recycled electrons',
+  "you're only one click away from closing your browser",
+  'your presence has been detected',
+  'this is as real as it gets',
+  'the website is awaiting your input',
+  'there will be a quiz at the end',
+  'photons are going into your eyes',
+  '🛸😯👽📡✨👾',
 ];
 
 function getRandomIndex(arr: string[]) {
@@ -32,12 +71,12 @@ function getRandomIndex(arr: string[]) {
 }
 
 @Component({
-    selector: 'x-home',
-    templateUrl: './home.component.html',
-    styleUrls: ['./home.component.scss'],
-    encapsulation: ViewEncapsulation.None,
-    imports: [BackdropComponent],
-    changeDetection: ChangeDetectionStrategy.OnPush
+  selector: 'x-home',
+  templateUrl: './home.component.html',
+  styleUrls: ['./home.component.scss'],
+  encapsulation: ViewEncapsulation.None,
+  imports: [BackdropComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomeComponent implements OnInit {
   public bgAnimation: Backdrop = new UVColorCycleBackground();
