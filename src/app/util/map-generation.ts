@@ -1,6 +1,6 @@
-import { AxialCoordinate } from '../shapes/coordinate';
-import { MapGenerationRequest } from '../shapes/map-generation';
-import { HexTile, HexTileMap, ALL_TILE_TERRAINS } from '../shapes/tilemap';
+import { AxialCoordinate } from '../lib/coordinate';
+import { MapGenerationRequest } from '../lib/map-generation';
+import { HexTile, HexTileMap, ALL_TILE_TERRAINS } from '../lib/tilemap';
 
 export async function SpecularHexMapGenerator(
   request: MapGenerationRequest<AxialCoordinate>

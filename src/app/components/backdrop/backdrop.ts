@@ -1,4 +1,4 @@
-import { Vector2 } from 'src/app/shapes/coordinate';
+import { Vector2 } from 'src/app/lib/coordinate';
 
 export abstract class Backdrop {
   public contextId(): string {

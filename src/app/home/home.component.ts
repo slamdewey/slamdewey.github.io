@@ -53,7 +53,6 @@ const GREETING_MESSAGES: string[] = [
   'please enjoy this free welcome message',
   'set the bar a little lower',
   'this message is intentionally meaningless',
-  'this page is not a 404',
   'was it worth the wait?',
   "this isn't the sign you were looking for",
   'this site runs on 100% recycled electrons',

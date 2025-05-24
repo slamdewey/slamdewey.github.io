@@ -1,8 +1,8 @@
 import { Backdrop } from './backdrop';
-import { Vector2 } from 'src/app/shapes/coordinate';
-import { EcsCamera, EcsEntity, EcsScene, VirtualAxis } from 'src/app/shapes/ecs';
+import { Vector2 } from 'src/app/lib/coordinate';
+import { EcsCamera, EcsScene, VirtualAxis } from 'src/app/lib/ecs';
 
-class ControllableCamera extends EcsCamera {
+export class ControllableCamera extends EcsCamera {
   private readonly panSpeed = 500;
   private downUpInput: VirtualAxis;
   private leftRightInput: VirtualAxis;
@@ -25,30 +25,18 @@ class ControllableCamera extends EcsCamera {
 
 export class EcsSceneBackdrop extends Backdrop {
   public scene: EcsScene<CanvasRenderingContext2D>;
-  public cameraEntity: EcsEntity;
-  private activeCamera: EcsCamera | undefined;
+  private origin: Vector2 = new Vector2(0, 0);
+  private viewport: Vector2 = new Vector2(0, 0);
 
   constructor(scene: EcsScene<CanvasRenderingContext2D>) {
     super();
     this.scene = scene;
-    this.cameraEntity = new EcsEntity('Main Camera');
-    this.scene.add(this.cameraEntity);
   }
 
-  override start(): void {
-    /**
-     * Every time we init here, we must re-create the camera, as the view port could have changed.
-     * View port change is actually the most likely scenario to re-call this init.
-     */
-    const viewport = new Vector2(this.width, this.height);
-    const newCamera = new ControllableCamera(viewport);
-
-    if (this.activeCamera) {
-      this.cameraEntity.removeComponent(this.activeCamera);
-    }
-    this.cameraEntity.addComponent(newCamera);
-    this.activeCamera = newCamera;
-    this.scene.camera = newCamera;
+  override setSize(width: number, height: number): void {
+    this.viewport = new Vector2(width, height);
+    this.origin = new Vector2(width / 2, height / 2);
+    super.setSize(width, height);
   }
 
   update(deltaTime: number): void {
@@ -86,22 +74,25 @@ export class EcsSceneBackdrop extends Backdrop {
     }
   }
 
-  /**
-   * this override of clear does not allow for camera rotations!
-   */
-  public override clear(): void {
-    if (this.scene.camera && this.scene.camera.transform) {
-      const viewPort = this.scene.camera.viewPort;
-      const pos = this.scene.camera.transform.position;
-      this.ctx.clearRect(pos.x - viewPort.x / 2, pos.y - viewPort.y / 2, viewPort.x, viewPort.y);
+  override clear(): void {
+    const camera = this.scene.getCamera();
+    if (camera && camera.transform) {
+      const pos = camera.transform.position;
+      this.ctx.clearRect(
+        pos.x - this.origin.x,
+        pos.y - this.origin.y,
+        this.viewport.x,
+        this.viewport.y
+      );
     } else {
       super.clear();
     }
   }
 
   draw(): void {
-    if (this.scene.camera) {
-      this.ctx.setTransform(this.scene.camera.getViewMatrix());
+    const camera = this.scene.getCamera();
+    if (camera) {
+      this.ctx.setTransform(camera.getViewMatrix(this.origin));
     }
     this.renderGrid();
     this.scene.render(this.ctx);

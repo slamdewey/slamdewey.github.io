@@ -2,7 +2,7 @@
 // `ng build` replaces `environment.ts` with `environment.prod.ts`.
 // The list of file replacements can be found in `angular.json`.
 
-import { Environment } from 'src/app/shapes/env';
+import { Environment } from 'src/app/lib/env';
 
 export const env: Environment = {
   imageCdnUrl: 'https://d2oyxbjapvi4dv.cloudfront.net/',

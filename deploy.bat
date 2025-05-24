@@ -1,6 +1,6 @@
-:: Gh-Pages is reading the static files from the docs/ folder in this repo and
-:: serving this at https://slamdewey.github.io/
-:: This .bat file serves as a script to create, commit, and push new build artifact.
+:: Gh-Pages bundles the files located in the docs folder of the repository
+:: It's then served at https://slamdewey.github.io/
+:: This .bat file serves as a script to create, commit, and push new build artifact in the docs folder
 
 @echo off
 call npm run build:prod

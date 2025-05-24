@@ -14,10 +14,10 @@ import { Backdrop } from '../components/backdrop/backdrop';
 import { ImageTileComponent } from '../components/image-tile/image-tile.component';
 import { ImageViewerModalComponent } from '../components/image-viewer-modal/image-viewer-modal.component';
 import { WalkingNoiseBackdrop } from '../components/backdrop/WalkingNosieBackdrop';
-import { GalleryDirectory, GalleryImageData, GalleryRouteQueryParams } from '../shapes/gallery';
+import { GalleryDirectory, GalleryImageData, GalleryRouteQueryParams } from '../lib/gallery';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
 import { BannerComponent } from '../components/banner/banner.component';
-import { DropdownItemData } from '../shapes/dropdown';
+import { DropdownItemData } from '../lib/dropdown';
 import { DropdownMenuComponent } from '../components/dropdown-menu/dropdown-menu.component';
 import { GalleryService } from '../services/gallery.service';
 

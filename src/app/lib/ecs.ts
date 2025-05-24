@@ -163,23 +163,15 @@ export class EcsEntity {
 
 export class EcsCamera extends EcsComponent {
   protected readonly MinZoom: number = 1;
-  public readonly viewPort: Vector2;
-  private readonly origin: Vector2;
   private _zoom = this.MinZoom;
 
-  constructor(viewPort: Vector2) {
-    super();
-    this.origin = new Vector2(viewPort.x / 2, viewPort.y / 2);
-    this.viewPort = viewPort;
-  }
-
-  public getViewMatrix(): DOMMatrix {
+  public getViewMatrix(origin: Vector2): DOMMatrix {
     const identity = new DOMMatrix();
     if (!this.transform) {
       return identity;
     }
     return identity
-      .translate(this.origin.x, this.origin.y)
+      .translate(origin.x, origin.y)
       .scale(this._zoom, this._zoom)
       .translate(-this.transform.position.x, -this.transform.position.y)
       .rotate(0, 0, this.transform.rotation);
@@ -224,7 +216,8 @@ export class EcsScene<ctx extends RenderingContext> {
   /**
    * must be manually assigned to the camera you wish to use
    */
-  public camera: EcsCamera | undefined = undefined;
+  private camera: EcsCamera | undefined = undefined;
+  private cameraEntity: EcsEntity = new EcsEntity('Main Camera');
 
   protected readonly entities: Set<EcsEntity> = new Set();
   protected readonly components: Set<EcsComponent> = new Set();
@@ -237,7 +230,19 @@ export class EcsScene<ctx extends RenderingContext> {
   constructor(name: string, renderer: EcsRenderer<ctx>) {
     this.name = name;
     this.renderer = renderer;
+    this.addEntity(this.cameraEntity);
   }
+
+  public setCamera(camera: EcsCamera): void {
+    const oldCamera = this.camera;
+    this.cameraEntity.addComponent(camera);
+    this.camera = camera;
+    if (oldCamera) {
+      this.cameraEntity.removeComponent(oldCamera);
+    }
+  }
+
+  public getCamera: () => EcsCamera | undefined = () => this.camera;
 
   public registerInputCallback(key: string, type: KeyEventType, callback: InputCallback): void {
     const inputCode = buildInputCode(key, type);

@@ -10,7 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { Backdrop } from './backdrop';
-import { Vector2 } from 'src/app/shapes/coordinate';
+import { Vector2 } from 'src/app/lib/coordinate';
 
 @Component({
   selector: 'x-backdrop',

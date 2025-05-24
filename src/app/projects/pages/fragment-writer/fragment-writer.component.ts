@@ -19,10 +19,10 @@ import {
   UNIFORM_DEFS,
 } from './shader-programs';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FragmentWriterQueryParams, MonacoOptions } from 'src/app/shapes/fragment-writer';
+import { FragmentWriterQueryParams, MonacoOptions } from 'src/app/lib/fragment-writer';
 import { EditorComponent, NgxEditorModel } from 'ngx-monaco-editor-v2';
 import { SkeletonLoaderComponent } from 'src/app/components/skeleton-loader/skeleton-loader.component';
-import { DropdownItemData } from 'src/app/shapes/dropdown';
+import { DropdownItemData } from 'src/app/lib/dropdown';
 import { DropdownMenuComponent } from 'src/app/components/dropdown-menu/dropdown-menu.component';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
