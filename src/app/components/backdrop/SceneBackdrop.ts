@@ -46,7 +46,7 @@ export class EcsSceneBackdrop extends Backdrop {
 
   private renderGrid() {
     const interval = 100;
-    const dimension = 5;
+    const dimension = 20;
     const uvGradient = this.ctx.createLinearGradient(
       -dimension * interval,
       -dimension * interval,

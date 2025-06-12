@@ -26,7 +26,6 @@ export class BackdropComponent implements OnDestroy {
   bgCanvas = viewChild.required<ElementRef>('bgCanvas');
 
   public isResizing = signal<boolean>(false);
-  private resizeEventTimeout: any | undefined;
   private isInitialized: boolean = false;
 
   public static isWebGlEnabled: boolean;
@@ -57,7 +56,9 @@ export class BackdropComponent implements OnDestroy {
     }
     this.resizeObserver = new ResizeObserver(this.onResize.bind(this));
     this.resizeObserver.observe(
-      this.fullscreen() ? this.canvasElement : this.canvasElement.parentElement!
+      this.fullscreen()
+        ? this.canvasElement.parentElement! // document.body
+        : this.canvasElement.parentElement?.parentElement! // host container
     );
 
     this.ctx = context;
@@ -106,17 +107,6 @@ export class BackdropComponent implements OnDestroy {
     this.backdrop().tick();
   }
 
-  private updateBufferSizeAndReinitialize(newWidth: number, newHeight: number) {
-    const backdrop = this.backdrop();
-    const canvas = this.ctx.canvas;
-    this.canvasBufferSize.set([newWidth, newHeight]);
-    [canvas.width, canvas.height] = [newWidth, newHeight];
-
-    backdrop.setSize(newWidth, newHeight);
-    backdrop.initialize();
-    this.isInitialized = true;
-  }
-
   private onResize(entries: ResizeObserverEntry[]) {
     let newWidth: number, newHeight: number;
 
@@ -129,31 +119,22 @@ export class BackdropComponent implements OnDestroy {
     }
 
     /**
-     * ensure we actually resized and should disable rendering
+     * ensure we actually resized, setting canvas buffer size is expensive
      */
     if (newWidth === this.canvasBufferSize.x && newHeight === this.canvasBufferSize.y) {
       return;
     }
 
-    /**
-     * A resize event happens upon this components creation,
-     * for this first event we only want to initialize the
-     * backdrop.  We don't want to stop rendering
-     */
-    if (this.isInitialized) {
-      // reset any existing timeouts
-      if (this.resizeEventTimeout) {
-        clearTimeout(this.resizeEventTimeout);
-      }
-      this.isResizing.set(true);
-      // start new timer
-      this.resizeEventTimeout = setTimeout(() => {
-        this.updateBufferSizeAndReinitialize(newWidth, newHeight);
-        this.isResizing.set(false);
-        this.resizeEventTimeout = undefined;
-      }, 300);
-    } else {
-      this.updateBufferSizeAndReinitialize(newWidth, newHeight);
+    const backdrop = this.backdrop();
+    const canvas = this.ctx.canvas;
+    this.canvasBufferSize.set([newWidth, newHeight]);
+    [canvas.width, canvas.height] = [newWidth, newHeight];
+
+    backdrop.setSize(newWidth, newHeight);
+
+    if (!this.isInitialized) {
+      backdrop.initialize();
+      this.isInitialized = true;
     }
   }
 }

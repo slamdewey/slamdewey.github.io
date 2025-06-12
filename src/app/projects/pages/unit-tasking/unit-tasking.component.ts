@@ -55,11 +55,7 @@ export class UnitTaskingComponent implements OnDestroy {
   ngOnDestroy(): void {
     window.removeEventListener('keydown', this.onkeydown.bind(this));
     window.removeEventListener('keyup', this.onkeyup.bind(this));
-
-    // Clean up ECS resources when component is destroyed
-    if (this.vesselEntity) {
-      this.sceneBackdrop.scene.remove(this.vesselEntity);
-    }
+    this.sceneBackdrop.onDestroy();
   }
 
   onkeydown(e: KeyboardEvent) {
