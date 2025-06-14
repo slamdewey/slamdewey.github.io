@@ -1,27 +1,6 @@
+import { EcsScene } from 'src/app/lib/ecs/scene';
 import { Backdrop } from './backdrop';
 import { Vector2 } from 'src/app/lib/coordinate';
-import { EcsCamera, EcsScene, VirtualAxis } from 'src/app/lib/ecs';
-
-export class ControllableCamera extends EcsCamera {
-  private readonly panSpeed = 500;
-  private downUpInput: VirtualAxis;
-  private leftRightInput: VirtualAxis;
-
-  public override onAddedToScene(): void {
-    const scene = this.scene!;
-    // positive y axis goes downward, so I simply invert input
-    this.downUpInput = scene.registerVirtualAxis('w', 's');
-    this.leftRightInput = scene.registerVirtualAxis('a', 'd');
-  }
-
-  public override update(deltaTime: number): void {
-    const transform = this.transform!;
-    const rawInput = new Vector2(this.leftRightInput.rawValue, this.downUpInput.rawValue);
-    rawInput.normalize();
-    const moveDelta = Vector2.scale(rawInput, (this.panSpeed / this.getZoom()) * deltaTime);
-    transform.position = Vector2.plus(transform.position, moveDelta);
-  }
-}
 
 export class EcsSceneBackdrop extends Backdrop {
   public scene: EcsScene<CanvasRenderingContext2D>;

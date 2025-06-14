@@ -5,12 +5,11 @@ import {
   HostListener,
   OnDestroy,
 } from '@angular/core';
-import {
-  BackdropComponent,
-  ControllableCamera,
-  EcsSceneBackdrop,
-} from 'src/app/components/backdrop';
-import { CanvasContext2DRenderer, EcsEntity, EcsScene } from 'src/app/lib/ecs';
+import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
+import { ControllableCamera } from 'src/app/lib/ecs/camera';
+import { EcsEntity } from 'src/app/lib/ecs/ecs';
+import { CanvasContext2DRenderer } from 'src/app/lib/ecs/renderer';
+import { EcsScene } from 'src/app/lib/ecs/scene';
 
 /**
  * Scroll events are, for some reason, in delta intervals of 100

@@ -22,6 +22,7 @@ const HELLOS: string[] = [
   'welcome',
   'beep boop',
   'greetings, user',
+  '👋',
 ];
 
 const GREETING_MESSAGES: string[] = [
@@ -37,12 +38,11 @@ const GREETING_MESSAGES: string[] = [
   "what's that behind you?",
   '404: greeting not found',
   'I can see your browser history',
-  "you're the chosen one (for now)",
   'this site is gluten free',
   "if you read this, you're paying too much attention",
   'this is totally not a trap',
   'this is a test of the emergency broadcast system',
-  'if you see this message you are in the right place',
+  'this is the right place',
   '<greeting-message />',
   'the adventure begins over there',
   "if you're looking for Google, you've come to the wrong place",
