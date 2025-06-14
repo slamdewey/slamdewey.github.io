@@ -1,7 +1,7 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { env } from 'src/environments/environment';
-import { DropdownItemData } from '../shapes/dropdown';
-import { ImagesJson, GalleryImageData } from '../shapes/gallery';
+import { DropdownItemData } from '../lib/dropdown';
+import { ImagesJson, GalleryImageData } from '../lib/gallery';
 
 import * as imagesJsonModule from '../../../images.json';
 const IMAGES_JSON = (imagesJsonModule as any).default as ImagesJson;

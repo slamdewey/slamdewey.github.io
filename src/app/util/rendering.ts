@@ -1,5 +1,5 @@
-import { Vector2 } from '../shapes/coordinate';
-import { HexTile, TileTerrain } from '../shapes/tilemap';
+import { Vector2 } from '../lib/coordinate';
+import { HexTile, TileTerrain } from '../lib/tilemap';
 
 export type FillStyle = string | CanvasGradient | CanvasPattern;
 export type FillStyleFn = (ctx: CanvasRenderingContext2D) => FillStyle;

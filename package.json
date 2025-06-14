@@ -1,6 +1,6 @@
 {
   "name": "slamdewey.github.io",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "scripts": {
     "ng": "ng",
     "test": "ng test",
@@ -42,4 +42,3 @@
     "typescript-eslint": "^8.6.0"
   }
 }
-

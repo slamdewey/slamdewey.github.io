@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { SkeletonLoaderComponent } from '../skeleton-loader/skeleton-loader.component';
-import { GalleryImageData } from 'src/app/shapes/gallery';
+import { GalleryImageData } from 'src/app/lib/gallery';
 
 @Component({
   selector: 'x-image-tile',

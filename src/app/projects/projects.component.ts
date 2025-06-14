@@ -9,16 +9,16 @@ import { PerlinNoiseBackdrop } from '../components/backdrop/PerlinNoiseBackdrop'
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
 import { RouterLink } from '@angular/router';
 import { Title } from '@angular/platform-browser';
-import { ProjectTileData } from '../shapes/projects';
+import { ProjectTileData } from '../lib/projects';
 import { BannerComponent } from '../components/banner/banner.component';
 import { Backdrop } from '../components/backdrop';
 
 @Component({
-    selector: 'x-projects',
-    templateUrl: './projects.component.html',
-    styleUrls: ['./projects.component.scss'],
-    imports: [BackdropComponent, RouterLink, BannerComponent],
-    changeDetection: ChangeDetectionStrategy.OnPush
+  selector: 'x-projects',
+  templateUrl: './projects.component.html',
+  styleUrls: ['./projects.component.scss'],
+  imports: [BackdropComponent, RouterLink, BannerComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProjectsComponent implements OnInit {
   private readonly titleService = inject(Title);

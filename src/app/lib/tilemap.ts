@@ -1,6 +1,6 @@
 import { drawPolygon, FillStyleFn, TileTerrainFillStyles } from '../util/rendering';
 import { AxialCoordinate, Coordinate, Vector2 } from './coordinate';
-import { EcsRenderableComponent } from './ecs';
+import { EcsRenderableComponent } from './ecs/ecs';
 
 export const ALL_TILE_TERRAINS = [
   'void',

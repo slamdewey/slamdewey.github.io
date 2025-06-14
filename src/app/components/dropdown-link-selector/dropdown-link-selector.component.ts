@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { DropdownItemData } from 'src/app/shapes/dropdown';
+import { DropdownItemData } from 'src/app/lib/dropdown';
 
 @Component({
   selector: 'x-dropdown-link-selector',
