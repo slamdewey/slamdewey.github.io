@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "scripts": {
     "ng": "ng",
-    "test": "ng test",
     "build:dev": "ng build --configuration=development",
     "build:prod": "ng build --configuration=production",
     "prestart:dev": "npm i",
