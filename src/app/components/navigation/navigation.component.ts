@@ -13,9 +13,9 @@ import { INTERNAL_LINKS, EXTERNAL_LINKS } from './links';
 })
 export class NavigationComponent implements OnInit {
   
-  public internalLinks = signal(INTERNAL_LINKS.slice());
-  public externalLinks = signal(EXTERNAL_LINKS.slice());
-  public activeLink: NavigationLink | undefined;
+  public internalLinks = signal(INTERNAL_LINKS);
+  public externalLinks = signal(EXTERNAL_LINKS);
+  public activeLink = signal<NavigationLink | undefined>(undefined);
 
   private readonly router = inject(Router);
 
@@ -35,24 +35,29 @@ export class NavigationComponent implements OnInit {
 
   private onRouteChange(event: NavigationEnd) {
     const SplitUrlByFolderAndQueryParams = /[//?,&+#]/;
-    const newInternalLinks = INTERNAL_LINKS.slice();
+    const newInternalLinks = [...INTERNAL_LINKS];
+    const activeLink = this.activeLink();
+
     /**
      * We want both /projects and /projects/test to highlight the projets link
      */
     const majorUrlIdToActivate: string = event.url
       .slice(1)
       .split(SplitUrlByFolderAndQueryParams)[0];
+      
     const linkToActivate = newInternalLinks.find((link) => {
       const navLinkMajorUrlId = link.routerLink.slice(1).split(SplitUrlByFolderAndQueryParams)[0];
       return majorUrlIdToActivate === navLinkMajorUrlId;
     });
-    if (this.activeLink) {
-      this.activeLink.isActive = false;
+
+    if (activeLink) {
+      activeLink.isActive = false;
     }
     if (linkToActivate) {
       linkToActivate.isActive = true;
     }
-    this.activeLink = linkToActivate;
+
+    this.activeLink.set(linkToActivate);
     this.internalLinks.set(newInternalLinks);
   }
 }
