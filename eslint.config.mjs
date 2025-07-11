@@ -24,6 +24,6 @@ export default [
     files: ['**/*.{ts}'],
   },
   {
-    ignores: ['docs/*'],
+    ignores: ['dist/*'],
   },
 ];
