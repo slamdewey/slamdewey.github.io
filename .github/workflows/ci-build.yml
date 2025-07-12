@@ -12,7 +12,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,15 +27,6 @@ jobs:
       - name: Build site
         run: npm run build:prod
 
-      - name: Copy index.html into 404.html
-        run: |
-          echo "::debug ::Copying $OUTPUT_DIR/index.html into $OUTPUT_DIR/404.html"
-          cp $OUTPUT_DIR/index.html $OUTPUT_DIR/404.html
-
-  upload-build-artifact:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
       - name: Ensure $OUTPUT_DIR exists
         run: |
           if [ ! -d "$OUTPUT_DIR" ]; then
@@ -44,6 +34,11 @@ jobs:
             exit 1
           fi
           echo "::debug ::$OUTPUT_DIR exists!"
+
+      - name: Copy index.html into 404.html
+        run: |
+          echo "::debug ::Copying $OUTPUT_DIR/index.html into $OUTPUT_DIR/404.html"
+          cp $OUTPUT_DIR/index.html $OUTPUT_DIR/404.html
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
@@ -53,7 +48,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: upload-build-artifact
+    needs: build
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4
