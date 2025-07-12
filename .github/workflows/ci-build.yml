@@ -1,5 +1,9 @@
 name: CI Build
 
+env:
+  OUTPUT_DIR: dist
+  NODE_VERSION: '20'
+
 on:
   push:
     branches:
@@ -16,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
         run: npm install
@@ -24,11 +28,48 @@ jobs:
       - name: Build site
         run: npm run build:prod
 
-      - name: Copy index.html to 404.html
-        run: cp dist/index.html dist/404.html
+      - name: Copy index.html into 404.html
+        run: |
+          echo "::debug ::Copying $OUTPUT_DIR/index.html into $OUTPUT_DIR/404.html"
+          cp $OUTPUT_DIR/index.html $OUTPUT_DIR/404.html
+
+  upload-build-artifact:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Ensure ${{ env.OUTPUT_DIR }} exists
+        run: |
+          if [ ! -d "$OUTPUT_DIR" ]; then
+            echo "::error file=$::$OUTPUT_DIR does not exist!"
+            exit 1
+          fi
+          echo "::debug ::$OUTPUT_DIR exists!"
+        shell: bash
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: ${{ env.OUTPUT_DIR }}
+          path: ${{ env.OUTPUT_DIR }}/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: upload-build-artifact
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.OUTPUT_DIR }}
+          path: ${{ env.OUTPUT_DIR }}
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ env.OUTPUT_DIR }}
