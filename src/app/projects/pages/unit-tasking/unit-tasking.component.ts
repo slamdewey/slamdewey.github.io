@@ -16,7 +16,7 @@ import { EcsScene } from 'src/app/lib/ecs/scene';
  */
 export const ZoomScalar = 100;
 
-class ShootingGameScene extends EcsScene<CanvasRenderingContext2D> {
+class UnitTaskingScene extends EcsScene<CanvasRenderingContext2D> {
   constructor() {
     const renderer = new CanvasContext2DRenderer();
     super('my scene', renderer);
@@ -35,7 +35,7 @@ class ShootingGameScene extends EcsScene<CanvasRenderingContext2D> {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UnitTaskingComponent implements OnDestroy {
-  public sceneBackdrop = new EcsSceneBackdrop(new ShootingGameScene());
+  public sceneBackdrop = new EcsSceneBackdrop(new UnitTaskingScene());
 
   ngOnDestroy(): void {
     this.sceneBackdrop.onDestroy();

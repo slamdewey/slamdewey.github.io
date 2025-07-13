@@ -6,7 +6,7 @@ import { EcsEntity } from './entity';
 import { ActionKeyBinding, ActionListener, AxisKeyBinding, KeyBinding, KeyEventType } from './input';
 
 /**
- * no lights, no problems!
+ * no lights, no problem!
  */
 export class EcsScene<ctx extends RenderingContext> {
   public name: string;
@@ -31,12 +31,10 @@ export class EcsScene<ctx extends RenderingContext> {
   }
 
   public registerActionListener(action: string, listener: ActionListener): void {
-    const actionListener = this.actionListeners.get(action);
-    if (!actionListener) {
-      this.actionListeners.set(action, new Set([listener]));
-    } else {
-      actionListener.add(listener);
+    if (!this.actionListeners.has(action)) {
+      this.actionListeners.set(action, new Set());
     }
+    this.actionListeners.get(action)?.add(listener);
   }
 
   public deregisterActionListener(action: string, listener: ActionListener): void {
@@ -120,19 +118,22 @@ export class EcsScene<ctx extends RenderingContext> {
   }
 
   public render(ctx: ctx) {
-    this.renderer.render(ctx, this.renderables);
+    if (!this.camera) {
+      throw new Error("Cannot render without camera");
+    }
+    this.renderer.render(ctx, this.renderables, this.camera);
   }
 
   public createEntity<T extends EcsEntity>(entityType: new (scene: EcsScene<RenderingContext>, name: string, ...args: any[]) => T, name: string, ...args: any[]): T {
     const entity = new entityType(this, name, ...args);
-    this.add(entity);
+    this.addEntity(entity);
     return entity;
   }
 
   public add(item: EcsComponent | EcsEntity): void {
     if (item instanceof EcsEntity) {
       this.addEntity(item);
-    } else if (item instanceof EcsComponent) {
+    } else {
       this.addComponent(item);
     }
   }
@@ -140,7 +141,7 @@ export class EcsScene<ctx extends RenderingContext> {
   public remove(item: EcsComponent | EcsEntity): void {
     if (item instanceof EcsEntity) {
       this.removeEntity(item);
-    } else if (item instanceof EcsComponent) {
+    } else {
       this.removeComponent(item);
     }
   }

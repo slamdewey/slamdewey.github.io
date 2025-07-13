@@ -12,7 +12,7 @@ import { Player } from './player';
 import { Enemy } from './enemy';
 import { Vector2 } from 'src/app/lib/coordinate';
 import { ScoreRenderable } from './score';
-import { GameAction, GameAxis } from './game-input';
+import { ShootingGameActions, ShootingGameAxes } from './game-input';
 
 /**
  * Scroll events are, for some reason, in delta intervals of 100
@@ -44,11 +44,11 @@ class MyScene extends EcsScene<CanvasRenderingContext2D> {
     scoreEntity.createComponent(ScoreRenderable, () => this.score);
 
     // setup inputs
-    this.addVirtualAxisBinding('w', 's', GameAxis.Vertical);
-    this.addVirtualAxisBinding('a', 'd', GameAxis.Horizontal);
+    this.addVirtualAxisBinding('w', 's', ShootingGameAxes.MoveY);
+    this.addVirtualAxisBinding('a', 'd', ShootingGameAxes.MoveX);
 
-    this.addVirtualAxisBinding('ArrowUp', 'ArrowDown', GameAxis.ShootVertical, GameAction.ShootTrigger);
-    this.addVirtualAxisBinding('ArrowLeft', 'ArrowRight', GameAxis.ShootHorizontal, GameAction.ShootTrigger);
+    this.addVirtualAxisBinding('ArrowUp', 'ArrowDown', ShootingGameAxes.AimY, ShootingGameActions.Shoot);
+    this.addVirtualAxisBinding('ArrowLeft', 'ArrowRight', ShootingGameAxes.AimX, ShootingGameActions.Shoot);
   }
 }
 
