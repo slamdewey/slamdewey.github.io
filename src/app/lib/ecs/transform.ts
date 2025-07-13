@@ -27,9 +27,16 @@ export class EcsTransform {
   }
 
   public getTransformationMatrix(): DOMMatrix {
-    return new DOMMatrix()
+    const rotationInDegrees = (this.rotation * 180) / Math.PI;
+    const localMatrix = new DOMMatrix()
       .translate(this.position.x, this.position.y)
-      .rotate(0, 0, this.rotation)
+      .rotate(0, 0, rotationInDegrees)
       .scale(this.scale, this.scale, this.scale);
+
+    if (this.parent) {
+      return this.parent.getTransformationMatrix().multiply(localMatrix);
+    }
+
+    return localMatrix;
   }
 }

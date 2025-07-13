@@ -1,18 +1,18 @@
-import {
-  afterNextRender,
-  ChangeDetectionStrategy,
-  Component,
-  HostListener,
-  OnDestroy,
-  inject
-} from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, HostListener, OnDestroy, inject } from '@angular/core';
 import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
-import { CanvasContext2DRenderer, EcsScene, EcsEntity, TransformFollowCamera, DebugGridComponent, EcsCamera } from 'src/app/lib/ecs';
+import {
+  CanvasContext2DRenderer,
+  EcsScene,
+  EcsEntity,
+  TransformFollowCamera,
+  DebugGridComponent,
+  EcsCamera,
+} from 'src/app/lib/ecs';
 import { Player } from './player';
 import { Enemy } from './enemy';
 import { Vector2 } from 'src/app/lib/coordinate';
 import { ScoreRenderable } from './score';
-import { GameAction, GameAxis } from './game-input';
+import { ShootingGameActions, ShootingGameAxes } from './game-input';
 
 /**
  * Scroll events are, for some reason, in delta intervals of 100
@@ -20,7 +20,6 @@ import { GameAction, GameAxis } from './game-input';
 export const ZoomScalar = 100;
 
 class MyScene extends EcsScene<CanvasRenderingContext2D> {
-
   public score: number = 0;
 
   private incrementScore = () => this.score++;
@@ -30,12 +29,14 @@ class MyScene extends EcsScene<CanvasRenderingContext2D> {
     const renderer = new CanvasContext2DRenderer();
     super('my scene', renderer);
 
+    this.debug = true;
+
     // setup camera
-    const cameraEntity = this.createEntity(EcsEntity, "Main Camera");
+    const cameraEntity = this.createEntity(EcsEntity, 'Main Camera');
     const camera = cameraEntity.createComponent(TransformFollowCamera);
     cameraEntity.createComponent(DebugGridComponent);
     this.camera = camera;
-    
+
     // setup player
     this.createEntity(Player, 'Player');
     this.createEntity(Enemy, 'Enemy1', new Vector2(100, 100), this.incrementScore);
@@ -44,11 +45,11 @@ class MyScene extends EcsScene<CanvasRenderingContext2D> {
     scoreEntity.createComponent(ScoreRenderable, () => this.score);
 
     // setup inputs
-    this.addVirtualAxisBinding('w', 's', GameAxis.Vertical);
-    this.addVirtualAxisBinding('a', 'd', GameAxis.Horizontal);
+    this.addVirtualAxisBinding('w', 's', ShootingGameAxes.MoveY);
+    this.addVirtualAxisBinding('a', 'd', ShootingGameAxes.MoveX);
 
-    this.addVirtualAxisBinding('ArrowUp', 'ArrowDown', GameAxis.ShootVertical, GameAction.ShootTrigger);
-    this.addVirtualAxisBinding('ArrowLeft', 'ArrowRight', GameAxis.ShootHorizontal, GameAction.ShootTrigger);
+    this.addVirtualAxisBinding('ArrowUp', 'ArrowDown', ShootingGameAxes.AimY, ShootingGameActions.Shoot);
+    this.addVirtualAxisBinding('ArrowLeft', 'ArrowRight', ShootingGameAxes.AimX, ShootingGameActions.Shoot);
   }
 }
 
@@ -86,3 +87,4 @@ export class ShootingGameComponent implements OnDestroy {
     camera.updateZoom((zoom: number) => zoom - e.deltaY / ZoomScalar);
   }
 }
+

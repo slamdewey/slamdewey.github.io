@@ -36,6 +36,7 @@ export class EcsComponent {
   public update(deltaTime: number): void {}
   public lateUpdate(): void {}
   public onDestroy(): void {}
+  public drawGizmos<T extends RenderingContext>(ctx: T): void {}
 }
 
 export abstract class EcsRenderableComponent extends EcsComponent {

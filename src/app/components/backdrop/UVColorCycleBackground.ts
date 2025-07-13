@@ -1,8 +1,6 @@
 import { WebGLBackdrop } from './backdrop';
 
 export class UVColorCycleBackground extends WebGLBackdrop {
-  protected override start(): void {}
-
   readonly FragmentShader: string = `\
 #version 300 es
 precision mediump float;

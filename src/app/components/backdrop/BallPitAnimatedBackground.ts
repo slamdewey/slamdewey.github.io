@@ -73,7 +73,7 @@ class Circle {
 export class BallPitAnimatedBackground extends Backdrop {
   circles: Circle[];
 
-  override start(): void {
+  override initialize(): void {
     this.circles = [];
     const NUM_CIRCLES = Math.round((this.width * this.height) / CIRCLE_SPAWN_DENSITY);
     for (let i = 0; i < NUM_CIRCLES; i++) {

@@ -18,27 +18,16 @@ export abstract class Backdrop {
   public setSize(width: number, height: number): void {
     this.width = width;
     this.height = height;
-    this.clear();
   }
 
   public setContext(ctx: RenderingContext) {
     this.ctx = ctx as CanvasRenderingContext2D;
   }
 
-  public initialize(): void {
-    this.clear();
-    this.start();
-  }
-  /**
-   * Final Init Step
-   *
-   * This function is also called as part of the re-initialization process after
-   * the user updates the viewport.
-   */
-  protected start(): void {}
+  public initialize(): void {}
 
   protected clear(): void {
-    (this.ctx as CanvasRenderingContext2D).clearRect(0, 0, this.width, this.height);
+    this.ctx.clearRect(0, 0, this.width, this.height);
   }
 
   public tick(): void {
@@ -47,7 +36,6 @@ export abstract class Backdrop {
     this.lastUpdate = now;
 
     this.update(deltaTime);
-    this.clear();
     this.draw(deltaTime);
   }
 

@@ -39,9 +39,7 @@ export class BackdropComponent implements OnDestroy {
   constructor() {
     const e = document.createElement('canvas');
     BackdropComponent.isWebGlEnabled =
-      !!window.WebGLRenderingContext ||
-      !!e.getContext('webgl') ||
-      !!e.getContext('experimental-webgl');
+      !!window.WebGLRenderingContext || !!e.getContext('webgl') || !!e.getContext('experimental-webgl');
     e.remove();
   }
 
@@ -64,6 +62,7 @@ export class BackdropComponent implements OnDestroy {
     this.ctx = context;
     backdrop.setContext(this.ctx);
     backdrop.initialize();
+    this.isInitialized = true;
 
     this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
   }
@@ -90,10 +89,7 @@ export class BackdropComponent implements OnDestroy {
       return;
     }
     const backdrop = this.backdrop();
-    const deltaOffset = new Vector2(
-      window.scrollX - backdrop.scrollOffset.x,
-      window.scrollY - backdrop.scrollOffset.y
-    );
+    const deltaOffset = new Vector2(window.scrollX - backdrop.scrollOffset.x, window.scrollY - backdrop.scrollOffset.y);
     backdrop.mousePosition = Vector2.minus(backdrop.mousePosition, deltaOffset);
     backdrop.scrollOffset.set([window.scrollX, window.scrollY]);
   }
@@ -117,9 +113,7 @@ export class BackdropComponent implements OnDestroy {
       newHeight = entries[0].contentRect.height;
     }
 
-    /**
-     * ensure we actually resized, setting canvas buffer size is expensive
-     */
+    // ensure we actually resized, setting canvas buffer size is expensive
     if (newWidth === this.canvasBufferSize.x && newHeight === this.canvasBufferSize.y) {
       return;
     }
@@ -130,10 +124,5 @@ export class BackdropComponent implements OnDestroy {
     [canvas.width, canvas.height] = [newWidth, newHeight];
 
     backdrop.setSize(newWidth, newHeight);
-
-    if (!this.isInitialized) {
-      backdrop.initialize();
-      this.isInitialized = true;
-    }
   }
 }

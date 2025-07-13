@@ -1,8 +1,6 @@
 import { WebGLBackdrop } from './backdrop';
 
 export class PerlinNoiseBackdrop extends WebGLBackdrop {
-  protected override start(): void {}
-
   readonly FragmentShader = `\
 #version 300 es
 precision mediump float;

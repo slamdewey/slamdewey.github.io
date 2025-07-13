@@ -85,6 +85,20 @@ export class Vector2 extends Coordinate {
   public static times<T extends Vector2>(x0: T, x1: T) {
     return Coordinate.operate(x0, x1, (a, b) => a * b, Vector2) as T;
   }
+
+  public static dot<T extends Vector2>(x0: T, x1: T): number {
+    const a = x0.toArray();
+    const b = x1.toArray();
+    return a.reduce((sum, val, i) => sum + val * b[i], 0);
+  }
+
+  public rotate(angle: number): this {
+    const x = this.x * Math.cos(angle) - this.y * Math.sin(angle);
+    const y = this.x * Math.sin(angle) + this.y * Math.cos(angle);
+    this.x = x;
+    this.y = y;
+    return this;
+  }
 }
 
 export class AxialCoordinate extends Coordinate {

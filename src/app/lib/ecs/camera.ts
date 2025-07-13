@@ -2,20 +2,18 @@ import { Vector2 } from '../coordinate';
 import { EcsComponent } from './component';
 
 export abstract class EcsCamera extends EcsComponent {
-  
   protected readonly MinZoom: number = 1;
   private _zoom = this.MinZoom;
 
-  public getViewMatrix(origin: Vector2): DOMMatrix {
-    const identity = new DOMMatrix();
-    if (!this.transform) {
-      return identity;
-    }
-    return identity
-      .translate(origin.x, origin.y)
-      .scale(this._zoom, this._zoom)
-      .translate(-this.transform.position.x, -this.transform.position.y)
-      .rotate(0, 0, this.transform.rotation);
+  public getViewMatrix(): DOMMatrix {
+    const viewMatrix = new DOMMatrix();
+    // Apply zoom first
+    viewMatrix.scale(this._zoom, this._zoom);
+    // Apply negative rotation (to rotate the world opposite to camera)
+    viewMatrix.rotate(0, 0, -this.transform.rotation);
+    // Apply negative translation (to move the world opposite to camera position)
+    viewMatrix.translate(-this.transform.position.x, -this.transform.position.y);
+    return viewMatrix;
   }
 
   public getZoom(): number {
@@ -32,14 +30,10 @@ export abstract class EcsCamera extends EcsComponent {
   }
 }
 
-export class TransformFollowCamera extends EcsCamera {
-
-}
-
 enum ControllableCameraInputAxes {
- Vertical = 'controllable-camera-Vertical',
- Horizontal = 'controllable-camera-Horizontal'
-};
+  Vertical = 'ControllableCameraInputAxes-Vertical',
+  Horizontal = 'ControllableCameraInputAxes-Horizontal',
+}
 export class ControllableCamera extends EcsCamera {
   private readonly panSpeed = 500;
 
@@ -51,8 +45,8 @@ export class ControllableCamera extends EcsCamera {
   }
 
   public override update(deltaTime: number): void {
-    const shootHorizontal = this.scene.getAxisValue(ControllableCameraInputAxes.Vertical);
-    const shootVertical = this.scene.getAxisValue(ControllableCameraInputAxes.Horizontal);
+    const shootVertical = this.scene.getAxisValue(ControllableCameraInputAxes.Vertical);
+    const shootHorizontal = this.scene.getAxisValue(ControllableCameraInputAxes.Horizontal);
     const rawInput = new Vector2(shootHorizontal, shootVertical);
     rawInput.normalize();
 
@@ -60,3 +54,5 @@ export class ControllableCamera extends EcsCamera {
     this.transform.position = Vector2.plus(this.transform.position, moveDelta);
   }
 }
+
+export class TransformFollowCamera extends EcsCamera {}

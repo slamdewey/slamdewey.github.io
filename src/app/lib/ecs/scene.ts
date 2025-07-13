@@ -1,12 +1,14 @@
 import { EcsCamera } from './camera';
 import { EcsRenderer } from './renderer';
-import { CollisionComponent } from './collider';
+import { Collider } from './collider';
 import { EcsComponent, EcsRenderableComponent } from './component';
 import { EcsEntity } from './entity';
-import { ActionKeyBinding, ActionListener, AxisKeyBinding, KeyBinding, KeyEventType } from './input';
+import { ActionListener, KeyEventType, KeyBinding, ActionKeyBinding, AxisKeyBinding } from './input';
+import { SAT } from './geometry';
+import { Vector2 } from '../coordinate';
 
 /**
- * no lights, no problems!
+ * no lights, no problem!
  */
 export class EcsScene<ctx extends RenderingContext> {
   public name: string;
@@ -14,10 +16,12 @@ export class EcsScene<ctx extends RenderingContext> {
    * must be manually assigned to the camera you wish to use
    */
   public camera: EcsCamera | undefined = undefined;
+  public debug: boolean = false;
 
   protected readonly entities: Set<EcsEntity> = new Set();
   protected readonly components: Set<EcsComponent> = new Set();
   protected readonly renderables: Set<EcsRenderableComponent> = new Set();
+  protected readonly collidables: Set<Collider> = new Set();
   protected readonly renderer: EcsRenderer<ctx>;
   protected readonly keyStateMap = new Map<string, KeyEventType>();
 
@@ -31,12 +35,10 @@ export class EcsScene<ctx extends RenderingContext> {
   }
 
   public registerActionListener(action: string, listener: ActionListener): void {
-    const actionListener = this.actionListeners.get(action);
-    if (!actionListener) {
-      this.actionListeners.set(action, new Set([listener]));
-    } else {
-      actionListener.add(listener);
+    if (!this.actionListeners.has(action)) {
+      this.actionListeners.set(action, new Set());
     }
+    this.actionListeners.get(action)?.add(listener);
   }
 
   public deregisterActionListener(action: string, listener: ActionListener): void {
@@ -55,8 +57,8 @@ export class EcsScene<ctx extends RenderingContext> {
   }
 
   public addVirtualAxisBinding(negativeKey: string, positiveKey: string, axis: string, action?: string): void {
-    this.addKeyBinding(negativeKey, {axis, axisDirection: -1, action});
-    this.addKeyBinding(positiveKey, {axis, axisDirection: 1, action});
+    this.addKeyBinding(negativeKey, { axis, axisDirection: -1, action });
+    this.addKeyBinding(positiveKey, { axis, axisDirection: 1, action });
   }
 
   public handleInput(e: KeyboardEvent, type: KeyEventType) {
@@ -73,7 +75,7 @@ export class EcsScene<ctx extends RenderingContext> {
     }
     this.keyStateMap.set(e.key, type);
 
-    bindings.forEach(binding => {
+    bindings.forEach((binding) => {
       const axisBinding = binding as AxisKeyBinding;
       if (axisBinding.axis !== undefined && axisBinding.axisDirection !== undefined) {
         const currentValue = this.axisValues.get(axisBinding.axis) || 0;
@@ -81,10 +83,10 @@ export class EcsScene<ctx extends RenderingContext> {
         const newValue = currentValue + axisBinding.axisDirection * polarity;
         this.axisValues.set(axisBinding.axis, newValue);
       }
-      
+
       const actionBinding = binding as ActionKeyBinding;
-      if (actionBinding.action !== undefined && type === 'down') {
-        this.actionListeners.get(actionBinding.action)?.forEach(listener => listener());
+      if (type !== 'up' && actionBinding.action !== undefined) {
+        this.actionListeners.get(actionBinding.action)?.forEach((listener) => listener());
       }
     });
   }
@@ -96,43 +98,66 @@ export class EcsScene<ctx extends RenderingContext> {
   public lateUpdate() {
     this.components.forEach((c) => c.lateUpdate());
 
-    const collidables = Array.from(this.entities).map(entity => entity.getComponent(CollisionComponent)).filter(c => c) as CollisionComponent[];
-    collidables.sort((a, b) => a.transform.position.x - b.transform.position.x);
+    const collidables = [...this.collidables];
+    const projections = new Map<Collider, { min: number; max: number }>();
 
-    const activeColliders: CollisionComponent[] = [];
+    // Pre-calculate projections
+    for (const collider of collidables) {
+      projections.set(collider, collider.shape.project(new Vector2(1, 0), collider.transform));
+    }
+
+    collidables.sort((a, b) => {
+      const minA = projections.get(a)!.min;
+      const minB = projections.get(b)!.min;
+      return minA - minB;
+    });
+
+    const activeColliders: Collider[] = [];
 
     for (const collider of collidables) {
-        activeColliders.push(collider);
+      activeColliders.push(collider);
 
-        for (let i = activeColliders.length - 2; i >= 0; i--) {
-            const other = activeColliders[i];
+      for (let i = activeColliders.length - 2; i >= 0; i--) {
+        const other = activeColliders[i];
 
-            if (collider.transform.position.x - collider.collider.width / 2 > other.transform.position.x + other.collider.width / 2) {
-                activeColliders.splice(i, 1);
-            } else {
-                if (collider.collider.intersects(collider.transform, other.transform, other.collider)) {
-                    collider.onCollision(other.entity);
-                    other.onCollision(collider.entity);
-                }
-            }
+        const projectionA = projections.get(collider)!;
+        const projectionB = projections.get(other)!;
+
+        // Check for overlap on the X axis (optimization for sort and sweep)
+        if (projectionA.max < projectionB.min) {
+          activeColliders.splice(i, 1);
+        } else {
+          // Perform SAT collision check
+          if (SAT.intersects(collider, other)) {
+            collider.onCollision(other.entity);
+            other.onCollision(collider.entity);
+          }
         }
+      }
     }
   }
 
   public render(ctx: ctx) {
-    this.renderer.render(ctx, this.renderables);
+    if (!this.camera) {
+      throw new Error('Cannot render without camera');
+    }
+    this.renderer.render(ctx, this.components, this.camera, this.debug);
   }
 
-  public createEntity<T extends EcsEntity>(entityType: new (scene: EcsScene<RenderingContext>, name: string, ...args: any[]) => T, name: string, ...args: any[]): T {
+  public createEntity<T extends EcsEntity>(
+    entityType: new (scene: EcsScene<RenderingContext>, name: string, ...args: any[]) => T,
+    name: string,
+    ...args: any[]
+  ): T {
     const entity = new entityType(this, name, ...args);
-    this.add(entity);
+    this.addEntity(entity);
     return entity;
   }
 
   public add(item: EcsComponent | EcsEntity): void {
     if (item instanceof EcsEntity) {
       this.addEntity(item);
-    } else if (item instanceof EcsComponent) {
+    } else {
       this.addComponent(item);
     }
   }
@@ -140,7 +165,7 @@ export class EcsScene<ctx extends RenderingContext> {
   public remove(item: EcsComponent | EcsEntity): void {
     if (item instanceof EcsEntity) {
       this.removeEntity(item);
-    } else if (item instanceof EcsComponent) {
+    } else {
       this.removeComponent(item);
     }
   }
@@ -149,6 +174,8 @@ export class EcsScene<ctx extends RenderingContext> {
     this.components.add(c);
     if (c instanceof EcsRenderableComponent) {
       this.renderables.add(c);
+    } else if (c instanceof Collider) {
+      this.collidables.add(c);
     }
     c.onAddedToScene();
   }
@@ -162,11 +189,15 @@ export class EcsScene<ctx extends RenderingContext> {
     this.components.delete(c);
     if (c instanceof EcsRenderableComponent) {
       this.renderables.delete(c);
+    } else if (c instanceof Collider) {
+      this.collidables.delete(c);
     }
     c.onRemovedFromScene();
   }
+
   private removeEntity<T extends EcsEntity>(e: T) {
     this.entities.delete(e);
     e.components.forEach((c) => this.removeComponent(c));
   }
 }
+

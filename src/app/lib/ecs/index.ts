@@ -3,6 +3,8 @@ export * from './collider';
 export * from './component';
 export * from './debug';
 export * from './entity';
+export * from './geometry';
+export * from './input';
 export * from './renderer';
 export * from './scene';
 export * from './transform';
