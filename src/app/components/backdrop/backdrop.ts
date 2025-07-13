@@ -21,17 +21,13 @@ export abstract class Backdrop {
     this.clear();
   }
 
-  /**
-   * T
-   * @param ctx
-   */
   public setContext(ctx: RenderingContext) {
     this.ctx = ctx as CanvasRenderingContext2D;
   }
 
   public initialize(): void {
-    this.start();
     this.clear();
+    this.start();
   }
   /**
    * Final Init Step
@@ -41,7 +37,7 @@ export abstract class Backdrop {
    */
   protected start(): void {}
 
-  public clear(): void {
+  protected clear(): void {
     (this.ctx as CanvasRenderingContext2D).clearRect(0, 0, this.width, this.height);
   }
 
@@ -51,6 +47,7 @@ export abstract class Backdrop {
     this.lastUpdate = now;
 
     this.update(deltaTime);
+    this.clear();
     this.draw(deltaTime);
   }
 

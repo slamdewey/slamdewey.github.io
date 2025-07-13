@@ -6,8 +6,8 @@ import {
   OnDestroy,
 } from '@angular/core';
 import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
+import { DebugGridComponent, EcsEntity } from 'src/app/lib/ecs';
 import { ControllableCamera } from 'src/app/lib/ecs/camera';
-import { EcsEntity } from 'src/app/lib/ecs/ecs';
 import { CanvasContext2DRenderer } from 'src/app/lib/ecs/renderer';
 import { EcsScene } from 'src/app/lib/ecs/scene';
 
@@ -16,11 +16,14 @@ import { EcsScene } from 'src/app/lib/ecs/scene';
  */
 export const ZoomScalar = 100;
 
-class MyScene extends EcsScene<CanvasRenderingContext2D> {
+class ShootingGameScene extends EcsScene<CanvasRenderingContext2D> {
   constructor() {
     const renderer = new CanvasContext2DRenderer();
     super('my scene', renderer);
-    this.setCamera(new ControllableCamera());
+    const cameraEntity = this.createEntity(EcsEntity, "Main Camera");
+    const camera = cameraEntity.createComponent(ControllableCamera);
+    cameraEntity.createComponent(DebugGridComponent);
+    this.camera = camera;
   }
 }
 
@@ -32,35 +35,18 @@ class MyScene extends EcsScene<CanvasRenderingContext2D> {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UnitTaskingComponent implements OnDestroy {
-  public sceneBackdrop = new EcsSceneBackdrop(new MyScene());
-  public vesselEntity: EcsEntity;
-
-  constructor() {
-    afterNextRender(() => {
-      this.sceneBackdrop.scene.add(this.vesselEntity);
-
-      window.addEventListener('keydown', this.onkeydown.bind(this));
-      window.addEventListener('keyup', this.onkeyup.bind(this));
-
-      // Set canvas to take up full page width and height
-      const canvasElement = document.getElementById('canvas');
-      if (canvasElement) {
-        canvasElement.style.width = '100%';
-        canvasElement.style.height = '100vh';
-      }
-    });
-  }
+  public sceneBackdrop = new EcsSceneBackdrop(new ShootingGameScene());
 
   ngOnDestroy(): void {
-    window.removeEventListener('keydown', this.onkeydown.bind(this));
-    window.removeEventListener('keyup', this.onkeyup.bind(this));
     this.sceneBackdrop.onDestroy();
   }
 
+  @HostListener('window:keydown', ['$event'])
   onkeydown(e: KeyboardEvent) {
     this.sceneBackdrop.scene.handleInput(e, 'down');
   }
 
+  @HostListener('window:keyup', ['$event'])
   onkeyup(e: KeyboardEvent) {
     this.sceneBackdrop.scene.handleInput(e, 'up');
   }
@@ -68,12 +54,12 @@ export class UnitTaskingComponent implements OnDestroy {
   @HostListener('mousewheel', ['$event'])
   public onSroll(e: WheelEvent) {
     e.preventDefault();
-    const camera = this.sceneBackdrop.scene.getCamera() as ControllableCamera;
-    camera?.updateZoom((zoom: number) => zoom - e.deltaY / ZoomScalar);
-  }
+    const camera = this.sceneBackdrop.scene.camera;
 
-  ngAfterViewInit() {
-    this.vesselEntity = new EcsEntity('Vessel');
-    this.sceneBackdrop.scene.add(this.vesselEntity);
+    if (!camera) {
+      return;
+    }
+
+    camera.updateZoom((zoom: number) => zoom - e.deltaY / ZoomScalar);
   }
 }

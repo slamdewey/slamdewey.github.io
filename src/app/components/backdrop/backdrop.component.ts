@@ -103,7 +103,6 @@ export class BackdropComponent implements OnDestroy {
     if (!this.isInitialized || this.shouldPauseAnimation() || this.isResizing()) {
       return;
     }
-    this.backdrop().clear();
     this.backdrop().tick();
   }
 

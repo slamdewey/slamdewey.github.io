@@ -6,6 +6,7 @@ import { FragmentWriterComponent } from './projects/pages/fragment-writer/fragme
 import { UnitTaskingComponent } from './projects/pages/unit-tasking/unit-tasking.component';
 import { FAVICON_URL } from './tokens/favicon-url.token';
 import { faviconResolverFn } from './resolvers/favicon.resolver';
+import { ShootingGameComponent } from './projects/pages/shooting-game/shooting-game.component';
 
 export const routes: Route[] = [
   {
@@ -53,6 +54,11 @@ export const routes: Route[] = [
         path: 'unit-tasking',
         title: 'An experimental page',
         component: UnitTaskingComponent,
+      },
+      {
+        path: 'shooting-game',
+        title: 'An experimental game',
+        component: ShootingGameComponent,
       },
     ],
     providers: [
