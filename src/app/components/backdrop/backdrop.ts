@@ -51,6 +51,7 @@ export abstract class Backdrop {
     this.lastUpdate = now;
 
     this.update(deltaTime);
+    this.clear();
     this.draw(deltaTime);
   }
 
