@@ -1,15 +1,20 @@
-import { EcsRenderableComponent } from "./component";
-import { EcsCamera } from "./camera";
+import { EcsRenderableComponent, EcsComponent } from './component';
+import { EcsCamera } from './camera';
 
 export abstract class EcsRenderer<ctx extends RenderingContext> {
-  public abstract render(ctx: ctx, renderables: Set<EcsRenderableComponent>, camera: EcsCamera): void;
+  public abstract render(ctx: ctx, components: Set<EcsComponent>, camera: EcsCamera, debug?: boolean): void;
 }
 
 export class CanvasContext2DRenderer extends EcsRenderer<CanvasRenderingContext2D> {
   private targetGameWidth = 800;
   private targetGameHeight = 600;
 
-  public render(ctx: CanvasRenderingContext2D, renderables: Set<EcsRenderableComponent>, camera: EcsCamera): void {
+  public render(
+    ctx: CanvasRenderingContext2D,
+    components: Set<EcsComponent>,
+    camera: EcsCamera,
+    debug?: boolean
+  ): void {
     // Clear the entire canvas
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
@@ -42,7 +47,7 @@ export class CanvasContext2DRenderer extends EcsRenderer<CanvasRenderingContext2
       cameraViewMatrix.f
     );
 
-    renderables.forEach((c) => {
+    components.forEach((c) => {
       ctx.save();
 
       // Apply component's local transformation
@@ -56,7 +61,13 @@ export class CanvasContext2DRenderer extends EcsRenderer<CanvasRenderingContext2
         componentTransform.f
       );
 
-      c.render(ctx);
+      if (c instanceof EcsRenderableComponent) {
+        c.render(ctx);
+      }
+
+      if (debug) {
+        c.drawGizmos(ctx);
+      }
 
       ctx.restore();
     });
@@ -64,3 +75,4 @@ export class CanvasContext2DRenderer extends EcsRenderer<CanvasRenderingContext2
     ctx.restore();
   }
 }
+

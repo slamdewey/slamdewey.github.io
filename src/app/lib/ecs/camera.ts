@@ -2,7 +2,6 @@ import { Vector2 } from '../coordinate';
 import { EcsComponent } from './component';
 
 export abstract class EcsCamera extends EcsComponent {
-  
   protected readonly MinZoom: number = 1;
   private _zoom = this.MinZoom;
 
@@ -31,16 +30,11 @@ export abstract class EcsCamera extends EcsComponent {
   }
 }
 
-export class TransformFollowCamera extends EcsCamera {
-
-}
-
 enum ControllableCameraInputAxes {
- Vertical = 'ControllableCameraInputAxes-Vertical',
- Horizontal = 'ControllableCameraInputAxes-Horizontal'
-};
+  Vertical = 'ControllableCameraInputAxes-Vertical',
+  Horizontal = 'ControllableCameraInputAxes-Horizontal',
+}
 export class ControllableCamera extends EcsCamera {
-
   private readonly panSpeed = 500;
 
   public override onAddedToScene(): void {
@@ -60,3 +54,5 @@ export class ControllableCamera extends EcsCamera {
     this.transform.position = Vector2.plus(this.transform.position, moveDelta);
   }
 }
+
+export class TransformFollowCamera extends EcsCamera {}

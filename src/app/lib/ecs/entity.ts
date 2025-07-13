@@ -1,6 +1,6 @@
-import { EcsComponent } from "./component";
-import { EcsScene } from "./scene";
-import { EcsTransform } from "./transform";
+import { EcsComponent } from './component';
+import { EcsScene } from './scene';
+import { EcsTransform } from './transform';
 
 export class EcsEntity {
   public name: string;
@@ -14,7 +14,15 @@ export class EcsEntity {
     this.scene = scene;
   }
 
-  public createComponent<T extends EcsComponent>(componentType: new (scene: EcsScene<RenderingContext>, entity: EcsEntity, transform: EcsTransform, ...args: any[]) => T, ...args: any[]): T {
+  public createComponent<T extends EcsComponent>(
+    componentType: new (
+      scene: EcsScene<RenderingContext>,
+      entity: EcsEntity,
+      transform: EcsTransform,
+      ...args: any[]
+    ) => T,
+    ...args: any[]
+  ): T {
     const component = new componentType(this.scene, this, this.transform, ...args);
     this.components.add(component);
     this.scene.add(component);
@@ -42,9 +50,9 @@ export class EcsEntity {
 
   public getComponent<T extends EcsComponent>(type: new (...args: any[]) => T): T | undefined {
     for (const component of this.components) {
-        if (component instanceof type) {
-            return component as T;
-        }
+      if (component instanceof type) {
+        return component as T;
+      }
     }
     return undefined;
   }
@@ -52,9 +60,9 @@ export class EcsEntity {
   public getComponents<T extends EcsComponent>(type: new (...args: any[]) => T): T[] {
     const result: T[] = [];
     for (const component of this.components) {
-        if (component instanceof type) {
-            result.push(component as T);
-        }
+      if (component instanceof type) {
+        result.push(component as T);
+      }
     }
     return result;
   }
@@ -69,3 +77,4 @@ export class EcsEntity {
     this.transform.onDestroy();
   }
 }
+
