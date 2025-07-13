@@ -1,8 +1,8 @@
 import { Vector2 } from '../coordinate';
-import { EcsComponent } from './ecs';
-import { VirtualAxis } from './scene';
+import { EcsComponent } from './component';
 
-export class EcsCamera extends EcsComponent {
+export abstract class EcsCamera extends EcsComponent {
+  
   protected readonly MinZoom: number = 1;
   private _zoom = this.MinZoom;
 
@@ -32,23 +32,31 @@ export class EcsCamera extends EcsComponent {
   }
 }
 
+export class TransformFollowCamera extends EcsCamera {
+
+}
+
+enum ControllableCameraInputAxes {
+ Vertical = 'controllable-camera-Vertical',
+ Horizontal = 'controllable-camera-Horizontal'
+};
 export class ControllableCamera extends EcsCamera {
   private readonly panSpeed = 500;
-  private downUpInput: VirtualAxis;
-  private leftRightInput: VirtualAxis;
 
   public override onAddedToScene(): void {
-    const scene = this.scene!;
-    // positive y axis goes downward, so I simply invert input
-    this.downUpInput = scene.registerVirtualAxis('w', 's');
-    this.leftRightInput = scene.registerVirtualAxis('a', 'd');
+    this.scene.addKeyBinding('w', { axis: ControllableCameraInputAxes.Vertical, axisDirection: -1 });
+    this.scene.addKeyBinding('s', { axis: ControllableCameraInputAxes.Vertical, axisDirection: 1 });
+    this.scene.addKeyBinding('a', { axis: ControllableCameraInputAxes.Horizontal, axisDirection: -1 });
+    this.scene.addKeyBinding('d', { axis: ControllableCameraInputAxes.Horizontal, axisDirection: 1 });
   }
 
   public override update(deltaTime: number): void {
-    const transform = this.transform!;
-    const rawInput = new Vector2(this.leftRightInput.rawValue, this.downUpInput.rawValue);
+    const shootHorizontal = this.scene.getAxisValue(ControllableCameraInputAxes.Vertical);
+    const shootVertical = this.scene.getAxisValue(ControllableCameraInputAxes.Horizontal);
+    const rawInput = new Vector2(shootHorizontal, shootVertical);
     rawInput.normalize();
+
     const moveDelta = Vector2.scale(rawInput, (this.panSpeed / this.getZoom()) * deltaTime);
-    transform.position = Vector2.plus(transform.position, moveDelta);
+    this.transform.position = Vector2.plus(this.transform.position, moveDelta);
   }
 }
