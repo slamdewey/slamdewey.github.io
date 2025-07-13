@@ -77,7 +77,8 @@ export class EcsScene<ctx extends RenderingContext> {
       const axisBinding = binding as AxisKeyBinding;
       if (axisBinding.axis !== undefined && axisBinding.axisDirection !== undefined) {
         const currentValue = this.axisValues.get(axisBinding.axis) || 0;
-        const newValue = type === 'down' ? currentValue + axisBinding.axisDirection : currentValue - axisBinding.axisDirection;
+        const polarity = type === 'down' ? 1 : -1;
+        const newValue = currentValue + axisBinding.axisDirection * polarity;
         this.axisValues.set(axisBinding.axis, newValue);
       }
       
