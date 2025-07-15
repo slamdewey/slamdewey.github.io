@@ -1,8 +1,6 @@
 # See http://help.github.com/ignore-files/ for more about ignoring files.
 src/assets
 dist/
-ai-context/
-.env
 
 # Compiled output
 /dist
@@ -47,4 +45,5 @@ Thumbs.db
 node_modules
 
 # Gemini-specific
-commit_message.txt
+ai-context/
+.env

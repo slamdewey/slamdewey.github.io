@@ -61,7 +61,6 @@ _Purpose: To ensure a clean, readable, and standardized commit history._
 - **Conventional Commits:** All commit messages must adhere to the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/).
 - **Commit Frequency:** Commit only when a feature or fix is complete and confirmed as working by the user. Avoid committing incomplete or broken work.
 - **Commit Message Structure:** All commit messages should be a single line, adhere to the `type(scope): subject` format, and be less than 120 characters. The code itself should be the primary source of documentation for the change.
-- **Commit Message Procedure:** Due to shell interpretation issues with the `git commit -m` command, all commits will be made using a temporary file. A file named `commit_message.txt` will be created with the commit message, and then `git commit -F commit_message.txt` will be used. This file is ignored by Git.
 
 ---
 
@@ -123,21 +122,16 @@ _Purpose: A prioritized list of development tasks, features, and fixes. I will w
 - **#2: Refactor backdrop system**
   - **Status:** Paused
   - **Goal:** Improve the architecture and maintainability of the backdrop system.
-- **#3: Configure Linting Toolchain**
-  - **Status:** Complete
-  - **Goal:** Integrate ESLint and Prettier to work together seamlessly. This involves installing `eslint-config-prettier` and updating `eslint.config.mjs` to use it. This will establish a single, unified configuration for all linting and formatting.
-- **#4: Implement Project-Wide Linting**
-  - **Status:** Complete
-  - **Goal:** Apply the newly configured linter to the entire codebase. This involves updating the `lint` script in `package.json` to `eslint . --fix` and running it to automatically fix all existing violations.
+- **#3: Document the repo**
+  - **Status:** Paused
+  - **Goal:** Improve the documentation featured throughout the repository, keeping it concise and simple.
 - **#5: Address Manual Lint Issues**
   - **Status:** Not Started
   - **Goal:** Manually fix any remaining linting errors that could not be resolved automatically by the `--fix` command.
-- **#6: Enable GitHub CLI (`gh`)**
-  - **Status:** Complete
-  - **Goal:** Install or enable the `gh` command-line tool to allow for the automated creation of pull requests.
 - **#7: Refactor CI Workflow**
   - **Status:** Not Started
   - **Goal:** Rename `ci-build.yml` to `ci.yml` and evaluate its structure for clarity and efficiency.
 - **#8: Implement CI Linting**
   - **Status:** Not Started
   - **Goal:** Add a dedicated linting job to the CI workflow to automatically enforce code quality on all pushes and pull requests.
+
