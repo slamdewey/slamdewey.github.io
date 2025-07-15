@@ -5,7 +5,9 @@ import { EcsComponent, EcsRenderableComponent } from './component';
 import { EcsEntity } from './entity';
 import { ActionListener, KeyEventType, KeyBinding, ActionKeyBinding, AxisKeyBinding } from './input';
 import { SAT } from './geometry';
-import { Vector2 } from '../coordinate';
+import { Quadtree } from './quadtree';
+
+export type Bounds = { x: number; y: number; width: number; height: number };
 
 /**
  * no lights, no problem!
@@ -24,14 +26,20 @@ export class EcsScene<ctx extends RenderingContext> {
   protected readonly collidables: Set<Collider> = new Set();
   protected readonly renderer: EcsRenderer<ctx>;
   protected readonly keyStateMap = new Map<string, KeyEventType>();
+  public collisionMatrix: Map<string, Set<string>> = new Map();
+
+  protected readonly worldBounds: Bounds;
+  protected readonly quadtree: Quadtree;
 
   private actionListeners = new Map<string, Set<ActionListener>>();
   private axisValues = new Map<string, number>();
   private keyBindings = new Map<string, KeyBinding[]>();
 
-  constructor(name: string, renderer: EcsRenderer<ctx>) {
+  constructor(name: string, renderer: EcsRenderer<ctx>, worldBounds: Bounds) {
     this.name = name;
     this.renderer = renderer;
+    this.worldBounds = worldBounds;
+    this.quadtree = new Quadtree(0, this.worldBounds);
   }
 
   public registerActionListener(action: string, listener: ActionListener): void {
@@ -98,43 +106,45 @@ export class EcsScene<ctx extends RenderingContext> {
   public lateUpdate() {
     this.components.forEach((c) => c.lateUpdate());
 
-    const collidables = [...this.collidables];
-    const projections = new Map<Collider, { min: number; max: number }>();
-
-    // Pre-calculate projections
-    for (const collider of collidables) {
-      projections.set(collider, collider.shape.project(new Vector2(1, 0), collider.transform));
+    this.quadtree.clear();
+    for (const collider of this.collidables) {
+      this.quadtree.insert(collider);
     }
 
-    collidables.sort((a, b) => {
-      const minA = projections.get(a)!.min;
-      const minB = projections.get(b)!.min;
-      return minA - minB;
-    });
+    const checkedPairs = new Set<bigint>();
 
-    const activeColliders: Collider[] = [];
+    for (const colliderA of this.collidables) {
+      const potentialCollisions = this.quadtree.retrieve(colliderA);
 
-    for (const collider of collidables) {
-      activeColliders.push(collider);
+      for (const colliderB of potentialCollisions) {
+        if (colliderA === colliderB) {
+          continue;
+        }
 
-      for (let i = activeColliders.length - 2; i >= 0; i--) {
-        const other = activeColliders[i];
+        // Ensure each pair is checked only once
+        const pairId = BigInt(colliderA.id) << 32n | BigInt(colliderB.id);
+        if (checkedPairs.has(pairId)) {
+          continue;
+        }
+        checkedPairs.add(pairId);
 
-        const projectionA = projections.get(collider)!;
-        const projectionB = projections.get(other)!;
+        // Check collision matrix
+        if (!this.canCollide(colliderA.layer, colliderB.layer)) {
+          continue;
+        }
 
-        // Check for overlap on the X axis (optimization for sort and sweep)
-        if (projectionA.max < projectionB.min) {
-          activeColliders.splice(i, 1);
-        } else {
-          // Perform SAT collision check
-          if (SAT.intersects(collider, other)) {
-            collider.onCollision(other.entity);
-            other.onCollision(collider.entity);
-          }
+        // Perform SAT collision check
+        if (SAT.intersects(colliderA, colliderB)) {
+          colliderA.onCollision(colliderB.entity);
+          colliderB.onCollision(colliderA.entity);
         }
       }
     }
+  }
+
+  private canCollide(layerA: string, layerB: string): boolean {
+    const collidesWith = this.collisionMatrix.get(layerA);
+    return collidesWith ? collidesWith.has(layerB) : false;
   }
 
   public render(ctx: ctx) {
@@ -144,10 +154,10 @@ export class EcsScene<ctx extends RenderingContext> {
     this.renderer.render(ctx, this.components, this.camera, this.debug);
   }
 
-  public createEntity<T extends EcsEntity>(
-    entityType: new (scene: EcsScene<RenderingContext>, name: string, ...args: any[]) => T,
+  public createEntity<T extends EcsEntity, EntityArgs extends any[]>(
+    entityType: new (scene: EcsScene<RenderingContext>, name: string, ...args: EntityArgs) => T,
     name: string,
-    ...args: any[]
+    ...args: EntityArgs
   ): T {
     const entity = new entityType(this, name, ...args);
     this.addEntity(entity);

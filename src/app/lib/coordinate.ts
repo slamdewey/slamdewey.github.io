@@ -99,6 +99,11 @@ export class Vector2 extends Coordinate {
     this.y = y;
     return this;
   }
+
+  public static getAngle(x: number, y: number) {
+    const normalized = new Vector2(x, y).normalize();
+    return Math.atan2(normalized.y, normalized.x);
+  }
 }
 
 export class AxialCoordinate extends Coordinate {
@@ -127,3 +132,4 @@ export class AxialCoordinate extends Coordinate {
     return Coordinate.operate(x0, x1, (a, b) => a - b, AxialCoordinate) as T;
   }
 }
+

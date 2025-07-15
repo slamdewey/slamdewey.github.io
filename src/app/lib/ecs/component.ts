@@ -1,33 +1,20 @@
 import { EcsEntity } from "./entity";
 import { EcsScene } from "./scene";
 import { EcsTransform } from "./transform";
+import { EcsObject } from "./ecs-object";
 
-export class EcsComponent {
+export class EcsComponent extends EcsObject {
   public readonly scene: EcsScene<RenderingContext>;
   public readonly entity: EcsEntity;
   public readonly transform: EcsTransform;
-  private _isActive: boolean = true;
 
   constructor(scene: EcsScene<RenderingContext>, entity: EcsEntity, transform: EcsTransform) {
+    super();
     this.scene = scene;
     this.entity = entity;
     this.transform = transform;
   }
 
-  public isActive(): boolean {
-    return this._isActive;
-  }
-  public setActive(state: boolean) {
-    this._isActive = state;
-    if (state) {
-      this.onActivate();
-    } else {
-      this.onDeactivate();
-    }
-  }
-
-  public onActivate(): void {}
-  public onDeactivate(): void {}
   public onAddedToScene(): void {}
   public onRemovedFromScene(): void {}
   public onAddedToEntity(): void {}
@@ -35,7 +22,6 @@ export class EcsComponent {
 
   public update(deltaTime: number): void {}
   public lateUpdate(): void {}
-  public onDestroy(): void {}
   public drawGizmos<T extends RenderingContext>(ctx: T): void {}
 }
 

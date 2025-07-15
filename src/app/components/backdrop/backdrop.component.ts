@@ -34,6 +34,7 @@ export class BackdropComponent implements OnDestroy {
   private canvasElement: HTMLCanvasElement;
   private ctx: RenderingContext;
   private renderInterval: number;
+  private lastUpdate: number = 0;
   private resizeObserver: ResizeObserver;
 
   constructor() {
@@ -99,7 +100,12 @@ export class BackdropComponent implements OnDestroy {
     if (!this.isInitialized || this.shouldPauseAnimation() || this.isResizing()) {
       return;
     }
-    this.backdrop().tick();
+
+    const now = Date.now();
+    const deltaTime = (now - (this.lastUpdate || now)) / 1000;
+    this.lastUpdate = now;
+
+    this.backdrop().tick(deltaTime);
   }
 
   private onResize(entries: ResizeObserverEntry[]) {

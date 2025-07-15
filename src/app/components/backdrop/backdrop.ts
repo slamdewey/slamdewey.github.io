@@ -1,5 +1,10 @@
 import { Vector2 } from 'src/app/lib/coordinate';
 
+/**
+ * Represents an abstract base class for a renderable backdrop.
+ * A backdrop is responsible for drawing itself onto a canvas context.
+ * The lifecycle and rendering are managed by the BackdropComponent.
+ */
 export abstract class Backdrop {
   public contextId(): string {
     return '2d';
@@ -10,10 +15,9 @@ export abstract class Backdrop {
   protected ctx: CanvasRenderingContext2D;
   public mousePosition: Vector2 = new Vector2(-1000, -1000);
   public scrollOffset: Vector2 = new Vector2(0, 0);
-  protected lastUpdate: number = Date.now();
 
   protected abstract update(deltaTime: number): void;
-  protected abstract draw(deltaTime: number): void;
+  protected abstract draw(): void;
 
   public setSize(width: number, height: number): void {
     this.width = width;
@@ -30,13 +34,13 @@ export abstract class Backdrop {
     this.ctx.clearRect(0, 0, this.width, this.height);
   }
 
-  public tick(): void {
-    const now = Date.now();
-    const deltaTime = (now - this.lastUpdate) / 1000;
-    this.lastUpdate = now;
-
+  /**
+   * The main tick function, called by the host component's render loop.
+   * @param deltaTime The time elapsed since the last frame in seconds.
+   */
+  public tick(deltaTime: number): void {
     this.update(deltaTime);
-    this.draw(deltaTime);
+    this.draw();
   }
 
   public onDestroy(): void {}

@@ -109,6 +109,7 @@ export class BallPitAnimatedBackground extends Backdrop {
     });
   }
   draw(): void {
+    this.clear();
     this.circles.forEach((circle) => {
       circle.draw(this.ctx);
     });

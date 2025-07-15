@@ -29,7 +29,6 @@ export class ProjectileRenderable extends EcsRenderableComponent {
 }
 
 export class ProjectileComponent extends EcsComponent {
-  public velocity: Vector2 = new Vector2();
   public speed = 200;
 
   constructor(scene: EcsScene<RenderingContext>, entity: EcsEntity, transform: EcsTransform) {
@@ -37,24 +36,32 @@ export class ProjectileComponent extends EcsComponent {
   }
 
   override update(deltaTime: number): void {
-    this.transform.position.x += this.velocity.x * this.speed * deltaTime;
-    this.transform.position.y += this.velocity.y * this.speed * deltaTime;
+    this.transform.position = Vector2.plus(
+      this.transform.position,
+      Vector2.scale(this.transform.forward(), this.speed * deltaTime)
+    );
   }
 }
 
 export class Projectile extends EcsEntity {
-  constructor(scene: EcsScene<RenderingContext>, name: string, position: Vector2, velocity: Vector2) {
+  constructor(scene: EcsScene<RenderingContext>, name: string) {
     super(scene, name);
     this.createComponent(ProjectileRenderable);
-    const projectileComponent = this.createComponent(ProjectileComponent);
-    projectileComponent.velocity = velocity;
-    const collision = this.createComponent(Collider, new Rectangle(4, 4));
+    this.createComponent(ProjectileComponent);
+    const collision = this.createComponent(Collider, new Rectangle(4, 4), 'projectile');
     collision.onCollision = (entity) => {
       if (entity instanceof Enemy) {
         this.scene.remove(this);
       }
     };
-    this.transform.position = position;
+  }
+
+  public static create(scene: EcsScene<RenderingContext>, position: Vector2, rotation: number): Projectile {
+    const name = `Projectile-${crypto.randomUUID()}`;
+    const projectile = new Projectile(scene, name);
+    projectile.transform.position = position;
+    projectile.transform.rotation = rotation;
+    return projectile;
   }
 }
 

@@ -13,23 +13,37 @@ import { Enemy } from './enemy';
 import { Vector2 } from 'src/app/lib/coordinate';
 import { ScoreRenderable } from './score';
 import { ShootingGameActions, ShootingGameAxes } from './game-input';
+import { ObjectPool } from 'src/app/lib/ecs/object-pool';
+import { Projectile } from './projectile';
 
 /**
  * Scroll events are, for some reason, in delta intervals of 100
  */
 export const ZoomScalar = 100;
+const SceneWorldBounds = 10000;
 
 class MyScene extends EcsScene<CanvasRenderingContext2D> {
   public score: number = 0;
 
   private incrementScore = () => this.score++;
 
+  private projectilePool = new ObjectPool<Projectile>(
+    (position: Vector2, rotation: number) => Projectile.create(this, position, rotation),
+    100
+  );
+
   constructor() {
     // setup scene
     const renderer = new CanvasContext2DRenderer();
-    super('my scene', renderer);
+    const halfSize = SceneWorldBounds / 2;
+    super('my scene', renderer, { x: -halfSize, y: -halfSize, width: SceneWorldBounds, height: SceneWorldBounds });
 
     this.debug = true;
+
+    // Configure collision matrix
+    this.collisionMatrix.set('player', new Set(['enemy']));
+    this.collisionMatrix.set('enemy', new Set(['player', 'projectile']));
+    this.collisionMatrix.set('projectile', new Set(['enemy']));
 
     // setup camera
     const cameraEntity = this.createEntity(EcsEntity, 'Main Camera');
@@ -38,7 +52,7 @@ class MyScene extends EcsScene<CanvasRenderingContext2D> {
     this.camera = camera;
 
     // setup player
-    this.createEntity(Player, 'Player');
+    this.createEntity(Player, 'Player', this.projectilePool);
     this.createEntity(Enemy, 'Enemy1', new Vector2(100, 100), this.incrementScore);
     this.createEntity(Enemy, 'Enemy2', new Vector2(-100, -100), this.incrementScore);
     const scoreEntity = this.createEntity(EcsEntity, 'Score');

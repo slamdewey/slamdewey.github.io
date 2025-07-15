@@ -1,10 +1,4 @@
-import {
-  afterNextRender,
-  ChangeDetectionStrategy,
-  Component,
-  HostListener,
-  OnDestroy,
-} from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, HostListener, OnDestroy } from '@angular/core';
 import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
 import { DebugGridComponent, EcsEntity } from 'src/app/lib/ecs';
 import { ControllableCamera } from 'src/app/lib/ecs/camera';
@@ -15,12 +9,15 @@ import { EcsScene } from 'src/app/lib/ecs/scene';
  * Scroll events are, for some reason, in delta intervals of 100
  */
 export const ZoomScalar = 100;
+const SceneWorldBounds = 10000;
 
 class UnitTaskingScene extends EcsScene<CanvasRenderingContext2D> {
   constructor() {
     const renderer = new CanvasContext2DRenderer();
-    super('my scene', renderer);
-    const cameraEntity = this.createEntity(EcsEntity, "Main Camera");
+    const halfSize = SceneWorldBounds / 2;
+    super('my scene', renderer, { x: -halfSize, y: -halfSize, width: SceneWorldBounds, height: SceneWorldBounds });
+
+    const cameraEntity = this.createEntity(EcsEntity, 'Main Camera');
     const camera = cameraEntity.createComponent(ControllableCamera);
     cameraEntity.createComponent(DebugGridComponent);
     this.camera = camera;
