@@ -126,14 +126,14 @@ _Purpose: A prioritized list of development tasks, features, and fixes. I will w
   - **Status:** Paused
   - **Goal:** Improve the architecture and maintainability of the backdrop system.
 - **#3: Configure Linting Toolchain**
-  - **Status:** Not Started
+  - **Status:** Complete
   - **Goal:** Integrate ESLint and Prettier to work together seamlessly. This involves installing `eslint-config-prettier` and updating `eslint.config.mjs` to use it. This will establish a single, unified configuration for all linting and formatting.
 - **#4: Implement Project-Wide Linting**
-  - **Status:** Not Started
+  - **Status:** Complete
   - **Goal:** Apply the newly configured linter to the entire codebase. This involves updating the `lint` script in `package.json` to `eslint . --fix` and running it to automatically fix all existing violations.
 - **#5: Address Manual Lint Issues**
   - **Status:** Not Started
   - **Goal:** Manually fix any remaining linting errors that could not be resolved automatically by the `--fix` command.
 - **#6: Enable GitHub CLI (`gh`)**
-  - **Status:** Not Started
+  - **Status:** Complete
   - **Goal:** Install or enable the `gh` command-line tool to allow for the automated creation of pull requests.
