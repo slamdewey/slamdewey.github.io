@@ -12,13 +12,14 @@ import { Vector2 } from 'src/app/lib/coordinate';
 import { Projectile } from './projectile';
 import { ShootingGameActions, ShootingGameAxes } from './game-input';
 import { Rectangle } from 'src/app/lib/ecs/geometry';
+import { ObjectPool } from 'src/app/lib/ecs/object-pool';
 
 export class Player extends EcsEntity {
-  constructor(scene: EcsScene<RenderingContext>) {
-    super(scene, 'Player');
+  constructor(scene: EcsScene<RenderingContext>, name: string, projectilePool: ObjectPool<Projectile>) {
+    super(scene, name);
     this.createComponent(PlayerRenderable);
-    this.createComponent(PlayerController);
-    const collision = this.createComponent(Collider, new Rectangle(20, 20));
+    this.createComponent(PlayerController, projectilePool);
+    const collision = this.createComponent(Collider, new Rectangle(20, 20), 'player');
     collision.onCollision = (entity) => {
       if (entity instanceof Enemy) {
         this.scene.remove(this);
@@ -53,10 +54,17 @@ export class PlayerController extends EcsComponent {
 
   public velocity: Vector2 = new Vector2();
 
-  private shootActionListener: ActionListener = () => this.shoot();
+  private readonly shootActionListener: ActionListener = () => this.shoot();
+  private readonly projectilePool: ObjectPool<Projectile>;
 
-  constructor(scene: EcsScene<RenderingContext>, entity: EcsEntity, transform: EcsTransform) {
+  constructor(
+    scene: EcsScene<RenderingContext>,
+    entity: EcsEntity,
+    transform: EcsTransform,
+    projectilePool: ObjectPool<Projectile>
+  ) {
     super(scene, entity, transform);
+    this.projectilePool = projectilePool;
   }
 
   override onAddedToScene(): void {
@@ -83,17 +91,12 @@ export class PlayerController extends EcsComponent {
     const shootVertical = this.scene.getAxisValue(ShootingGameAxes.AimY);
 
     if (shootHorizontal === 0 && shootVertical === 0) {
-      return; // No shoot direction
+      return;
     }
 
-    const shootDirection = new Vector2(shootHorizontal, shootVertical).normalize();
+    const shootDirection = Vector2.getAngle(shootHorizontal, shootVertical);
 
-    this.scene.createEntity(
-      Projectile,
-      'Projectile',
-      new Vector2(this.transform.position.x, this.transform.position.y),
-      shootDirection
-    );
+    this.projectilePool.instantiate(new Vector2(this.transform.position.x, this.transform.position.y), shootDirection);
   }
 }
 

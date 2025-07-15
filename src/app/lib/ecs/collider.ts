@@ -6,11 +6,19 @@ import { Rectangle, Shape } from './geometry';
 
 export class Collider extends EcsComponent {
   public shape: Shape;
+  public layer: string;
   public onCollision: (entity: EcsEntity) => void = () => {};
 
-  constructor(scene: EcsScene<RenderingContext>, entity: EcsEntity, transform: EcsTransform, shape: Shape) {
+  constructor(
+    scene: EcsScene<RenderingContext>,
+    entity: EcsEntity,
+    transform: EcsTransform,
+    shape: Shape,
+    layer: string
+  ) {
     super(scene, entity, transform);
     this.shape = shape;
+    this.layer = layer;
   }
 
   public override drawGizmos<T extends RenderingContext>(ctx: T): void {

@@ -1,27 +1,28 @@
 import { EcsComponent } from './component';
 import { EcsScene } from './scene';
 import { EcsTransform } from './transform';
+import { EcsObject } from './ecs-object';
 
-export class EcsEntity {
+export class EcsEntity extends EcsObject {
   public name: string;
   public transform: EcsTransform = new EcsTransform();
   public components: Set<EcsComponent> = new Set();
   public readonly scene: EcsScene<RenderingContext>;
-  private _isActive: boolean = true;
 
   constructor(scene: EcsScene<RenderingContext>, name: string) {
+    super();
     this.name = name;
     this.scene = scene;
   }
 
-  public createComponent<T extends EcsComponent>(
+  public createComponent<T extends EcsComponent, ComponentArgs extends any[]>(
     componentType: new (
       scene: EcsScene<RenderingContext>,
       entity: EcsEntity,
       transform: EcsTransform,
-      ...args: any[]
+      ...args: ComponentArgs
     ) => T,
-    ...args: any[]
+    ...args: ComponentArgs
   ): T {
     const component = new componentType(this.scene, this, this.transform, ...args);
     this.components.add(component);
@@ -35,17 +36,6 @@ export class EcsEntity {
     this.scene.remove(component);
     component.onRemovedFromEntity();
     return this;
-  }
-
-  public isActive(): boolean {
-    return this._isActive;
-  }
-
-  public setActive(state: boolean) {
-    this._isActive = state;
-    this.components?.forEach((component) => {
-      component.setActive(state);
-    });
   }
 
   public getComponent<T extends EcsComponent>(type: new (...args: any[]) => T): T | undefined {
@@ -67,7 +57,14 @@ export class EcsEntity {
     return result;
   }
 
-  public onDestroy() {
+  public override setActive(state: boolean) {
+    super.setActive(state);
+    this.components.forEach((component) => {
+      component.setActive(state);
+    });
+  }
+
+  public override onDestroy() {
     const iterator = this.components.values();
     let component = iterator.next()?.value;
     while (component !== undefined) {

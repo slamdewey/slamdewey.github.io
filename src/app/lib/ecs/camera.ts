@@ -38,10 +38,8 @@ export class ControllableCamera extends EcsCamera {
   private readonly panSpeed = 500;
 
   public override onAddedToScene(): void {
-    this.scene.addKeyBinding('w', { axis: ControllableCameraInputAxes.Vertical, axisDirection: -1 });
-    this.scene.addKeyBinding('s', { axis: ControllableCameraInputAxes.Vertical, axisDirection: 1 });
-    this.scene.addKeyBinding('a', { axis: ControllableCameraInputAxes.Horizontal, axisDirection: -1 });
-    this.scene.addKeyBinding('d', { axis: ControllableCameraInputAxes.Horizontal, axisDirection: 1 });
+    this.scene.addVirtualAxisBinding('w', 's', ControllableCameraInputAxes.Vertical);
+    this.scene.addVirtualAxisBinding('a', 'd', ControllableCameraInputAxes.Horizontal);
   }
 
   public override update(deltaTime: number): void {
@@ -56,3 +54,4 @@ export class ControllableCamera extends EcsCamera {
 }
 
 export class TransformFollowCamera extends EcsCamera {}
+
