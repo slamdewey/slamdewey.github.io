@@ -60,10 +60,8 @@ _Purpose: To ensure a clean, readable, and standardized commit history._
 - **Branching Strategy:** All development work must be done in feature branches created from the `dev` branch. The `dev` branch serves as a staging area. Once work is complete, the feature branch is merged into `dev`, and a pull request is opened from `dev` to `main`. The `main` branch is protected and reserved for production-ready, auto-deployed code.
 - **Conventional Commits:** All commit messages must adhere to the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/).
 - **Commit Frequency:** Commit only when a feature or fix is complete and confirmed as working by the user. Avoid committing incomplete or broken work.
-- **Commit Message Structure:**
-  - `type(scope): subject` (e.g., `feat(auth): implement password reset flow`)
-  - An optional, longer body explaining the "why" and "what".
-  - An optional footer for `BREAKING CHANGE` or issue references.
+- **Commit Message Structure:** All commit messages should be a single line, adhere to the `type(scope): subject` format, and be less than 120 characters. The code itself should be the primary source of documentation for the change.
+- **Commit Message Procedure:** Due to shell interpretation issues with the `git commit -m` command, all commits will be made using a temporary file. A file named `commit_message.txt` will be created with the commit message, and then `git commit -F commit_message.txt` will be used. This file is ignored by Git.
 
 ---
 
@@ -137,3 +135,9 @@ _Purpose: A prioritized list of development tasks, features, and fixes. I will w
 - **#6: Enable GitHub CLI (`gh`)**
   - **Status:** Complete
   - **Goal:** Install or enable the `gh` command-line tool to allow for the automated creation of pull requests.
+- **#7: Refactor CI Workflow**
+  - **Status:** Not Started
+  - **Goal:** Rename `ci-build.yml` to `ci.yml` and evaluate its structure for clarity and efficiency.
+- **#8: Implement CI Linting**
+  - **Status:** Not Started
+  - **Goal:** Add a dedicated linting job to the CI workflow to automatically enforce code quality on all pushes and pull requests.

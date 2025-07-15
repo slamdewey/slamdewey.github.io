@@ -45,3 +45,6 @@ testem.log
 .DS_Store
 Thumbs.db
 node_modules
+
+# Gemini-specific
+commit_message.txt
