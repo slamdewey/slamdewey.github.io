@@ -2,6 +2,7 @@
 src/assets
 dist/
 ai-context/
+.env
 
 # Compiled output
 /dist
