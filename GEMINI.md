@@ -61,6 +61,7 @@ _Purpose: To ensure a clean, readable, and standardized commit history._
 - **Conventional Commits:** All commit messages must adhere to the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/).
 - **Commit Frequency:** Commit only when a feature or fix is complete and confirmed as working by the user. Avoid committing incomplete or broken work.
 - **Commit Message Structure:** All commit messages should be a single line, adhere to the `type(scope): subject` format, and be less than 120 characters. The code itself should be the primary source of documentation for the change.
+- **Commit Message File:** For complex commits, use the `gemini_commit_message.txt` file. This file is ignored by git and can be used to write a detailed commit message. To use it, run `git commit -F gemini_commit_message.txt`.
 
 ---
 
@@ -125,9 +126,6 @@ _Purpose: A prioritized list of development tasks, features, and fixes. I will w
 - **#3: Document the repo**
   - **Status:** Paused
   - **Goal:** Improve the documentation featured throughout the repository, keeping it concise and simple.
-- **#5: Address Manual Lint Issues**
-  - **Status:** Not Started
-  - **Goal:** Manually fix any remaining linting errors that could not be resolved automatically by the `--fix` command.
 - **#7: Refactor CI Workflow**
   - **Status:** Not Started
   - **Goal:** Rename `ci-build.yml` to `ci.yml` and evaluate its structure for clarity and efficiency.
