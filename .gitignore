@@ -46,4 +46,5 @@ node_modules
 
 # Gemini-specific
 ai-context/
-.envgemini_commit_message.txt 
+.env
+gemini_commit_message.txt
