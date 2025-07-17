@@ -5,14 +5,13 @@ import { NavigationLink } from 'src/app/lib/navigation';
 import { INTERNAL_LINKS, EXTERNAL_LINKS } from './links';
 
 @Component({
-    selector: 'x-navigation',
-    templateUrl: './navigation.component.html',
-    styleUrls: ['./navigation.component.scss'],
-    imports: [RouterLink],
-    changeDetection: ChangeDetectionStrategy.OnPush
+  selector: 'x-navigation',
+  templateUrl: './navigation.component.html',
+  styleUrls: ['./navigation.component.scss'],
+  imports: [RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NavigationComponent implements OnInit {
-  
   public internalLinks = signal(INTERNAL_LINKS);
   public externalLinks = signal(EXTERNAL_LINKS);
   public activeLink = signal<NavigationLink | undefined>(undefined);
@@ -41,10 +40,8 @@ export class NavigationComponent implements OnInit {
     /**
      * We want both /projects and /projects/test to highlight the projets link
      */
-    const majorUrlIdToActivate: string = event.url
-      .slice(1)
-      .split(SplitUrlByFolderAndQueryParams)[0];
-      
+    const majorUrlIdToActivate: string = event.url.slice(1).split(SplitUrlByFolderAndQueryParams)[0];
+
     const linkToActivate = newInternalLinks.find((link) => {
       const navLinkMajorUrlId = link.routerLink.slice(1).split(SplitUrlByFolderAndQueryParams)[0];
       return majorUrlIdToActivate === navLinkMajorUrlId;

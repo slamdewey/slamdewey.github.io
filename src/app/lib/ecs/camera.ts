@@ -54,4 +54,3 @@ export class ControllableCamera extends EcsCamera {
 }
 
 export class TransformFollowCamera extends EcsCamera {}
-

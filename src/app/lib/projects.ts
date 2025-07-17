@@ -1,9 +1,9 @@
 import { Backdrop } from '../components/backdrop';
 
-export type ProjectTileData = {
+export interface ProjectTileData {
   routerLink: string;
   labelText: string;
   backdrop: Backdrop;
   onMouseEnter?: () => void;
   onMouseExit?: () => void;
-};
+}

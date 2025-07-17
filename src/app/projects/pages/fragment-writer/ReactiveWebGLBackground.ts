@@ -1,10 +1,5 @@
 import { WebGLBackdrop } from 'src/app/components/backdrop/backdrop';
-import {
-  DEFAULT_SHADER_PROGRAMS,
-  SHADER_HEADER,
-  ShaderProgramData,
-  UNIFORM_DEFS,
-} from './shader-programs';
+import { DEFAULT_SHADER_PROGRAMS, SHADER_HEADER, ShaderProgramData, UNIFORM_DEFS } from './shader-programs';
 
 export class ReactiveWebGLBackground extends WebGLBackdrop {
   public shaderProgramData: ShaderProgramData = DEFAULT_SHADER_PROGRAMS[0];
@@ -16,11 +11,7 @@ export class ReactiveWebGLBackground extends WebGLBackdrop {
   }
 
   public attemptRecompileAndReinitialize(): void {
-    const [vert, frag] = this.compileWebGLShaders(
-      this.gl,
-      this.getVertexShader(),
-      this.getFragmentShader()
-    );
+    const [vert, frag] = this.compileWebGLShaders(this.gl, this.getVertexShader(), this.getFragmentShader());
 
     if (vert && frag) {
       this.totalTime = 0;
@@ -32,9 +23,6 @@ export class ReactiveWebGLBackground extends WebGLBackdrop {
     return this.shaderProgramData.vertexShader;
   }
   public override getFragmentShader(): string {
-    return (
-      this.fragmentShaderOverride ??
-      SHADER_HEADER + UNIFORM_DEFS + this.shaderProgramData.fragmentShader
-    );
+    return this.fragmentShaderOverride ?? SHADER_HEADER + UNIFORM_DEFS + this.shaderProgramData.fragmentShader;
   }
 }

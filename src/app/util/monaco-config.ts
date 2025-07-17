@@ -10,8 +10,8 @@ export const monacoConfig: NgxMonacoEditorConfig = {
 };
 
 export function configureMonaco() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const monaco = (<any>window).monaco;
+   
+  const monaco = (window as any).monaco;
   if (!monaco) {
     return;
   }
@@ -240,11 +240,7 @@ export function configureMonaco() {
         [/[/*]/, 'comment'],
       ],
 
-      lineComment: [
-        [/^/, '@rematch', '@pop'],
-        { include: '@commentDecorators' },
-        [/.*/, 'comment'],
-      ],
+      lineComment: [[/^/, '@rematch', '@pop'], { include: '@commentDecorators' }, [/.*/, 'comment']],
 
       whitespace: [
         [/\s+/, 'white'],

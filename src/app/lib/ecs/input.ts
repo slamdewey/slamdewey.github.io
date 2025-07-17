@@ -2,14 +2,13 @@ export type ActionListener = () => void;
 
 export type KeyEventType = 'down' | 'up';
 
-export type AxisKeyBinding = {
+export interface AxisKeyBinding {
   axis: string;
   axisDirection: 1 | -1;
-};
+}
 
-export type ActionKeyBinding = {
+export interface ActionKeyBinding {
   action: string;
-};
+}
 
 export type KeyBinding = ActionKeyBinding | AxisKeyBinding | (ActionKeyBinding & AxisKeyBinding);
-

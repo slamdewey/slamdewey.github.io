@@ -1,8 +1,6 @@
 export interface ImagesJson {
   directories: string[];
-  img: {
-    [key: string]: GalleryImageData[];
-  };
+  img: Record<string, GalleryImageData[]>;
 }
 
 export interface GalleryImageData {

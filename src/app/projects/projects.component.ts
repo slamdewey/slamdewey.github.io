@@ -1,10 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { ReactiveWebGLBackground } from './pages/fragment-writer/ReactiveWebGLBackground';
-import {
-  MOUSE_POSITION_EXAMPLE,
-  SHADER_TOY_UV,
-  ShaderProgramData,
-} from './pages/fragment-writer/shader-programs';
+import { MOUSE_POSITION_EXAMPLE, SHADER_TOY_UV, ShaderProgramData } from './pages/fragment-writer/shader-programs';
 import { PerlinNoiseBackdrop } from '../components/backdrop/PerlinNoiseBackdrop';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';
 import { RouterLink } from '@angular/router';

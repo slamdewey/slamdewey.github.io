@@ -6,8 +6,7 @@
         [insideNg]="true"
         [options]="options"
         [model]="options.model!"
-        (onInit)="onMonacoInit($event)"
-      ></ngx-monaco-editor>
+        (onInit)="onMonacoInit($event)"></ngx-monaco-editor>
     } @placeholder {
       <div class="fragment-writer__editor__monaco">
         <x-skeleton-loader [loadingMessage]="'Loading Monaco Editor...'"></x-skeleton-loader>
@@ -24,17 +23,18 @@
           [placeholderLabel]="'Open Example Shader'"
           [initialValue]="selectedShaderProgram()?.name"
           [items]="defaultShaderLinks"
-          (onItemSelect)="loadShaderProgram($event)"
-        ></x-dropdown-menu>
+          (onItemSelect)="loadShaderProgram($event)"></x-dropdown-menu>
         <p [style.margin]="'12px'">in</p>
-        <mat-button-toggle-group (change)="loadPolicy.set($event.value)" name="example-shader-load-location" aria-label="Choose where to load selected example shaders">
+        <mat-button-toggle-group
+          (change)="loadPolicy.set($event.value)"
+          name="example-shader-load-location"
+          aria-label="Choose where to load selected example shaders">
           @for (policy of ALL_LOAD_POLICIES; track policy) {
-            <mat-button-toggle [value]="policy" [checked]="loadPolicy() === policy">{{policy}}</mat-button-toggle>
+            <mat-button-toggle [value]="policy" [checked]="loadPolicy() === policy">{{ policy }}</mat-button-toggle>
           }
         </mat-button-toggle-group>
       </div>
-      <div class="control">
-      </div>
+      <div class="control"></div>
     </div>
   </div>
   <div class="fragment-writer__canvas">

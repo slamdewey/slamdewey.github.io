@@ -132,4 +132,3 @@ _Purpose: A prioritized list of development tasks, features, and fixes. I will w
 - **#8: Implement CI Linting**
   - **Status:** Not Started
   - **Goal:** Add a dedicated linting job to the CI workflow to automatically enforce code quality on all pushes and pull requests.
-

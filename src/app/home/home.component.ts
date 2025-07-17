@@ -1,10 +1,4 @@
-import {
-  Component,
-  ViewEncapsulation,
-  OnInit,
-  inject,
-  ChangeDetectionStrategy,
-} from '@angular/core';
+import { Component, ViewEncapsulation, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { Backdrop } from '../components/backdrop/backdrop';
 import { UVColorCycleBackground } from '../components/backdrop/UVColorCycleBackground';
 import { BackdropComponent } from '../components/backdrop/backdrop.component';

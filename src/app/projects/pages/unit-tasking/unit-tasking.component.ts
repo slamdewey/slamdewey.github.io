@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, HostListener, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnDestroy } from '@angular/core';
 import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
 import { DebugGridComponent, EcsEntity } from 'src/app/lib/ecs';
 import { ControllableCamera } from 'src/app/lib/ecs/camera';

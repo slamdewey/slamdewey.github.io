@@ -9,6 +9,6 @@ export interface MonacoOptions {
   model: NgxEditorModel | undefined;
 }
 
-export type FragmentWriterQueryParams = {
+export interface FragmentWriterQueryParams {
   shader: string;
-};
+}

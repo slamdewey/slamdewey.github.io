@@ -15,7 +15,7 @@ export class ProjectileRenderable extends EcsRenderableComponent {
     scene: EcsScene<RenderingContext>,
     entity: EcsEntity,
     transform: EcsTransform,
-    private color: string = 'red'
+    private color = 'red'
   ) {
     super(scene, entity, transform);
   }
@@ -64,4 +64,3 @@ export class Projectile extends EcsEntity {
     return projectile;
   }
 }
-
