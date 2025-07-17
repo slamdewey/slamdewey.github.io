@@ -66,7 +66,8 @@ jobs:
             --title "$TITLE" \
             --body "$BODY" \
             --base "${{ github.event.pull_request.head.ref }}" \
-            --head "$BRANCH"
+            --head "$BRANCH" \
+            --label "${{ env.workflow-name }}"
 
           PR_NUMBER=$(gh pr list \
             --head "$BRANCH" \
