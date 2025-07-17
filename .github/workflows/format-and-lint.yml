@@ -1,4 +1,4 @@
-name: Format and Lint
+name: format and lint
 
 permissions:
   contents: write
@@ -45,7 +45,7 @@ jobs:
 
       - name: Configure git credentials
         run: |
-          git config user.name "${{ env.workflow-name }}"
+          git config user.name "${{ env.workflow-name }}.yml"
           git config user.email "workflows@${{ env.workflow-name }}.yml"
 
       - name: Merge fixes
