@@ -19,7 +19,7 @@ on:
 
 jobs:
   format-lint-and-open-pr:
-    if: github.event.pull_request.base.ref == 'main'
+    if: github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
@@ -62,20 +62,18 @@ jobs:
           git commit -m "chore: auto-format and lint fixes"
           git push -u origin "$BRANCH"
 
-          # Authenticate GitHub CLI
-          echo "$GH_TOKEN" | gh auth login --with-token
-
           PR_NUMBER=$(gh pr create \
             --title "$TITLE" \
             --body "$BODY" \
-            --base "${{ github.event.pull_request.head.ref }}" \
+            --base "${{ github.head_ref }}" \
             --head "$BRANCH" \
             --label "auto-lint" \
+            --debug \
             --json number \
             --jq .number)
 
-          #gh pr merge "$PR_NUMBER" --merge --delete-branch
+          # gh pr merge "$PR_NUMBER" --merge --delete-branch
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           TITLE: 'Automatic formatting and linting fixes'
           BODY: 'This PR was created automatically by the formatting and linting workflow: `.github/workflows/lint.yml`'
