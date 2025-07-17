@@ -9,6 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  workflow-name: 'format-and-lint'
   node-version: '20'
 
 on:
@@ -17,8 +18,7 @@ on:
       - main
 
 jobs:
-  auto-format-and-lint:
-    if: github.base_ref == 'main'
+  format-and-lint:
     runs-on: ubuntu-latest
 
     steps:
@@ -45,13 +45,13 @@ jobs:
 
       - name: Configure git credentials
         run: |
-          git config user.name "format-and-lint"
-          git config user.email "workflows@format-and-lint.yml"
+          git config user.name "${{ env.workflow-name }}"
+          git config user.email "workflows@${{ env.workflow-name }}.yml"
 
       - name: Merge fixes
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
-          BRANCH="lint/$SHORT_SHA"
+          BRANCH="${{ env.workflow-name }}/$SHORT_SHA"
           git checkout -b "$BRANCH"
           git add .
 
@@ -66,8 +66,7 @@ jobs:
             --title "$TITLE" \
             --body "$BODY" \
             --base "${{ github.event.pull_request.head.ref }}" \
-            --head "$BRANCH" \
-            --label "auto-lint"
+            --head "$BRANCH"
 
           PR_NUMBER=$(gh pr list \
             --head "$BRANCH" \
@@ -84,4 +83,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: 'Automatic formatting and linting fixes'
-          BODY: 'This PR was created by the workflow: `.github/workflows/format-and-lint.yml`'
+          BODY: 'This PR was created by the workflow: `.github/workflows/${{ env.workflow-name }}.yml`'
