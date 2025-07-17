@@ -62,17 +62,26 @@ jobs:
           git commit -m "chore: auto-format and lint fixes"
           git push -u origin "$BRANCH"
 
-          PR_NUMBER=$(gh pr create \
+          gh pr create \
             --title "$TITLE" \
             --body "$BODY" \
             --base "${{ github.head_ref }}" \
             --head "$BRANCH" \
-            --label "auto-lint" \
-            --json number \
-            --jq .number)
-
-          # gh pr merge "$PR_NUMBER" --merge --delete-branch
+            --label "auto-lint"
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: 'Automatic formatting and linting fixes'
           BODY: 'This PR was created automatically by the formatting and linting workflow: `.github/workflows/lint.yml`'
+
+  auto-merge-lint-pr:
+    if: startsWith(github.head_ref, 'lint/')
+    runs-on: ubuntu-latest
+    needs: format-lint-and-open-pr
+
+    steps:
+      - name: Merge Pull Request and delete branch
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --merge
+        env:
+          GH_TOKEN: ${{ github.token }}
