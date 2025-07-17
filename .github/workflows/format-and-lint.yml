@@ -46,6 +46,10 @@ jobs:
 
       - name: Create branch for lint fixes
         run: |
+          # Configure a default commit identity
+          git config user.name "format-and-lint"
+          git config user.email "workflows@format-and-lint.yml"
+
           SHORT_SHA=$(git rev-parse --short HEAD)
           BRANCH="lint/$SHORT_SHA"
           git checkout -b "$BRANCH"
