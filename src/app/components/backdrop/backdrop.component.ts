@@ -6,7 +6,8 @@ import {
   input,
   viewChild,
   ChangeDetectionStrategy,
-  signal, AfterViewInit,
+  signal,
+  AfterViewInit,
 } from '@angular/core';
 import { Backdrop } from './backdrop';
 import { Vector2 } from 'src/app/lib/coordinate';

@@ -10,7 +10,6 @@ export const monacoConfig: NgxMonacoEditorConfig = {
 };
 
 export function configureMonaco() {
-   
   const monaco = (window as any).monaco;
   if (!monaco) {
     return;
