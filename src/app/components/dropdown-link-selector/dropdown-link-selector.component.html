@@ -1,0 +1,8 @@
+<div #container class="dropdown">
+  <button class="dropdown__placeholder">{{ placeholderText() }}</button>
+  <div class="dropdown__items" [class]="isOverflowing() ? 'translate-up' : ''">
+    @for (item of items(); track item.queryParams) {
+      <a class="dropdown__items__item" [routerLink]="item.url" [queryParams]="item.queryParams">{{ item.label }}</a>
+    }
+  </div>
+</div>

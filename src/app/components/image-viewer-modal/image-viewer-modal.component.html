@@ -1,0 +1,24 @@
+@if (isModalOpen()) {
+  <div
+    tabindex="-1"
+    class="image-modal"
+    (wheel)="onModalWheel($event)"
+    (mousedown)="onModalMouseDown($event)"
+    (mouseup)="onModalMouseUp($event)"
+    (mousemove)="onModalMouseMove($event)">
+    @if (shouldDisplaySpinner()) {
+      <spinner class="image-modal__spinner" />
+    }
+    <div class="image-modal__controls">
+      <span class="image-modal__controls__button" (click)="zoomOut()">-</span>
+      <span class="image-modal__controls__button" (click)="zoomIn()">+</span>
+      <span class="image-modal__controls__button" (click)="closeModal()">&times;</span>
+    </div>
+    <img
+      class="image-modal__content"
+      loading="lazy"
+      [style.transform]="zoomOptionsViewTransform()"
+      (load)="checkIfImageLoadingComplete($event)"
+      [attr.src]="imageSource()" />
+  </div>
+}

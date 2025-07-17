@@ -1,0 +1,13 @@
+<div #container class="dropdown">
+  <mat-form-field class="min-width">
+    <mat-label>{{ placeholderLabel() }}</mat-label>
+    <mat-select
+      [value]="initialValue()"
+      (selectionChange)="onSelectionChange($event)"
+      panelClass="mat-select-panel-overrides">
+      @for (item of items(); track item.label) {
+        <mat-option class="dropdown__items__item" [value]="item.label">{{ item.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>

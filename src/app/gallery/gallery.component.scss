@@ -1,0 +1,40 @@
+@import url('../../styles.scss');
+
+.gallery {
+  position: relative;
+  color: var(--highlight-color);
+
+  padding-top: 2.5vh;
+  padding-bottom: 10vh;
+  margin: auto;
+  display: flex;
+  justify-content: flex-start;
+  flex-direction: column;
+  width: 80%;
+}
+
+.gallery__dropdown {
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.gallery__images {
+  margin: auto;
+  margin-top: 5rem;
+
+  width: 100%;
+
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+  max-width: 1200px;
+}
+
+.gallery__images__item {
+  display: flex;
+  justify-content: center;
+  margin: auto;
+}

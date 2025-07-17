@@ -1,0 +1,17 @@
+.backdrop {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.small {
+  border-radius: 5px;
+}
+
+.big {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+}

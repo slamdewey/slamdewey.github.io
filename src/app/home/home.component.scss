@@ -1,0 +1,22 @@
+$color-white: white;
+$color-black: black;
+
+.home {
+  color: $color-white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 60%;
+  margin: auto;
+}
+
+.home__hello {
+  z-index: 1;
+  font-size: 10rem;
+  font-weight: 400;
+}
+
+.home__greeting {
+  z-index: 1;
+  font-size: 2rem;
+}
