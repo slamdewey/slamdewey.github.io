@@ -1,6 +1,7 @@
 {
   "name": "slamdewey.github.io",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "ng": "ng",
     "build:dev": "ng build --configuration=development",
