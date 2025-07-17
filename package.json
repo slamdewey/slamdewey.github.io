@@ -8,6 +8,7 @@
     "prestart:dev": "npm i",
     "start:dev": "ng serve --watch --configuration=development",
     "start:prod": "ng serve --configuration=production",
+    "format": "prettier --write .",
     "lint": "eslint . --fix"
   },
   "private": true,
