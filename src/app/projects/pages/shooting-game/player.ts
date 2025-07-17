@@ -33,7 +33,7 @@ export class PlayerRenderable extends EcsRenderableComponent {
     scene: EcsScene<RenderingContext>,
     entity: EcsEntity,
     transform: EcsTransform,
-    private color: string = 'white'
+    private color = 'white'
   ) {
     super(scene, entity, transform);
   }
@@ -99,4 +99,3 @@ export class PlayerController extends EcsComponent {
     this.projectilePool.instantiate(new Vector2(this.transform.position.x, this.transform.position.y), shootDirection);
   }
 }
-

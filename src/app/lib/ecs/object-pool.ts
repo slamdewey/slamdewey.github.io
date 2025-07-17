@@ -7,7 +7,7 @@ export class ObjectPool<T extends EcsEntity> {
   private pool: T[] = [];
   private createFn: EntityFactory<T>;
 
-  constructor(createFn: EntityFactory<T>, initialSize: number = 0) {
+  constructor(createFn: EntityFactory<T>, initialSize = 0) {
     this.createFn = createFn;
     for (let i = 0; i < initialSize; i++) {
       const obj = this.createFn(new Vector2(), 0);
@@ -34,4 +34,3 @@ export class ObjectPool<T extends EcsEntity> {
     this.pool.push(obj);
   }
 }
-

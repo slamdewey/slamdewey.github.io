@@ -1,7 +1,7 @@
-import { EcsEntity } from "./entity";
-import { EcsScene } from "./scene";
-import { EcsTransform } from "./transform";
-import { EcsObject } from "./ecs-object";
+import { EcsEntity } from './entity';
+import { EcsScene } from './scene';
+import { EcsTransform } from './transform';
+import { EcsObject } from './ecs-object';
 
 export class EcsComponent extends EcsObject {
   public readonly scene: EcsScene<RenderingContext>;

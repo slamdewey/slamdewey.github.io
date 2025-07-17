@@ -5,23 +5,18 @@
   </x-banner>
 
   <div class="projects__gallery">
-    @for(projectData of projects; track projectData.routerLink) {
-    <a
-      [title]="projectData.labelText"
-      class="projects__gallery__item"
-      [routerLink]="projectData.routerLink"
-    >
-      <x-backdrop [backdrop]="projectData.backdrop"></x-backdrop>
-      <div
-        class="projects__gallery__item__hover"
-        (mouseenter)="projectData.onMouseEnter?.()"
-        (mouseleave)="projectData.onMouseExit?.()"
-      >
-        <div class="projects__gallery__item__hover-content">
-          {{ projectData.labelText }}
+    @for (projectData of projects; track projectData.routerLink) {
+      <a [title]="projectData.labelText" class="projects__gallery__item" [routerLink]="projectData.routerLink">
+        <x-backdrop [backdrop]="projectData.backdrop"></x-backdrop>
+        <div
+          class="projects__gallery__item__hover"
+          (mouseenter)="projectData.onMouseEnter?.()"
+          (mouseleave)="projectData.onMouseExit?.()">
+          <div class="projects__gallery__item__hover-content">
+            {{ projectData.labelText }}
+          </div>
         </div>
-      </div>
-    </a>
+      </a>
     }
   </div>
 </div>

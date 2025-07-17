@@ -8,7 +8,11 @@ export abstract class Shape {
 }
 
 export class Rectangle extends Shape {
-  constructor(public width: number, public height: number, public offset: Vector2 = new Vector2()) {
+  constructor(
+    public width: number,
+    public height: number,
+    public offset: Vector2 = new Vector2()
+  ) {
     super();
   }
 
@@ -72,4 +76,3 @@ export class SAT {
     return true; // No separating axis found, shapes are colliding
   }
 }
-

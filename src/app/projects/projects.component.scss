@@ -36,7 +36,9 @@
   margin: auto;
 
   &:hover {
-    box-shadow: 0 4px 8px 0 black, 0 6px 20px 0 black;
+    box-shadow:
+      0 4px 8px 0 black,
+      0 6px 20px 0 black;
   }
 
   &:hover .projects__gallery__item__hover {

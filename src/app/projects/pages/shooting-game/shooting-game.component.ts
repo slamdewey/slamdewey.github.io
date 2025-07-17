@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, HostListener, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnDestroy } from '@angular/core';
 import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
 import {
   CanvasContext2DRenderer,
@@ -6,7 +6,6 @@ import {
   EcsEntity,
   TransformFollowCamera,
   DebugGridComponent,
-  EcsCamera,
 } from 'src/app/lib/ecs';
 import { Player } from './player';
 import { Enemy } from './enemy';
@@ -23,7 +22,7 @@ export const ZoomScalar = 100;
 const SceneWorldBounds = 10000;
 
 class MyScene extends EcsScene<CanvasRenderingContext2D> {
-  public score: number = 0;
+  public score = 0;
 
   private incrementScore = () => this.score++;
 
@@ -101,4 +100,3 @@ export class ShootingGameComponent implements OnDestroy {
     camera.updateZoom((zoom: number) => zoom - e.deltaY / ZoomScalar);
   }
 }
-

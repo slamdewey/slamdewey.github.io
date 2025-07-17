@@ -1,4 +1,4 @@
-import { ExternalLink, InternalLink } from "src/app/lib/navigation";
+import { ExternalLink, InternalLink } from 'src/app/lib/navigation';
 
 export const INTERNAL_LINKS: InternalLink[] = [
   {
