@@ -74,7 +74,7 @@ export class HexTile implements Tile<AxialCoordinate> {
     });
   }
 
-  public static TileToWorld(coord: AxialCoordinate, getTileCenter: boolean = true) {
+  public static TileToWorld(coord: AxialCoordinate, getTileCenter = true) {
     const tileCenterOffset = new AxialCoordinate(-2 / 3, 1 / 3);
     const offsetCoord = getTileCenter ? AxialCoordinate.plus(coord, tileCenterOffset) : coord;
     return new Vector2().set([
@@ -127,9 +127,7 @@ export class HexTileMap extends TileMap<AxialCoordinate> {
 
   public setTiles(tileSet?: HexTile[]): void {
     if (tileSet?.length != this.numTiles) {
-      throw new Error(
-        `Can't setTiles with tileSet of size ${tileSet?.length}.  Expecting length of: ${this.numTiles}`
-      );
+      throw new Error(`Can't setTiles with tileSet of size ${tileSet?.length}.  Expecting length of: ${this.numTiles}`);
     }
     this.tileSet = new Set(tileSet);
     this.tileLookupByCoordinateHash = new Map<number, HexTile>();

@@ -6,7 +6,7 @@ import { EcsObject } from './ecs-object';
 export class EcsEntity extends EcsObject {
   public name: string;
   public transform: EcsTransform = new EcsTransform();
-  public components: Set<EcsComponent> = new Set();
+  public components = new Set<EcsComponent>();
   public readonly scene: EcsScene<RenderingContext>;
 
   constructor(scene: EcsScene<RenderingContext>, name: string) {
@@ -74,4 +74,3 @@ export class EcsEntity extends EcsObject {
     this.transform.onDestroy();
   }
 }
-

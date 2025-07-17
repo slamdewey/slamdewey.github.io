@@ -1,4 +1,4 @@
-export type Environment = {
-  imageCdnUrl: string,
+export interface Environment {
+  imageCdnUrl: string;
   enviornment: 'dev' | 'prod';
-};
+}

@@ -2,10 +2,10 @@ import { Vector2 } from '../coordinate';
 
 export class EcsTransform {
   public position: Vector2 = new Vector2();
-  public scale: number = 1;
-  public rotation: number = 0;
+  public scale = 1;
+  public rotation = 0;
   public parent: EcsTransform | undefined;
-  private children: Set<EcsTransform> = new Set();
+  private children = new Set<EcsTransform>();
 
   public forward(): Vector2 {
     return new Vector2(Math.cos(this.rotation), Math.sin(this.rotation));

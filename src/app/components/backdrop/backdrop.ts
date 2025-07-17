@@ -46,11 +46,11 @@ export abstract class Backdrop {
   public onDestroy(): void {}
 }
 
-type glUniform = {
+interface glUniform {
   name: string;
   value: () => [number] | [number, number];
   location: WebGLUniformLocation | null;
-};
+}
 
 export abstract class WebGLBackdrop extends Backdrop {
   protected readonly BACKGROUND_SHADER_SCROLL_SCALAR = 5000;
@@ -181,11 +181,7 @@ void main() {
     if (this.frag) {
       gl.deleteShader(this.frag);
     }
-    [this.vert, this.frag] = this.compileWebGLShaders(
-      gl,
-      this.getVertexShader(),
-      this.getFragmentShader()
-    );
+    [this.vert, this.frag] = this.compileWebGLShaders(gl, this.getVertexShader(), this.getFragmentShader());
 
     this.createAndBindShaderProgram(gl, this.vert, this.frag);
 
@@ -224,11 +220,7 @@ void main() {
     return [vertShader, fragShader];
   }
 
-  private createAndBindShaderProgram(
-    gl: WebGLRenderingContext,
-    vert: WebGLShader,
-    frag: WebGLShader
-  ) {
+  private createAndBindShaderProgram(gl: WebGLRenderingContext, vert: WebGLShader, frag: WebGLShader) {
     const shaderProgram = gl.createProgram();
     if (shaderProgram === null) {
       throw new Error('Failed To Create Shader Program!');

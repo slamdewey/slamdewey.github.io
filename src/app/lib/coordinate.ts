@@ -132,4 +132,3 @@ export class AxialCoordinate extends Coordinate {
     return Coordinate.operate(x0, x1, (a, b) => a - b, AxialCoordinate) as T;
   }
 }
-

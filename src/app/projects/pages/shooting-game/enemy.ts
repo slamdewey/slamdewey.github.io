@@ -8,7 +8,7 @@ export class EnemyRenderable extends EcsRenderableComponent {
     scene: EcsScene<RenderingContext>,
     entity: EcsEntity,
     transform: EcsTransform,
-    private color: string = 'green'
+    private color = 'green'
   ) {
     super(scene, entity, transform);
   }

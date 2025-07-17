@@ -4,7 +4,7 @@ import { HexTile, TileTerrain } from '../lib/tilemap';
 export type FillStyle = string | CanvasGradient | CanvasPattern;
 export type FillStyleFn = (ctx: CanvasRenderingContext2D) => FillStyle;
 
-export const TileTerrainFillStyles: Map<TileTerrain, FillStyleFn> = new Map([
+export const TileTerrainFillStyles = new Map<TileTerrain, FillStyleFn>([
   ['void', () => 'rgb(0, 0, 0, 0)'],
   [
     'test',

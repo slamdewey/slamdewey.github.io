@@ -5,7 +5,7 @@ export interface ShaderProgramData {
   fragmentShader: string;
 }
 
-export const SHADER_HEADER: string = `#version 300 es // set GLSL version\nprecision highp float;\n`;
+export const SHADER_HEADER = `#version 300 es // set GLSL version\nprecision highp float;\n`;
 
 export const DEFAULT_VERTEX_SHADER: string =
   SHADER_HEADER +
@@ -17,7 +17,7 @@ void main() {
 }
 `;
 // string copied into actual shader code
-export const UNIFORM_DEFS: string = `
+export const UNIFORM_DEFS = `
 // This is the data I provide all shaders with:
 uniform vec2 screenSize;    // screen size in pixels
 uniform vec2 mousePosition; // cursor position in pixels
