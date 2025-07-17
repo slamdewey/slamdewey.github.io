@@ -67,11 +67,11 @@ jobs:
             --body "$BODY" \
             --base "${{ github.head_ref }}" \
             --head "$BRANCH" \
-            --label "auto-lint"
+            --label "format-and-lint"
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: 'Automatic formatting and linting fixes'
-          BODY: 'This PR was created automatically by the formatting and linting workflow: `.github/workflows/lint.yml`'
+          BODY: 'This PR was created by the workflow: `.github/workflows/format-and-lint.yml`'
 
   auto-merge-lint-pr:
     if: startsWith(github.head_ref, 'lint/')
@@ -82,6 +82,7 @@ jobs:
       - name: Merge Pull Request and delete branch
         run: |
           gh pr merge ${{ github.event.pull_request.number }} \
-            --merge
+            --merge \
+            --delete-branch
         env:
           GH_TOKEN: ${{ github.token }}
