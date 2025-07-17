@@ -51,10 +51,7 @@ export default {
   },
   atan: {
     desc: 'atan — return the arc-tangent of the parameters',
-    decl: [
-      'genType atan(genType y, genType x);',
-      'genType atan(genType y_over_x);',
-    ],
+    decl: ['genType atan(genType y, genType x);', 'genType atan(genType y_over_x);'],
     params: {
       y: 'Specify the numerator of the fraction whose arctangent to return.',
       x: 'Specify the denominator of the fraction whose arctangent to return.',
@@ -122,11 +119,7 @@ export default {
   },
   determinant: {
     desc: 'determinant — calculate the determinant of a matrix',
-    decl: [
-      'float determinant(mat2 m);',
-      'float determinant(mat3 m);',
-      'float determinant(mat4 m);',
-    ],
+    decl: ['float determinant(mat2 m);', 'float determinant(mat3 m);', 'float determinant(mat4 m);'],
     params: {
       m: 'Specifies the matrix of which to take the determinant.',
     },
@@ -270,11 +263,7 @@ export default {
   },
   greaterThan: {
     desc: 'greaterThan — perform a component-wise greater-than comparison of two vectors',
-    decl: [
-      'bvec greaterThan(vec x, vec y);',
-      'bvec greaterThan(ivec x, ivec y);',
-      'bvec greaterThan(uvec x, uvec y);',
-    ],
+    decl: ['bvec greaterThan(vec x, vec y);', 'bvec greaterThan(ivec x, ivec y);', 'bvec greaterThan(uvec x, uvec y);'],
     params: {
       x: 'Specifies the first vector to be used in the comparison operation.',
       y: 'Specifies the second vector to be used in the comparison operation.',
@@ -301,11 +290,7 @@ export default {
   },
   inverse: {
     desc: 'inverse — calculate the inverse of a matrix',
-    decl: [
-      'mat2 inverse(mat2 m);',
-      'mat3 inverse(mat3 m);',
-      'mat4 inverse(mat4 m);',
-    ],
+    decl: ['mat2 inverse(mat2 m);', 'mat3 inverse(mat3 m);', 'mat4 inverse(mat4 m);'],
     params: {
       m: 'Specifies the matrix of which to take the inverse.',
     },
@@ -340,11 +325,7 @@ export default {
   },
   lessThan: {
     desc: 'lessThan — perform a component-wise less-than comparison of two vectors',
-    decl: [
-      'bvec lessThan(vec x, vec y);',
-      'bvec lessThan(ivec x, ivec y);',
-      'bvec lessThan(uvec x, uvec y);',
-    ],
+    decl: ['bvec lessThan(vec x, vec y);', 'bvec lessThan(ivec x, ivec y);', 'bvec lessThan(uvec x, uvec y);'],
     params: {
       x: 'Specifies the first vector to be used in the comparison operation.',
       y: 'Specifies the second vector to be used in the comparison operation.',
@@ -429,10 +410,7 @@ export default {
   },
   mod: {
     desc: 'mod — compute value of one parameter modulo another',
-    decl: [
-      'genType mod(genType x, float y);',
-      'genType mod(genType x, genType y);',
-    ],
+    decl: ['genType mod(genType x, float y);', 'genType mod(genType x, genType y);'],
     params: {
       x: 'Specify the value to evaluate.',
       y: 'Specify the value by which to perform the modulo.',
@@ -600,10 +578,7 @@ export default {
   },
   step: {
     desc: 'step — generate a step function by comparing two values',
-    decl: [
-      'genType step(genType edge, genType x);',
-      'genType step(float edge, genType x);',
-    ],
+    decl: ['genType step(genType edge, genType x);', 'genType step(float edge, genType x);'],
     params: {
       edge: 'Specifies the location of the edge of the step function.',
       x: 'Specify the value to be used to generate the step function.',
@@ -613,8 +588,7 @@ export default {
     desc: 'tan — return the tangent of the parameter',
     decl: ['genType tan(genType angle);'],
     params: {
-      angle:
-        'Specify the quantity, in radians, of which to return the tangent.',
+      angle: 'Specify the quantity, in radians, of which to return the tangent.',
     },
   },
   tanh: {
@@ -632,8 +606,7 @@ export default {
       'gvec4 texelFetch(gsampler2DArray sampler, ivec3 P, int lod);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       lod: 'If present, specifies the level-of-detail within the texture from which the texel will be fetched.',
     },
@@ -646,12 +619,10 @@ export default {
       'gvec4 texelFetchOffset(gsampler2DArray sampler, ivec3 P, int lod, ivec2 offset);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       lod: 'If present, specifies the level-of-detail within the texture from which the texel will be fetched.',
-      offset:
-        'Specifies offset, in texels that will be applied to P before looking up the texel.',
+      offset: 'Specifies offset, in texels that will be applied to P before looking up the texel.',
     },
   },
   texture: {
@@ -666,8 +637,7 @@ export default {
       'float texture(sampler2DArrayShadow sampler, vec4 P);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       bias: 'Specifies an optional bias to be applied during level-of-detail computation.',
     },
@@ -684,8 +654,7 @@ export default {
       'float textureGrad(sampler2DArrayShadow sampler, vec4 P, vec2 dPdx, vec2 dPdy);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       dPdx: 'Specifies the partial derivative of P with respect to window x.',
       dPdy: 'Specifies the partial derivative of P with respect to window y.',
@@ -701,13 +670,11 @@ export default {
       'float textureGradOffset(sampler2DArrayShadow sampler, vec4 P, vec2 dPdx, vec2 dPdy, ivec2 offset);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       dPdx: 'Specifies the partial derivative of P with respect to window x.',
       dPdy: 'Specifies the partial derivative of P with respect to window y.',
-      offset:
-        'Specifies the offset to be applied to the texture coordinates before sampling.',
+      offset: 'Specifies the offset to be applied to the texture coordinates before sampling.',
     },
   },
   textureLod: {
@@ -720,8 +687,7 @@ export default {
       'gvec4 textureLod(gsampler2DArray sampler, vec3 P, float lod);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       lod: 'Specifies the explicit level-of-detail',
     },
@@ -735,12 +701,10 @@ export default {
       'gvec4 textureLodOffset(gsampler2DArray sampler, vec3 P, float lod, ivec2 offset);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which the texture will be sampled.',
       lod: 'Specifies the explicit level-of-detail from which texels will be fetched.',
-      offset:
-        'Specifies the offset that will be applied to P before texels are fetched.',
+      offset: 'Specifies the offset that will be applied to P before texels are fetched.',
     },
   },
   textureOffset: {
@@ -752,11 +716,9 @@ export default {
       'gvec4 textureOffset(gsampler2DArray sampler, vec3 P, ivec2 offset, [float bias]);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
-      offset:
-        'Specifies offset, in texels that will be applied to P before looking up the texel.',
+      offset: 'Specifies offset, in texels that will be applied to P before looking up the texel.',
       bias: 'Specifies an optional bias to be applied during level-of-detail computation.',
     },
   },
@@ -769,8 +731,7 @@ export default {
       'float textureProj(sampler2DShadow sampler, vec4 P, [float bias]);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       bias: 'Specifies an optional bias to be applied during level-of-detail computation.',
     },
@@ -784,8 +745,7 @@ export default {
       'float textureProjGrad(sampler2DShadow sampler, vec4 P, vec2 dPdx, vec2 dPdy);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       dPdx: 'Specifies the partial derivative of P with respect to window x.',
       dPdy: 'Specifies the partial derivative of P with respect to window y.',
@@ -800,13 +760,11 @@ export default {
       'float textureProjGradOffset(sampler2DShadow sampler, vec4 P, vec2 dPdx, vec2 dPdy, ivec2 offset);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       dPdx: 'Specifies the partial derivative of P with respect to window x.',
       dPdy: 'Specifies the partial derivative of P with respect to window y.',
-      offset:
-        'Specifies the offsets, in texels at which the texture will be sampled relative to the projection of P.',
+      offset: 'Specifies the offsets, in texels at which the texture will be sampled relative to the projection of P.',
     },
   },
   textureProjLod: {
@@ -818,8 +776,7 @@ export default {
       'float textureProjLod(sampler2DShadow sampler, vec4 P, float lod);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       lod: 'Specifies the explicit level-of-detail from which to fetch texels.',
     },
@@ -833,12 +790,10 @@ export default {
       'float textureProjLodOffset(sampler2DShadow sampler, vec4 P, float lod, ivec2 offset);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which texture will be sampled.',
       lod: 'Specifies the explicit level-of-detail from which to fetch texels.',
-      offset:
-        'Specifies the offset, in texels, to be applied to P before fetching texels.',
+      offset: 'Specifies the offset, in texels, to be applied to P before fetching texels.',
     },
   },
   textureProjOffset: {
@@ -850,11 +805,9 @@ export default {
       'float textureProjOffset(sampler2DShadow sampler, vec4 P, ivec2 offset, [float bias]);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
+      sampler: 'Specifies the sampler to which the texture from which texels will be retrieved is bound.',
       P: 'Specifies the texture coordinates at which the texture will be sampled.',
-      offset:
-        'Specifies the offset that is applied to P before sampling occurs.',
+      offset: 'Specifies the offset that is applied to P before sampling occurs.',
       bias: 'Specifies an optional bias to be applied during level-of-detail computation.',
     },
   },
@@ -870,8 +823,7 @@ export default {
       'ivec3 textureSize(sampler2DArrayShadow sampler, int lod);',
     ],
     params: {
-      sampler:
-        'Specifies the sampler to which the texture whose dimensions to retrieve is bound.',
+      sampler: 'Specifies the sampler to which the texture whose dimensions to retrieve is bound.',
       lod: 'Specifies the level of the texture for which to retrieve the dimensions.',
     },
   },

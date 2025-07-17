@@ -75,4 +75,3 @@ export class CanvasContext2DRenderer extends EcsRenderer<CanvasRenderingContext2
     ctx.restore();
   }
 }
-

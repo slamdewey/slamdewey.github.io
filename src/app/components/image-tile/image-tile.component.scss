@@ -24,7 +24,9 @@ $box-shadow-color: var(--highlight-color);
   max-height: $max-any-dimension;
 
   opacity: 0;
-  transition: visibility $animation-duration, opacity $animation-duration linear;
+  transition:
+    visibility $animation-duration,
+    opacity $animation-duration linear;
 
   &:hover {
     -webkit-box-shadow: 0 0 10px $box-shadow-color;
@@ -45,5 +47,7 @@ $box-shadow-color: var(--highlight-color);
 .tile__loader {
   width: $max-any-dimension;
   height: $max-any-dimension;
-  transition: visibility $animation-duration, opacity $animation-duration linear;
+  transition:
+    visibility $animation-duration,
+    opacity $animation-duration linear;
 }

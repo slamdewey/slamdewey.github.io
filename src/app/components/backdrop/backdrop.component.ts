@@ -1,6 +1,5 @@
 import {
   Component,
-  ViewEncapsulation,
   ElementRef,
   HostListener,
   OnDestroy,
@@ -8,6 +7,7 @@ import {
   viewChild,
   ChangeDetectionStrategy,
   signal,
+  AfterViewInit,
 } from '@angular/core';
 import { Backdrop } from './backdrop';
 import { Vector2 } from 'src/app/lib/coordinate';
@@ -18,7 +18,7 @@ import { Vector2 } from 'src/app/lib/coordinate';
   styleUrls: ['./backdrop.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class BackdropComponent implements OnDestroy {
+export class BackdropComponent implements OnDestroy, AfterViewInit {
   backdrop = input.required<Backdrop>();
   shouldPauseAnimation = input<boolean>(false);
   fullscreen = input<boolean>(false);
@@ -26,7 +26,7 @@ export class BackdropComponent implements OnDestroy {
   bgCanvas = viewChild.required<ElementRef>('bgCanvas');
 
   public isResizing = signal<boolean>(false);
-  private isInitialized: boolean = false;
+  private isInitialized = false;
 
   public static isWebGlEnabled: boolean;
 
@@ -34,7 +34,7 @@ export class BackdropComponent implements OnDestroy {
   private canvasElement: HTMLCanvasElement;
   private ctx: RenderingContext;
   private renderInterval: number;
-  private lastUpdate: number = 0;
+  private lastUpdate = 0;
   private resizeObserver: ResizeObserver;
 
   constructor() {

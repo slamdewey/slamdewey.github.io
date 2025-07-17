@@ -7,7 +7,12 @@ import { ActionListener, KeyEventType, KeyBinding, ActionKeyBinding, AxisKeyBind
 import { SAT } from './geometry';
 import { Quadtree } from './quadtree';
 
-export type Bounds = { x: number; y: number; width: number; height: number };
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /**
  * no lights, no problem!
@@ -18,15 +23,15 @@ export class EcsScene<ctx extends RenderingContext> {
    * must be manually assigned to the camera you wish to use
    */
   public camera: EcsCamera | undefined = undefined;
-  public debug: boolean = false;
+  public debug = false;
 
-  protected readonly entities: Set<EcsEntity> = new Set();
-  protected readonly components: Set<EcsComponent> = new Set();
-  protected readonly renderables: Set<EcsRenderableComponent> = new Set();
-  protected readonly collidables: Set<Collider> = new Set();
+  protected readonly entities = new Set<EcsEntity>();
+  protected readonly components = new Set<EcsComponent>();
+  protected readonly renderables = new Set<EcsRenderableComponent>();
+  protected readonly collidables = new Set<Collider>();
   protected readonly renderer: EcsRenderer<ctx>;
   protected readonly keyStateMap = new Map<string, KeyEventType>();
-  public collisionMatrix: Map<string, Set<string>> = new Map();
+  public collisionMatrix = new Map<string, Set<string>>();
 
   protected readonly worldBounds: Bounds;
   protected readonly quadtree: Quadtree;
@@ -122,7 +127,7 @@ export class EcsScene<ctx extends RenderingContext> {
         }
 
         // Ensure each pair is checked only once
-        const pairId = BigInt(colliderA.id) << 32n | BigInt(colliderB.id);
+        const pairId = (BigInt(colliderA.id) << 32n) | BigInt(colliderB.id);
         if (checkedPairs.has(pairId)) {
           continue;
         }
@@ -210,4 +215,3 @@ export class EcsScene<ctx extends RenderingContext> {
     e.components.forEach((c) => this.removeComponent(c));
   }
 }
-

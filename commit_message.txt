@@ -1,1 +1,0 @@
-docs(version-control): update commit procedure to use a file

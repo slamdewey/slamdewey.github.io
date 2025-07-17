@@ -1,12 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  inject,
-  OnInit,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -25,13 +17,7 @@ import { GalleryService } from '../services/gallery.service';
   selector: 'x-gallery',
   templateUrl: './gallery.component.html',
   styleUrls: ['./gallery.component.scss'],
-  imports: [
-    BackdropComponent,
-    BannerComponent,
-    DropdownMenuComponent,
-    ImageTileComponent,
-    ImageViewerModalComponent,
-  ],
+  imports: [BackdropComponent, BannerComponent, DropdownMenuComponent, ImageTileComponent, ImageViewerModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GalleryComponent implements OnInit {
@@ -51,26 +37,22 @@ export class GalleryComponent implements OnInit {
   ngOnInit() {
     this.titleService.setTitle('Gallery');
 
-    this.activatedRoute.queryParams
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((params) => {
-        const { folder } = params as GalleryRouteQueryParams;
-        if (!folder) {
-          this.currentDirectory.set(undefined);
-          return;
-        }
+    this.activatedRoute.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const { folder } = params as GalleryRouteQueryParams;
+      if (!folder) {
+        this.currentDirectory.set(undefined);
+        return;
+      }
 
-        const folderData = this.galleryService
-          .galleryFolderDropownItems()
-          .find((item) => item.key === folder)!;
+      const folderData = this.galleryService.galleryFolderDropownItems().find((item) => item.key === folder)!;
 
-        this.currentDirectory.set({
-          path: folder,
-          label: folderData.label,
-        });
-
-        this.titleService.setTitle(folderData.label + ' | Gallery');
+      this.currentDirectory.set({
+        path: folder,
+        label: folderData.label,
       });
+
+      this.titleService.setTitle(folderData.label + ' | Gallery');
+    });
   }
 
   public onFolderSelectionChange(selectedItem: DropdownItemData | undefined) {

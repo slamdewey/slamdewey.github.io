@@ -1,8 +1,4 @@
-<x-backdrop
-  [backdrop]="bgAnimation()"
-  [shouldPauseAnimation]="isModalOpen()"
-  [fullscreen]="true"
-></x-backdrop>
+<x-backdrop [backdrop]="bgAnimation()" [shouldPauseAnimation]="isModalOpen()" [fullscreen]="true"></x-backdrop>
 
 <div class="gallery">
   <x-banner>
@@ -10,25 +6,20 @@
   </x-banner>
 
   @let directory = currentDirectory();
-  
+
   <div class="gallery__dropdown">
     <x-dropdown-menu
       [placeholderLabel]="'Select an image directory'"
       [initialValue]="directory?.label"
       [items]="galleryService.galleryFolderDropownItems()"
-      (onItemSelect)="onFolderSelectionChange($event)"
-    ></x-dropdown-menu>
+      (onItemSelect)="onFolderSelectionChange($event)"></x-dropdown-menu>
   </div>
 
   @let imagesByFolder = galleryService.galleryImageDataByFolder();
   @if (imagesByFolder && directory) {
     <div class="gallery__images">
       @for (image of imagesByFolder.get(directory.path); track image.img_src) {
-        <x-image-tile
-          (onClick)="onImageTileClick($event)"
-          class="gallery__images__item"
-          [imageData]="image" 
-        />
+        <x-image-tile (onClick)="onImageTileClick($event)" class="gallery__images__item" [imageData]="image" />
       }
     </div>
   }
@@ -37,6 +28,5 @@
     #imageViewerModal
     [imageSource]="imageSelectedForModal()?.img_src"
     (onOpen)="isModalOpen.set(true)"
-    (onClose)="isModalOpen.set(false)"
-  ></x-image-viewer-modal>
+    (onClose)="isModalOpen.set(false)"></x-image-viewer-modal>
 </div>

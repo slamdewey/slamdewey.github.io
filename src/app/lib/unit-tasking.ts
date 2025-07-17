@@ -1,4 +1,4 @@
-import { finalize, Observable } from 'rxjs';
+import { Observable } from 'rxjs';
 
 export class Task {
   public assignee: Unit;

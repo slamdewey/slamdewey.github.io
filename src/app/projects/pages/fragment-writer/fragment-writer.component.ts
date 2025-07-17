@@ -12,12 +12,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatButtonModule } from '@angular/material/button';
 import { BackdropComponent } from 'src/app/components/backdrop/backdrop.component';
 import { ReactiveWebGLBackground } from './ReactiveWebGLBackground';
-import {
-  DEFAULT_SHADER_PROGRAMS,
-  SHADER_HEADER,
-  ShaderProgramData,
-  UNIFORM_DEFS,
-} from './shader-programs';
+import { DEFAULT_SHADER_PROGRAMS, SHADER_HEADER, ShaderProgramData, UNIFORM_DEFS } from './shader-programs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FragmentWriterQueryParams, MonacoOptions } from 'src/app/lib/fragment-writer';
 import { EditorComponent, NgxEditorModel } from 'ngx-monaco-editor-v2';
@@ -71,7 +66,7 @@ export class FragmentWriterComponent implements AfterViewInit, OnDestroy {
       },
     };
   });
-  public compilationErrors: string = '';
+  public compilationErrors = '';
   public options: MonacoOptions = { ...defaultMonacoOptions };
   public model = this.options.model;
 
@@ -98,27 +93,25 @@ export class FragmentWriterComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit() {
     this.isWebGlEnabled = BackdropComponent.isWebGlEnabled;
-    this.activatedRoute.queryParams
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((params) => {
-        const { shader } = params as FragmentWriterQueryParams;
-        const shaderProgram = DEFAULT_SHADER_PROGRAMS.find((program) => program.key === shader);
+    this.activatedRoute.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const { shader } = params as FragmentWriterQueryParams;
+      const shaderProgram = DEFAULT_SHADER_PROGRAMS.find((program) => program.key === shader);
 
-        // always nullify the user provided content when navigating
-        this.reactiveWebGLBackground.fragmentShaderOverride = undefined;
+      // always nullify the user provided content when navigating
+      this.reactiveWebGLBackground.fragmentShaderOverride = undefined;
 
-        if (shaderProgram) {
-          this.selectedShaderProgram.set(shaderProgram);
-          this.reactiveWebGLBackground.shaderProgramData = shaderProgram;
-          const fragmentShaderCode = this.reactiveWebGLBackground.getFragmentShader();
+      if (shaderProgram) {
+        this.selectedShaderProgram.set(shaderProgram);
+        this.reactiveWebGLBackground.shaderProgramData = shaderProgram;
+        const fragmentShaderCode = this.reactiveWebGLBackground.getFragmentShader();
 
-          this.monacoEditorInstance?.setValue(fragmentShaderCode);
-          this.options.model!.value = fragmentShaderCode;
-          this.tryShaderUpdate();
-        } else {
-          this.selectedShaderProgram.set(undefined);
-        }
-      });
+        this.monacoEditorInstance?.setValue(fragmentShaderCode);
+        this.options.model!.value = fragmentShaderCode;
+        this.tryShaderUpdate();
+      } else {
+        this.selectedShaderProgram.set(undefined);
+      }
+    });
     window.addEventListener('keydown', this.onkeydown.bind(this));
   }
 

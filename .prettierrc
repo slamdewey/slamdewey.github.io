@@ -1,14 +1,23 @@
 {
+  "tabWidth": 2,
+  "useTabs": false,
   "semi": true,
   "singleQuote": true,
+  "bracketSpacing": true,
+  "trailingComma": "es5",
+  "bracketSameLine": true,
   "proseWrap": "never",
   "printWidth": 120,
   "overrides": [
     {
-      "files": ["*.rc", "*.html"],
+      "files": [".prettierrc"],
       "options": {
         "parser": "json"
       }
+    },
+    {
+      "files": ["*.html"],
+      "options": { "parser": "angular" }
     }
   ]
 }
