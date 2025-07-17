@@ -68,7 +68,6 @@ jobs:
             --base "${{ github.head_ref }}" \
             --head "$BRANCH" \
             --label "auto-lint" \
-            --debug \
             --json number \
             --jq .number)
 
