@@ -56,7 +56,7 @@ jobs:
           git add .
 
           if git diff --cached --quiet; then
-            echo "No issues found."
+            echo "::warn ::No fixable issues found. Exiting without changes"
             exit 0
           fi
           git commit -m "chore: auto-format and lint fixes"
