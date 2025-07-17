@@ -7,7 +7,12 @@ import { ActionListener, KeyEventType, KeyBinding, ActionKeyBinding, AxisKeyBind
 import { SAT } from './geometry';
 import { Quadtree } from './quadtree';
 
-export interface Bounds { x: number; y: number; width: number; height: number }
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /**
  * no lights, no problem!
