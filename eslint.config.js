@@ -4,7 +4,7 @@ import angular from "angular-eslint";
 import prettier from "eslint-config-prettier";
 
 export default [
-  ...eslint.configs.recommended,
+  eslint.configs.recommended,
   ...tseslint.configs.recommended,
   ...tseslint.configs.stylistic,
   ...angular.configs.tsRecommended,
