@@ -79,7 +79,7 @@ jobs:
             exit 1
           fi
 
-          gh pr merge "$PR_NUMBER" --merge
+          gh pr merge "$PR_NUMBER" --merge --delete-branch
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: 'Automatic formatting and linting fixes'
