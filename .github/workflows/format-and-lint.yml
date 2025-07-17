@@ -17,9 +17,11 @@ on:
       - main
 
 jobs:
-  format-lint-and-open-pr:
+  format-lint-and-push:
     if: github.base_ref == 'main'
     runs-on: ubuntu-latest
+    outputs:
+      remote-branch-name: ${{ steps.create-remote-branch.outputs.remote-branch-name }}
 
     steps:
       - name: Checkout code
@@ -43,12 +45,14 @@ jobs:
         run: npm run lint
         continue-on-error: true
 
-      - name: Create branch for lint fixes
+      - name: Configure git
         run: |
-          # Configure a default commit identity
           git config user.name "format-and-lint"
           git config user.email "workflows@format-and-lint.yml"
 
+      - name: Create remote branch with fixes
+        id: create-remote-branch
+        run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
           BRANCH="lint/$SHORT_SHA"
           git checkout -b "$BRANCH"
@@ -60,19 +64,38 @@ jobs:
           fi
           git commit -m "chore: auto-format and lint fixes"
           git push -u origin "$BRANCH"
+          echo "remote-branch-name=$BRANCH" >> $GITHUB_OUTPUT
 
-          PR_NUMBER=$(gh pr create \
+  open-pull-request-for-remote-branch:
+    needs: format-lint-and-push
+    if: startsWith(needs.format-lint-and-push.outputs.remote-branch-name, 'lint/')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: ${{ needs.format-lint-and-push.outputs.remote-branch-name }}
+      TITLE: 'Automatic formatting and linting fixes'
+      BODY: 'This PR was created by the workflow: `.github/workflows/format-and-lint.yml`'
+    steps:
+      - name: Open pull request for changes
+        run: |
+          gh pr create \
             --title "$TITLE" \
             --body "$BODY" \
             --base "${{ github.event.pull_request.head.ref }}" \
             --head "$BRANCH" \
-            --label "auto-lint" \
-            --debug \
-            --json number \
-            --jq .number)
+            --label "auto-lint"
 
+      - name: Get pull request number
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --head "$BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error ::Failed to detect newly created PR from branch: $BRANCH"
+            exit 1
+          fi
+          echo $PR_NUMBER
           # gh pr merge "$PR_NUMBER" --merge --delete-branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TITLE: 'Automatic formatting and linting fixes'
-          BODY: 'This PR was created by the workflow: `.github/workflows/format-and-lint.yml`'
