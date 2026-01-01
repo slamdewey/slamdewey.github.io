@@ -1,5 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, HostListener, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  HostListener,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { SpinnerComponent } from '../spinner/spinner.component';
+import { ScrollLockService } from 'src/app/services/scroll-lock.service';
 
 export interface ZoomOptions {
   scale: number;
@@ -27,16 +37,18 @@ const ZoomScalar = 1.2;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ImageViewerModalComponent {
+  private readonly scrollLockService = inject(ScrollLockService);
+
   public imageSource = input<string>();
   public onOpen = output<void>();
   public onClose = output<void>();
 
   public isModalOpen = signal<boolean>(false);
   public shouldDisplaySpinner = signal<boolean>(false);
-  public zoomOptions = signal<ZoomOptions>(DEFAULT_ZOOM);
+  public zoomOptions = signal<ZoomOptions>({ ...DEFAULT_ZOOM });
 
   private resetZoomOptions() {
-    this.zoomOptions.set(DEFAULT_ZOOM);
+    this.zoomOptions.set({ ...DEFAULT_ZOOM });
   }
 
   public zoomOptionsViewTransform = computed<string>(() => {
@@ -70,13 +82,14 @@ export class ImageViewerModalComponent {
     this.resetZoomOptions();
     this.isModalOpen.set(true);
     this.shouldDisplaySpinner.set(true);
+    this.scrollLockService.enableScrollLock();
     this.onOpen.emit();
   }
 
   public closeModal(): void {
     this.isModalOpen.set(false);
     this.shouldDisplaySpinner.set(false);
-    this.resetZoomOptions();
+    this.scrollLockService.disableScrollLock();
     this.onClose.emit();
   }
 
