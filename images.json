@@ -1,5 +1,14 @@
 {
-  "directories": ["astrophotography", "maine_2022", "maine_2024", "eclipse_in_the_adirondacks", "dogs"],
+  "img_path": "img/",
+  "placeholder_path": "placeholder/",
+  "directories": [
+    "astrophotography",
+    "maine_2022",
+    "maine_2024",
+    "eclipse_in_the_adirondacks",
+    "dogs",
+    "maine-2025"
+  ],
   "img": {
     "astrophotography": [
       {
@@ -33,99 +42,106 @@
       {
         "img_src": "img/astrophotography/heart_and_soul_v2_PC.jpg",
         "placeholder_src": "placeholder/astrophotography/heart_and_soul_v2_PC.JPG",
-        "title": "Heart and Soul",
-        "caption": "About 1.5 hours int., but still was quite a dim image",
+        "title": "Heart and Soul Nebulae",
+        "caption": "About 1.5 hours integration, but still was quite a dim image",
         "lastModified": "2023-11-13T21:28:07.537Z"
       },
       {
         "img_src": "img/astrophotography/orion_2nd_v2_pc4.JPG",
         "placeholder_src": "placeholder/astrophotography/orion_2nd_v2_pc4.JPG",
-        "title": "Flame, Horse-head, and Orion",
-        "caption": "Flame and Horsehead nebulae on the left, Orion nebula on the right; 1 hour int.",
+        "title": "Orion Nebula and Friends",
+        "caption": "This one is 1 hour shot featuring the Horsehead and Flame nebulae on the left, and the Orion nebula on the right",
         "lastModified": "2023-11-13T20:57:39.280Z"
       },
       {
         "img_src": "img/astrophotography/IMG_5115.jpg",
         "placeholder_src": "placeholder/astrophotography/IMG_5115.JPG",
-        "title": "Unedited wide shot",
-        "caption": "about 2 minutes exposure",
+        "title": "",
+        "caption": "Unedited image of a stretch of the Milky Way galaxy",
         "lastModified": "2022-09-12T15:21:49.095Z"
       },
       {
         "img_src": "img/astrophotography/processed_and_cropped.jpg",
         "placeholder_src": "placeholder/astrophotography/processed_and_cropped.JPG",
         "title": "Andromeda Galaxy",
-        "caption": "A 1.5 hour int. of the Andromeda Galaxy",
+        "caption": "A 1.5 hour long integration time exposure of the Andromeda Galaxy",
         "lastModified": "2022-08-17T23:08:40.179Z"
       },
       {
         "img_src": "img/astrophotography/enhanced_nebula.jpg",
         "placeholder_src": "placeholder/astrophotography/enhanced_nebula.JPG",
-        "title": "NA Nebula, enhanced",
-        "caption": "The North America Nebula with permeating starlight dimmed and enhanced nebulosity",
+        "title": "N. A. Nebula",
+        "caption": "The North America Nebula with permeating starlight dimmed and enhanced contrast",
         "lastModified": "2022-08-10T03:31:30.717Z"
       },
       {
         "img_src": "img/astrophotography/enhanced_stars.jpg",
         "placeholder_src": "placeholder/astrophotography/enhanced_stars.JPG",
-        "title": "NA Nebula, starry",
-        "caption": "Can you count the stars?",
+        "title": "N. A. Nebula",
+        "caption": "A natural starlight image of the North America Nebula; little enhancement done after image stacking.",
         "lastModified": "2022-08-10T03:30:55.653Z"
       },
       {
         "img_src": "img/astrophotography/IMG_5114e2.jpg",
         "placeholder_src": "placeholder/astrophotography/IMG_5114e2.JPG",
-        "title": "Core & Scorpius",
-        "caption": "Post processed image of Milky Way core, light pollution and all.  Exposure time about 2 minutes.",
+        "title": "Milky Way & Scorpius",
+        "caption": "Post processed image of the Milky Way galaxy core and Scorpius constellation.  Prominently featuring Anteres & M4",
         "lastModified": "2022-08-10T03:10:13.013Z"
       },
       {
         "img_src": "img/astrophotography/IMG_4967.jpg",
         "placeholder_src": "placeholder/astrophotography/IMG_4967.JPG",
-        "title": "Unedited Cygnus region",
-        "caption": "about 4 minute exposure (perhaps too long for my equipment)",
+        "title": "",
+        "caption": "A unedited long exposure shot of the Cygnus region",
         "lastModified": "2022-08-10T02:44:13.937Z"
       },
       {
         "img_src": "img/astrophotography/IMG_4963e.jpg",
         "placeholder_src": "placeholder/astrophotography/IMG_4963e.JPG",
-        "title": "Light Pollution and Airglow",
-        "caption": "Airglow causes red and green banding in the sky.  Light pollution outshines our galaxy and hides it.",
+        "title": "",
+        "caption": "A contrast-boosted long exposure Milky Way core shot",
         "lastModified": "2022-08-10T02:42:51.624Z"
+      },
+      {
+        "img_src": "img/astrophotography/IMG_4948e2.jpg",
+        "placeholder_src": "placeholder/astrophotography/IMG_4948e2.JPG",
+        "title": "",
+        "caption": "A dim Milky Way galaxy at twilight with a shooting star",
+        "lastModified": "2022-08-10T02:33:18.472Z"
       },
       {
         "img_src": "img/astrophotography/IMG_4966e.jpg",
         "placeholder_src": "placeholder/astrophotography/IMG_4966e.JPG",
-        "title": "Edited Milky Way",
-        "caption": "Milky Way core shot with focus on major star clouds and nebulae; exposure 2 minutes",
+        "title": "Nebulae & Sagittarius",
+        "caption": "Milky Way core shot with focus on major star clouds and nebulae",
         "lastModified": "2022-08-09T03:58:39.244Z"
       },
       {
         "img_src": "img/astrophotography/IMG_5038e.jpg",
         "placeholder_src": "placeholder/astrophotography/IMG_5038e.JPG",
-        "title": "Our Galaxy over Carney Island",
-        "caption": "The Milky Way galaxy behind Carney Island, Maine. Shot on Causeway Beach",
+        "title": "Milky Way Galaxy over Carney Island",
+        "caption": "The Milky Way galaxy gleaming over Carney Island, Maine.  Shot on Causeway Beach",
         "lastModified": "2022-08-08T22:08:10.644Z"
       },
       {
         "img_src": "img/astrophotography/IMG_4949e.JPG",
         "placeholder_src": "placeholder/astrophotography/IMG_4949e.JPG",
-        "title": "Twilight Milky Way",
-        "caption": "The streak is a shooting star; exposure time is 30 seconds",
+        "title": "",
+        "caption": "A longer exposure of a twilight Milky Way core with another shooting star guest appearance",
         "lastModified": "2022-08-08T18:24:28.000Z"
       },
       {
         "img_src": "img/astrophotography/andromeda_rising.JPG",
         "placeholder_src": "placeholder/astrophotography/andromeda_rising.JPG",
-        "title": "Andromeda in the night sky",
-        "caption": "Exposure time is 70 seconds",
+        "title": "",
+        "caption": "Just a shot of the andromeda galaxy rising over some powerlines",
         "lastModified": "2022-08-08T17:58:22.474Z"
       },
       {
         "img_src": "img/astrophotography/IMG_4957.JPG",
         "placeholder_src": "placeholder/astrophotography/IMG_4957.JPG",
-        "title": "Unedited Milky Way",
-        "caption": "About 2 minutes exposure",
+        "title": "",
+        "caption": "Unedited long exposure of milky way",
         "lastModified": "2022-08-08T17:56:15.193Z"
       }
     ],
@@ -592,15 +608,15 @@
       {
         "img_src": "img/eclipse_in_the_adirondacks/IMG_68462.jpg",
         "placeholder_src": "placeholder/eclipse_in_the_adirondacks/IMG_68462.JPG",
-        "title": "A small lake town",
-        "caption": "",
+        "title": "",
+        "caption": "A small lake town and nearby village",
         "lastModified": "2024-04-10T02:09:22.312Z"
       },
       {
         "img_src": "img/eclipse_in_the_adirondacks/IMG_68282.jpg",
         "placeholder_src": "placeholder/eclipse_in_the_adirondacks/IMG_68282.JPG",
-        "title": "Looking South-East",
-        "caption": "",
+        "title": "Looking South",
+        "caption": "A view of Algonquin Peak and friends",
         "lastModified": "2024-04-10T01:55:01.997Z"
       },
       {
@@ -613,8 +629,8 @@
       {
         "img_src": "img/eclipse_in_the_adirondacks/IMG_68762.jpg",
         "placeholder_src": "placeholder/eclipse_in_the_adirondacks/IMG_68762.JPG",
-        "title": "Moments before the total eclipse",
-        "caption": "",
+        "title": "Awe Inspired Hikers",
+        "caption": "Moments before the total eclipse, as distant mountains begin to darken",
         "lastModified": "2024-04-09T23:10:33.884Z"
       },
       {
@@ -627,29 +643,29 @@
       {
         "img_src": "img/eclipse_in_the_adirondacks/IMG_6868.JPG",
         "placeholder_src": "placeholder/eclipse_in_the_adirondacks/IMG_6868.JPG",
-        "title": "Chillin",
-        "caption": "At the peak",
+        "title": "",
+        "caption": "Chillin at the peak",
         "lastModified": "2024-04-09T23:10:31.884Z"
       },
       {
         "img_src": "img/eclipse_in_the_adirondacks/IMG_68272.jpg",
         "placeholder_src": "placeholder/eclipse_in_the_adirondacks/IMG_68272.JPG",
-        "title": "Looking South",
-        "caption": "",
+        "title": "View from Ampersand Mountain",
+        "caption": "Just a small piece of the 360 degree view",
         "lastModified": "2024-04-09T23:10:16.954Z"
       },
       {
         "img_src": "img/eclipse_in_the_adirondacks/IMG_68252.jpg",
         "placeholder_src": "placeholder/eclipse_in_the_adirondacks/IMG_68252.JPG",
-        "title": "Looking West",
-        "caption": "",
+        "title": "Settling in",
+        "caption": "Early arrivers prepare to wait 3 hours for a 3 minute show",
         "lastModified": "2024-04-09T23:10:01.101Z"
       },
       {
         "img_src": "img/eclipse_in_the_adirondacks/IMG_22022.jpg",
         "placeholder_src": "placeholder/eclipse_in_the_adirondacks/IMG_22022.JPG",
-        "title": "A still lake",
-        "caption": "",
+        "title": "",
+        "caption": "A still lake",
         "lastModified": "2024-04-09T23:09:13.796Z"
       },
       {
@@ -686,7 +702,7 @@
         "img_src": "img/dogs/IMG_0798.jpg",
         "placeholder_src": "placeholder/dogs/IMG_0798.JPG",
         "title": "",
-        "caption": "Mollie lukrking",
+        "caption": "Mollie skulking",
         "lastModified": "2022-04-13T19:17:40.429Z"
       },
       {
@@ -758,6 +774,127 @@
         "title": "",
         "caption": "Mollie",
         "lastModified": "2022-04-13T19:14:55.561Z"
+      }
+    ],
+    "maine-2025": [
+      {
+        "img_src": "img/maine-2025/IMG_8506.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8506.jpg",
+        "title": "Sailboat",
+        "caption": "Lewis R French",
+        "lastModified": "2025-07-24T16:07:51.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8500.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8500.jpg",
+        "title": "Stonington",
+        "caption": "",
+        "lastModified": "2025-07-24T16:06:41.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8498.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8498.jpg",
+        "title": "Sailors Looking Back",
+        "caption": "",
+        "lastModified": "2025-07-24T16:05:57.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8490.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8490.jpg",
+        "title": "Beach Walkers",
+        "caption": "",
+        "lastModified": "2025-07-23T18:18:53.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8479.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8479.jpg",
+        "title": "Sunset",
+        "caption": "",
+        "lastModified": "2025-07-23T00:04:28.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8469.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8469.jpg",
+        "title": "Camden Hills",
+        "caption": "",
+        "lastModified": "2025-07-22T00:18:40.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8467.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8467.jpg",
+        "title": "Wooder",
+        "caption": "",
+        "lastModified": "2025-07-22T00:17:50.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8451.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8451.jpg",
+        "title": "",
+        "caption": "",
+        "lastModified": "2025-07-22T00:14:05.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8447.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8447.jpg",
+        "title": "",
+        "caption": "",
+        "lastModified": "2025-07-22T00:04:54.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8420.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8420.jpg",
+        "title": "Cabin Roof",
+        "caption": "",
+        "lastModified": "2025-07-21T22:29:25.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8409.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8409.jpg",
+        "title": "Cabin",
+        "caption": "",
+        "lastModified": "2025-07-21T13:34:20.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8400.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8400.jpg",
+        "title": "Post",
+        "caption": "",
+        "lastModified": "2025-07-19T20:07:42.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8398.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8398.jpg",
+        "title": "Wet Rock",
+        "caption": "",
+        "lastModified": "2025-07-19T20:07:00.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8397.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8397.jpg",
+        "title": "Wet Rocks",
+        "caption": "",
+        "lastModified": "2025-07-19T20:06:58.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8393.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8393.jpg",
+        "title": "Dry Rocks",
+        "caption": "Big and dry",
+        "lastModified": "2025-07-19T20:03:19.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8383.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8383.jpg",
+        "title": "Splash Rock",
+        "caption": "",
+        "lastModified": "2025-07-19T19:51:50.000Z"
+      },
+      {
+        "img_src": "img/maine-2025/IMG_8371.jpg",
+        "placeholder_src": "placeholder/maine-2025/IMG_8371.jpg",
+        "title": "Rocky Shore",
+        "caption": "Lots of seaweed too",
+        "lastModified": "2025-07-19T19:48:08.000Z"
       }
     ]
   }
