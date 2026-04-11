@@ -1,14 +1,7 @@
 {
   "img_path": "img/",
   "placeholder_path": "placeholder/",
-  "directories": [
-    "astrophotography",
-    "maine_2022",
-    "maine_2024",
-    "eclipse_in_the_adirondacks",
-    "dogs",
-    "maine-2025"
-  ],
+  "directories": ["astrophotography", "maine_2022", "maine_2024", "eclipse_in_the_adirondacks", "dogs", "maine-2025"],
   "img": {
     "astrophotography": [
       {
