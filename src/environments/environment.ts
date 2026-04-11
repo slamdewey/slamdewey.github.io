@@ -5,7 +5,7 @@
 import { Environment } from 'src/app/lib/env';
 
 export const env: Environment = {
-  imageCdnUrl: 'https://d2oyxbjapvi4dv.cloudfront.net/',
+  imageCdnUrl: 'https://d3k7w37otwommj.cloudfront.net/gallery/',
   enviornment: 'dev',
 };
 
