@@ -2,7 +2,7 @@ name: auto deploy
 
 env:
   OUTPUT_DIR: dist
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 on:
   push:
