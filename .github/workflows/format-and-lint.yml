@@ -10,7 +10,7 @@ concurrency:
 
 env:
   workflow-name: 'format-and-lint'
-  node-version: '20'
+  node-version: '24'
 
 on:
   pull_request:

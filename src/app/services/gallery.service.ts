@@ -1,16 +1,26 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { env } from 'src/environments/environment';
 import { DropdownItemData } from '../lib/dropdown';
 import { ImagesJson, GalleryImageData } from '../lib/gallery';
 
-import * as imagesJsonModule from '../../../images.json';
-const IMAGES_JSON = (imagesJsonModule as any).default as ImagesJson;
+const IMAGES_JSON_URL = env.imageCdnUrl + 'images.json';
 
 @Injectable({
   providedIn: 'root',
 })
 export class GalleryService {
-  public imagesJson = signal<ImagesJson>(IMAGES_JSON);
+  private readonly http = inject(HttpClient);
+
+  public imagesJson = signal<ImagesJson>({ directories: [], img: {} });
+  public loaded = signal<boolean>(false);
+
+  constructor() {
+    this.http.get<ImagesJson>(IMAGES_JSON_URL).subscribe((data) => {
+      this.imagesJson.set(data);
+      this.loaded.set(true);
+    });
+  }
 
   public galleryFolderDropownItems = computed<DropdownItemData[]>(() => {
     return this.imagesJson().directories.map((folder) => ({
