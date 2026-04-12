@@ -10,12 +10,7 @@
     "start:dev": "ng serve --watch --configuration=development",
     "start:prod": "ng serve --configuration=production",
     "format": "prettier --write .",
-    "lint": "eslint . --fix",
-    "gallery:editor": "cd gallery-editor && npm run start:dev",
-    "deploy:iam": "aws cloudformation deploy --template-file cloudformation/iam/template.cfn.yml --stack-name site-iam --parameter-overrides file://cloudformation/iam/params.json --capabilities CAPABILITY_NAMED_IAM --region us-east-1",
-    "deploy:s3": "aws cloudformation deploy --profile ci-deploy --template-file cloudformation/s3/template.cfn.yml --stack-name site-s3 --parameter-overrides file://cloudformation/s3/params.json --region us-east-1",
-    "deploy:cloudfront": "aws cloudformation deploy --profile ci-deploy --template-file cloudformation/cloudfront/template.cfn.yml --stack-name site-cloudfront --parameter-overrides file://cloudformation/cloudfront/params.json --region us-east-1",
-    "deploy:all": "npm run deploy:iam && npm run deploy:s3 && npm run deploy:cloudfront"
+    "lint": "eslint . --fix"
   },
   "private": true,
   "dependencies": {
