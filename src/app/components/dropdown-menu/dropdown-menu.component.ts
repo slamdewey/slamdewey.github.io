@@ -17,9 +17,9 @@ export class DropdownMenuComponent {
   public initialValue = input<string | undefined>();
   public items = input.required<DropdownItemData[]>();
 
-  public onItemSelect = output<DropdownItemData | undefined>();
+  public itemSelect = output<DropdownItemData | undefined>();
 
   public onSelectionChange(event: MatSelectChange) {
-    this.onItemSelect.emit(this.items().find((item) => item.label === event.value));
+    this.itemSelect.emit(this.items().find((item) => item.label === event.value));
   }
 }

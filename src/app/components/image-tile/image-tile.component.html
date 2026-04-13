@@ -1,5 +1,6 @@
-<button class="tile" (click)="onClick.emit(imageData())" [attr.title]="imageData().title">
+<button class="tile" (click)="tileClick.emit(imageData())" [attr.title]="imageData().title">
   <img
+    [alt]="imageData().title"
     class="tile__image"
     [class]="isLoaded() ? 'tile-visible' : 'tile-hidden'"
     (load)="onImageLoad()"

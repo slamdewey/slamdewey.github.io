@@ -40,8 +40,8 @@ export class ImageViewerModalComponent {
   private readonly scrollLockService = inject(ScrollLockService);
 
   public imageSource = input<string>();
-  public onOpen = output<void>();
-  public onClose = output<void>();
+  public modalOpen = output<void>();
+  public modalClose = output<void>();
 
   public isModalOpen = signal<boolean>(false);
   public shouldDisplaySpinner = signal<boolean>(false);
@@ -83,14 +83,14 @@ export class ImageViewerModalComponent {
     this.isModalOpen.set(true);
     this.shouldDisplaySpinner.set(true);
     this.scrollLockService.enableScrollLock();
-    this.onOpen.emit();
+    this.modalOpen.emit();
   }
 
   public closeModal(): void {
     this.isModalOpen.set(false);
     this.shouldDisplaySpinner.set(false);
     this.scrollLockService.disableScrollLock();
-    this.onClose.emit();
+    this.modalClose.emit();
   }
 
   public zoomIn(): void {

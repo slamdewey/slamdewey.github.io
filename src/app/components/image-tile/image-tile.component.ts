@@ -15,7 +15,7 @@ export class ImageTileComponent {
 
   public shouldDisplaySkeletonLoader = signal<boolean>(true);
 
-  public onClick = output<GalleryImageData>();
+  public tileClick = output<GalleryImageData>();
 
   public onImageLoad() {
     this.isLoaded.set(true);

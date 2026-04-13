@@ -57,7 +57,7 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
     this.resizeObserver.observe(
       this.fullscreen()
         ? this.canvasElement.parentElement! // document.body
-        : this.canvasElement.parentElement?.parentElement! // host container
+        : this.canvasElement.parentElement!.parentElement! // host container
     );
 
     this.ctx = context;

@@ -23,7 +23,7 @@
           [placeholderLabel]="'Open Example Shader'"
           [initialValue]="selectedShaderProgram()?.name"
           [items]="defaultShaderLinks"
-          (onItemSelect)="loadShaderProgram($event)"></x-dropdown-menu>
+          (itemSelect)="loadShaderProgram($event)"></x-dropdown-menu>
         <p [style.margin]="'12px'">in</p>
         <mat-button-toggle-group
           (change)="loadPolicy.set($event.value)"
