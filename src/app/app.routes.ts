@@ -15,7 +15,24 @@ export const routes: Route[] = [
     providers: [
       {
         provide: FAVICON_URL,
-        useValue: 'home-favicon.ico',
+        useValue: [
+          'callme.svg',
+          'clown.svg',
+          'disguise.svg',
+          'explosion.svg',
+          'fear.svg',
+          'grinning_face_with_sweat.svg',
+          'halo.svg',
+          'laughing_tears.svg',
+          'laughing_tears_rolling.svg',
+          'melting.svg',
+          'prosper.svg',
+          'saluting.svg',
+          'smiling_with_tear.svg',
+          'starstruck.svg',
+          'thinking.svg',
+          'upsidedown.svg',
+        ],
       },
     ],
     resolve: [faviconResolverFn],
@@ -26,7 +43,7 @@ export const routes: Route[] = [
     providers: [
       {
         provide: FAVICON_URL,
-        useValue: 'photo-favicon.ico',
+        useValue: 'photo-favicon.svg',
       },
     ],
     resolve: [faviconResolverFn],
@@ -37,7 +54,7 @@ export const routes: Route[] = [
     providers: [
       {
         provide: FAVICON_URL,
-        useValue: 'project-favicon.ico',
+        useValue: 'project-favicon.svg',
       },
     ],
     resolve: [faviconResolverFn],
@@ -64,7 +81,7 @@ export const routes: Route[] = [
     providers: [
       {
         provide: FAVICON_URL,
-        useValue: 'project-favicon.ico',
+        useValue: 'project-favicon.svg',
       },
     ],
     resolve: [faviconResolverFn],
