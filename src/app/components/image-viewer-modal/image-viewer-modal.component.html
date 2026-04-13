@@ -7,14 +7,15 @@
     (mouseup)="onModalMouseUp($event)"
     (mousemove)="onModalMouseMove($event)">
     @if (shouldDisplaySpinner()) {
-      <spinner class="image-modal__spinner" />
+      <x-spinner class="image-modal__spinner" />
     }
     <div class="image-modal__controls">
-      <span class="image-modal__controls__button" (click)="zoomOut()">-</span>
-      <span class="image-modal__controls__button" (click)="zoomIn()">+</span>
-      <span class="image-modal__controls__button" (click)="closeModal()">&times;</span>
+      <button class="image-modal__controls__button" (click)="zoomOut()">-</button>
+      <button class="image-modal__controls__button" (click)="zoomIn()">+</button>
+      <button class="image-modal__controls__button" (click)="closeModal()">&times;</button>
     </div>
     <img
+      alt="Full size image"
       class="image-modal__content"
       loading="lazy"
       [style.transform]="zoomOptionsViewTransform()"

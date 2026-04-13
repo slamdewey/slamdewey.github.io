@@ -21,9 +21,9 @@ export class Quadtree {
    */
   public clear(): void {
     this.objects = [];
-    for (let i = 0; i < this.nodes.length; i++) {
-      if (this.nodes[i]) {
-        this.nodes[i].clear();
+    for (const node of this.nodes) {
+      if (node) {
+        node.clear();
       }
     }
     this.nodes = [];
@@ -135,8 +135,8 @@ export class Quadtree {
         returnObjects = returnObjects.concat(this.nodes[index].retrieve(collider));
       } else {
         // If the object doesn't fit in a child node, check all child nodes
-        for (let i = 0; i < this.nodes.length; i++) {
-          returnObjects = returnObjects.concat(this.nodes[i].retrieve(collider));
+        for (const node of this.nodes) {
+          returnObjects = returnObjects.concat(node.retrieve(collider));
         }
       }
     }

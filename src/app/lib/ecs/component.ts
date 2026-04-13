@@ -20,9 +20,9 @@ export class EcsComponent extends EcsObject {
   public onAddedToEntity(): void {}
   public onRemovedFromEntity(): void {}
 
-  public update(deltaTime: number): void {}
+  public update(_deltaTime: number): void {}
   public lateUpdate(): void {}
-  public drawGizmos<T extends RenderingContext>(ctx: T): void {}
+  public drawGizmos<T extends RenderingContext>(_ctx: T): void {}
 }
 
 export abstract class EcsRenderableComponent extends EcsComponent {
