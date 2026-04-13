@@ -25,7 +25,7 @@ bootstrapApplication(AppComponent, {
     },
     {
       provide: FAVICON_URL,
-      useValue: 'home-favicon.ico',
+      useValue: 'default-favicon.svg',
     },
     {
       provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
