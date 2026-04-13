@@ -1,5 +1,0 @@
-{
-  "permissions": {
-    "allow": ["Bash(aws cloudformation:*)", "Bash(npm run:*)", "Bash(aws s3 mv:*)", "Bash(aws s3 cp:*)"]
-  }
-}
