@@ -15,7 +15,8 @@ import { ReactiveWebGLBackground } from './ReactiveWebGLBackground';
 import { DEFAULT_SHADER_PROGRAMS, SHADER_HEADER, ShaderProgramData, UNIFORM_DEFS } from './shader-programs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FragmentWriterQueryParams, MonacoOptions } from 'src/app/lib/fragment-writer';
-import { EditorComponent, NgxEditorModel } from 'ngx-monaco-editor-v2';
+import { EditorComponent, NGX_MONACO_EDITOR_CONFIG, NgxEditorModel } from 'ngx-monaco-editor-v2';
+import { monacoConfig } from 'src/app/util/monaco-config';
 import { SkeletonLoaderComponent } from 'src/app/components/skeleton-loader/skeleton-loader.component';
 import { DropdownItemData } from 'src/app/lib/dropdown';
 import { DropdownMenuComponent } from 'src/app/components/dropdown-menu/dropdown-menu.component';
@@ -51,6 +52,7 @@ export const defaultMonacoOptions: MonacoOptions = {
     MatButtonToggleModule,
     MatButtonModule,
   ],
+  providers: [{ provide: NGX_MONACO_EDITOR_CONFIG, useValue: monacoConfig }],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FragmentWriterComponent implements AfterViewInit, OnDestroy {
