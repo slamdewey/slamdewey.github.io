@@ -1,5 +1,5 @@
-import { EcsEntity } from './entity';
-import { Vector2 } from '../coordinate';
+import { EcsEntity } from './ecs-entity';
+import { Vector2 } from '@lib/coordinate';
 
 export type EntityFactory<T extends EcsEntity> = (position: Vector2, rotation: number) => T;
 

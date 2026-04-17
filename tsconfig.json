@@ -3,6 +3,12 @@
   "compileOnSave": false,
   "compilerOptions": {
     "baseUrl": "./",
+    "paths": {
+      "@ecs": ["src/app/ecs/index.ts"],
+      "@ecs/*": ["src/app/ecs/*"],
+      "@lib/*": ["src/app/lib/*"],
+      "@components/*": ["src/app/components/*"]
+    },
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,

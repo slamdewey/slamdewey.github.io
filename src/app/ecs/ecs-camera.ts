@@ -1,5 +1,5 @@
-import { Vector2 } from '../coordinate';
-import { EcsComponent } from './component';
+import { Vector2 } from '@lib/coordinate';
+import { EcsComponent } from './ecs-component';
 
 export abstract class EcsCamera extends EcsComponent {
   protected readonly MinZoom: number = 1;

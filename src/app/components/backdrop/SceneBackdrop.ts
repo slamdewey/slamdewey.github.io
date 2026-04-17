@@ -1,4 +1,4 @@
-import { EcsScene } from 'src/app/lib/ecs/scene';
+import { EcsScene } from '@ecs/ecs-scene';
 import { Backdrop } from './backdrop';
 
 export class EcsSceneBackdrop extends Backdrop {

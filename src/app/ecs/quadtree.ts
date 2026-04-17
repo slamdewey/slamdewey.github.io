@@ -1,6 +1,6 @@
 import { Collider } from './collider';
-import { Vector2 } from '../coordinate';
-import { Bounds } from './scene';
+import { Vector2 } from '@lib/coordinate';
+import { Bounds } from './ecs-scene';
 
 export class Quadtree {
   private maxObjects = 10;

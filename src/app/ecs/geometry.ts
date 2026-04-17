@@ -1,5 +1,5 @@
-import { EcsTransform } from './transform';
-import { Vector2 } from '../coordinate';
+import { EcsTransform } from './ecs-transform';
+import { Vector2 } from '@lib/coordinate';
 import { Collider } from './collider';
 
 export abstract class Shape {

@@ -1,4 +1,4 @@
-import { Vector2 } from '../coordinate';
+import { Vector2 } from '@lib/coordinate';
 
 export class EcsTransform {
   public position: Vector2 = new Vector2();

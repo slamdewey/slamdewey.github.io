@@ -1,6 +1,6 @@
-import { EcsEntity } from './entity';
-import { EcsScene } from './scene';
-import { EcsTransform } from './transform';
+import { EcsEntity } from './ecs-entity';
+import { EcsScene } from './ecs-scene';
+import { EcsTransform } from './ecs-transform';
 import { EcsObject } from './ecs-object';
 
 export class EcsComponent extends EcsObject {

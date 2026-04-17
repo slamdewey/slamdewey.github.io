@@ -10,7 +10,7 @@ import {
   AfterViewInit,
 } from '@angular/core';
 import { Backdrop } from './backdrop';
-import { Vector2 } from 'src/app/lib/coordinate';
+import { Vector2 } from '@lib/coordinate';
 
 @Component({
   selector: 'x-backdrop',

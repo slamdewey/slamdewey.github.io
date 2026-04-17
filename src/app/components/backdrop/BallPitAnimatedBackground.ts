@@ -1,4 +1,4 @@
-import { Vector2 } from 'src/app/lib/coordinate';
+import { Vector2 } from '@lib/coordinate';
 import { Backdrop } from './backdrop';
 
 const COLORS = [

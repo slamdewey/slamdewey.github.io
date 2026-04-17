@@ -1,5 +1,5 @@
-import { EcsRenderableComponent, EcsComponent } from './component';
-import { EcsCamera } from './camera';
+import { EcsRenderableComponent, EcsComponent } from './ecs-component';
+import { EcsCamera } from './ecs-camera';
 
 export abstract class EcsRenderer<ctx extends RenderingContext> {
   public abstract render(ctx: ctx, components: Set<EcsComponent>, camera: EcsCamera, debug?: boolean): void;

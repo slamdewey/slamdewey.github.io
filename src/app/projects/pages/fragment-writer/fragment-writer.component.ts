@@ -10,16 +10,16 @@ import {
 } from '@angular/core';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatButtonModule } from '@angular/material/button';
-import { BackdropComponent } from 'src/app/components/backdrop/backdrop.component';
+import { BackdropComponent } from '@components/backdrop/backdrop.component';
 import { ReactiveWebGLBackground } from './ReactiveWebGLBackground';
 import { DEFAULT_SHADER_PROGRAMS, SHADER_HEADER, ShaderProgramData, UNIFORM_DEFS } from './shader-programs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FragmentWriterQueryParams, MonacoOptions } from 'src/app/lib/fragment-writer';
 import { EditorComponent, NGX_MONACO_EDITOR_CONFIG, NgxEditorModel } from 'ngx-monaco-editor-v2';
 import { monacoConfig } from 'src/app/util/monaco-config';
-import { SkeletonLoaderComponent } from 'src/app/components/skeleton-loader/skeleton-loader.component';
+import { SkeletonLoaderComponent } from '@components/skeleton-loader/skeleton-loader.component';
 import { DropdownItemData } from 'src/app/lib/dropdown';
-import { DropdownMenuComponent } from 'src/app/components/dropdown-menu/dropdown-menu.component';
+import { DropdownMenuComponent } from '@components/dropdown-menu/dropdown-menu.component';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 const ALL_LOAD_POLICIES = ['This Tab', 'New Tab'] as const;

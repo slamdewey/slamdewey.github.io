@@ -6,13 +6,13 @@ import {
   EcsTransform,
   EcsComponent,
   ActionListener,
-} from 'src/app/lib/ecs';
+} from '@ecs';
 import { Enemy } from './enemy';
-import { Vector2 } from 'src/app/lib/coordinate';
+import { Vector2 } from '@lib/coordinate';
 import { Projectile } from './projectile';
 import { ShootingGameActions, ShootingGameAxes } from './game-input';
-import { Rectangle } from 'src/app/lib/ecs/geometry';
-import { ObjectPool } from 'src/app/lib/ecs/object-pool';
+import { Rectangle } from '@ecs/geometry';
+import { ObjectPool } from '@ecs/object-pool';
 
 export class Player extends EcsEntity {
   constructor(scene: EcsScene<RenderingContext>, name: string, projectilePool: ObjectPool<Projectile>) {

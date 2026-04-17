@@ -1,4 +1,4 @@
-import { Vector2 } from 'src/app/lib/coordinate';
+import { Vector2 } from '@lib/coordinate';
 
 /**
  * Represents an abstract base class for a renderable backdrop.

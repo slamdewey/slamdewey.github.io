@@ -1,8 +1,8 @@
-import { EcsCamera } from './camera';
-import { EcsRenderer } from './renderer';
+import { EcsCamera } from './ecs-camera';
+import { EcsRenderer } from './ecs-renderer';
 import { Collider } from './collider';
-import { EcsComponent, EcsRenderableComponent } from './component';
-import { EcsEntity } from './entity';
+import { EcsComponent, EcsRenderableComponent } from './ecs-component';
+import { EcsEntity } from './ecs-entity';
 import { ActionListener, KeyEventType, KeyBinding, ActionKeyBinding, AxisKeyBinding } from './input';
 import { SAT } from './geometry';
 import { Quadtree } from './quadtree';

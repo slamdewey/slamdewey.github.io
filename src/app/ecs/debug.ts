@@ -1,4 +1,4 @@
-import { EcsRenderableComponent } from './component';
+import { EcsRenderableComponent } from './ecs-component';
 
 export class DebugGridComponent extends EcsRenderableComponent {
   public override render(ctx: CanvasRenderingContext2D) {

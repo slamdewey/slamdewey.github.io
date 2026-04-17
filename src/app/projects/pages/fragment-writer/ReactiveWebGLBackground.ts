@@ -1,4 +1,4 @@
-import { WebGLBackdrop } from 'src/app/components/backdrop/backdrop';
+import { WebGLBackdrop } from '@components/backdrop/backdrop';
 import { DEFAULT_SHADER_PROGRAMS, SHADER_HEADER, ShaderProgramData, UNIFORM_DEFS } from './shader-programs';
 
 export class ReactiveWebGLBackground extends WebGLBackdrop {
