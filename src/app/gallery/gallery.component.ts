@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -24,34 +34,34 @@ export class GalleryComponent implements OnInit {
   public imageViewerModal = viewChild.required(ImageViewerModalComponent);
   public bgAnimation = signal<Backdrop>(new WalkingNoiseBackdrop());
   public isModalOpen = signal<boolean>(false);
-  public currentDirectory = signal<GalleryDirectory | undefined>(undefined);
-
   public imageSelectedForModal = signal<GalleryImageData | undefined>(undefined);
 
+  private readonly folder = signal<string | undefined>(undefined);
   private readonly destroyRef = inject(DestroyRef);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly titleService = inject(Title);
   private readonly router = inject(Router);
   public readonly galleryService = inject(GalleryService);
 
-  ngOnInit() {
-    this.titleService.setTitle('Gallery');
+  public currentDirectory = computed<GalleryDirectory | undefined>(() => {
+    const folder = this.folder();
+    if (!folder) return undefined;
+    const folderData = this.galleryService.galleryFolderDropownItems().find((item) => item.key === folder);
+    if (!folderData) return undefined;
+    return { path: folder, label: folderData.label };
+  });
 
+  constructor() {
+    effect(() => {
+      const dir = this.currentDirectory();
+      this.titleService.setTitle(dir ? dir.label + ' | Gallery' : 'Gallery');
+    });
+  }
+
+  ngOnInit() {
     this.activatedRoute.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const { folder } = params as GalleryRouteQueryParams;
-      if (!folder) {
-        this.currentDirectory.set(undefined);
-        return;
-      }
-
-      const folderData = this.galleryService.galleryFolderDropownItems().find((item) => item.key === folder)!;
-
-      this.currentDirectory.set({
-        path: folder,
-        label: folderData.label,
-      });
-
-      this.titleService.setTitle(folderData.label + ' | Gallery');
+      this.folder.set(folder);
     });
   }
 

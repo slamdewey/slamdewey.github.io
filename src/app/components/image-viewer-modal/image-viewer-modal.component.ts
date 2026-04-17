@@ -71,6 +71,13 @@ export class ImageViewerModalComponent {
   onKeydownHandler(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       this.closeModal();
+    } else if (event.key === '+' || event.key === '=') {
+      this.zoomIn();
+    } else if (event.key === '-') {
+      this.zoomOut();
+    } else if (event.key.startsWith('Arrow')) {
+      event.preventDefault();
+      this.panByKey(event.key);
     }
   }
 
@@ -108,6 +115,24 @@ export class ImageViewerModalComponent {
       scale: (current.scale /= ZoomScalar),
       pointX: (current.pointX /= ZoomScalar),
       pointY: (current.pointY /= ZoomScalar),
+    }));
+  }
+
+  private static readonly PanStep = 50;
+
+  public panByKey(key: string): void {
+    const step = ImageViewerModalComponent.PanStep * this.zoomOptions().scale;
+    let dx = 0;
+    let dy = 0;
+    if (key === 'ArrowLeft') dx = step;
+    else if (key === 'ArrowRight') dx = -step;
+    else if (key === 'ArrowUp') dy = step;
+    else if (key === 'ArrowDown') dy = -step;
+
+    this.zoomOptions.update((current) => ({
+      ...current,
+      pointX: current.pointX + dx,
+      pointY: current.pointY + dy,
     }));
   }
 

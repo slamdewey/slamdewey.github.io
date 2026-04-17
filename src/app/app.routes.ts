@@ -1,17 +1,11 @@
 import { Route } from '@angular/router';
-import { GalleryComponent } from './gallery/gallery.component';
-import { HomeComponent } from './home/home.component';
-import { ProjectsComponent } from './projects/projects.component';
-import { FragmentWriterComponent } from './projects/pages/fragment-writer/fragment-writer.component';
-import { UnitTaskingComponent } from './projects/pages/unit-tasking/unit-tasking.component';
 import { FAVICON_URL } from './tokens/favicon-url.token';
 import { faviconResolverFn } from './resolvers/favicon.resolver';
-import { ShootingGameComponent } from './projects/pages/shooting-game/shooting-game.component';
 
 export const routes: Route[] = [
   {
     path: '',
-    component: HomeComponent,
+    loadComponent: () => import('./home/home.component').then((m) => m.HomeComponent),
     providers: [
       {
         provide: FAVICON_URL,
@@ -39,7 +33,7 @@ export const routes: Route[] = [
   },
   {
     path: 'gallery',
-    component: GalleryComponent,
+    loadComponent: () => import('./gallery/gallery.component').then((m) => m.GalleryComponent),
     providers: [
       {
         provide: FAVICON_URL,
@@ -50,7 +44,7 @@ export const routes: Route[] = [
   },
   {
     path: 'projects',
-    component: ProjectsComponent,
+    loadComponent: () => import('./projects/projects.component').then((m) => m.ProjectsComponent),
     providers: [
       {
         provide: FAVICON_URL,
@@ -65,17 +59,20 @@ export const routes: Route[] = [
       {
         path: 'fragment-writer',
         title: 'Web based GLSL Fragment Shader Editor',
-        component: FragmentWriterComponent,
+        loadComponent: () =>
+          import('./projects/pages/fragment-writer/fragment-writer.component').then((m) => m.FragmentWriterComponent),
       },
       {
         path: 'unit-tasking',
         title: 'An experimental page',
-        component: UnitTaskingComponent,
+        loadComponent: () =>
+          import('./projects/pages/unit-tasking/unit-tasking.component').then((m) => m.UnitTaskingComponent),
       },
       {
         path: 'shooting-game',
         title: 'An experimental game',
-        component: ShootingGameComponent,
+        loadComponent: () =>
+          import('./projects/pages/shooting-game/shooting-game.component').then((m) => m.ShootingGameComponent),
       },
     ],
     providers: [
