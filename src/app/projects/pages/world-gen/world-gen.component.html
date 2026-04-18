@@ -20,6 +20,7 @@
       <x-param-controls
         [(noise)]="noiseConfig"
         [(climate)]="climateConfig"
+        [(tectonic)]="tectonicConfig"
         [(mapWidth)]="mapWidth"
         [(mapHeight)]="mapHeight"
         (regenerate)="regenerate()" />
@@ -31,20 +32,42 @@
       }
     </section>
 
-    <!-- Stage 1: Fault Lines -->
+    <!-- Stage 1: Tectonic Plates -->
     <section class="world-gen__section world-gen__section--stage">
       <div class="world-gen__text">
-        <h2>Stage 1: Fault Lines</h2>
+        <h2>Stage 1: Tectonic Plates</h2>
         <p>
-          The generation begins by simulating tectonic plate boundaries. Two noise sources create continent-scale
-          features (plate noise) and mountain ridge boundaries (ridge noise). The ridge noise uses the formula
-          <code>(1 - |noise|)^3</code> to create sharp ridges from smooth noise. Both sources use cylindrical coordinate
-          wrapping via 3D noise evaluation, so the world tiles seamlessly horizontally.
+          The generation begins by partitioning the world into tectonic plates using Voronoi tessellation with
+          cylindrical wrapping. Each plate is assigned a type (continental or oceanic) and a random drift vector. Plate
+          boundaries are classified by relative motion: convergent (collision), divergent (spreading), or transform
+          (sliding). The boundary type and plate types determine where mountains, rifts, and fault lines form.
         </p>
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [imageData]="faultImage()" caption="Fault line intensity (grayscale)" />
+          <x-stage-demo
+            [imageData]="plateImage()"
+            caption="Tectonic plates (warm = continental, cool = oceanic; red/blue/yellow = boundary type)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 1b: Boundary Intensity -->
+    <section class="world-gen__section world-gen__section--stage">
+      <div class="world-gen__text">
+        <h2>Stage 1b: Boundary Intensity</h2>
+        <p>
+          The plate boundaries are rasterized into fault line and mountain range intensity maps. Convergent boundaries
+          (especially continental-continental collisions) produce the strongest mountain ranges. Divergent boundaries
+          create mid-ocean ridges and rift valleys. Transform boundaries produce fault lines with minimal mountain
+          building. A distance falloff spreads boundary influence outward so features have realistic width.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo [imageData]="faultImage()" caption="Boundary intensity (grayscale)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -56,10 +79,10 @@
       <div class="world-gen__text">
         <h2>Stage 2: Elevation</h2>
         <p>
-          Elevation is generated using Fractal Brownian Motion (fBm) &mdash; multiple octaves of OpenSimplex noise
-          layered at increasing frequencies and decreasing amplitudes. The raw noise is blended 50/50 with the fault
-          line data to create terrain that follows tectonic boundaries. Sea level is determined by the water percentage
-          parameter: all elevation values are sorted and the percentile cutoff becomes sea level.
+          Elevation combines three components: a base value from plate type (continental plates sit higher, oceanic
+          plates lower), boundary contributions from tectonic activity, and Fractal Brownian Motion (fBm) noise for
+          terrain detail. This produces continents and oceans that follow plate structure rather than random noise. Sea
+          level is determined by the water percentage parameter as a percentile cutoff.
         </p>
       </div>
       <div class="world-gen__demo">

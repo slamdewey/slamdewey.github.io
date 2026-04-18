@@ -15,11 +15,22 @@ export interface ClimateVariables {
   climateCycles: number;
 }
 
+export interface TectonicVariables {
+  plateCount: number;
+  relaxationIterations: number;
+}
+
+export const DEFAULT_TECTONIC: TectonicVariables = {
+  plateCount: 16,
+  relaxationIterations: 0,
+};
+
 export interface WorldConfig {
   width: number;
   height: number;
   noise: NoiseVariables;
   climate: ClimateVariables;
+  tectonic: TectonicVariables;
 }
 
 export enum Biome {
@@ -39,6 +50,7 @@ export enum Biome {
 export interface WorldData {
   width: number;
   height: number;
+  plateMap: Int32Array;
   faultLines: Float32Array;
   mountainRanges: Float32Array;
   elevation: Float32Array;
@@ -49,7 +61,7 @@ export interface WorldData {
   biomes: Float32Array; // biome index as float
 }
 
-export type LayerName = 'faultLines' | 'elevation' | 'temperature' | 'wind' | 'precipitation' | 'biomes';
+export type LayerName = 'plates' | 'faultLines' | 'elevation' | 'temperature' | 'wind' | 'precipitation' | 'biomes';
 
 // XNA Color equivalents as [r, g, b] 0-255
 export const BIOME_COLORS: Record<Biome, [number, number, number]> = {

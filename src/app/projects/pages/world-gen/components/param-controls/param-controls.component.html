@@ -2,6 +2,34 @@
   <mat-accordion>
     <mat-expansion-panel [expanded]="true">
       <mat-expansion-panel-header>
+        <mat-panel-title>Tectonic Parameters</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-platecount">Plate Count: {{ tectonic().plateCount }}</label>
+        <mat-slider min="8" max="30" step="1" discrete>
+          <input
+            id="slider-platecount"
+            matSliderThumb
+            [ngModel]="tectonic().plateCount"
+            (ngModelChange)="updateTectonic('plateCount', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-relaxation">Relaxation: {{ tectonic().relaxationIterations }}</label>
+        <mat-slider min="0" max="1" step="1" discrete>
+          <input
+            id="slider-relaxation"
+            matSliderThumb
+            [ngModel]="tectonic().relaxationIterations"
+            (ngModelChange)="updateTectonic('relaxationIterations', $event)" />
+        </mat-slider>
+      </div>
+    </mat-expansion-panel>
+
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
         <mat-panel-title>Noise Parameters</mat-panel-title>
       </mat-expansion-panel-header>
 

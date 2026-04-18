@@ -129,8 +129,8 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
       newWidth = window.innerWidth;
       newHeight = window.innerHeight;
     } else {
-      newWidth = entries[0].contentRect.width;
-      newHeight = entries[0].contentRect.height;
+      newWidth = Math.floor(entries[0].contentRect.width);
+      newHeight = Math.floor(entries[0].contentRect.height);
     }
 
     // ensure we actually resized, setting canvas buffer size is expensive

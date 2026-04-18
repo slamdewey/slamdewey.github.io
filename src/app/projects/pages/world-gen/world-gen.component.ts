@@ -6,11 +6,21 @@ import { ParamControlsComponent } from './components/param-controls/param-contro
 import { MapTextureBackdrop } from './rendering/map-texture-backdrop';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { FormsModule } from '@angular/forms';
-import { NoiseVariables, ClimateVariables, DEFAULT_NOISE, DEFAULT_CLIMATE, LayerName, WorldData } from './lib/types';
+import {
+  NoiseVariables,
+  ClimateVariables,
+  TectonicVariables,
+  DEFAULT_NOISE,
+  DEFAULT_CLIMATE,
+  DEFAULT_TECTONIC,
+  LayerName,
+  WorldData,
+} from './lib/types';
 import { WorkerResponse } from './lib/worker-types';
 
 const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'biomes', label: 'Biomes' },
+  { value: 'plates', label: 'Plates' },
   { value: 'faultLines', label: 'Faults' },
   { value: 'elevation', label: 'Elevation' },
   { value: 'temperature', label: 'Temperature' },
@@ -38,10 +48,12 @@ export class WorldGenComponent implements OnDestroy {
   // Configuration signals
   noiseConfig = signal<NoiseVariables>({ ...DEFAULT_NOISE });
   climateConfig = signal<ClimateVariables>({ ...DEFAULT_CLIMATE });
+  tectonicConfig = signal<TectonicVariables>({ ...DEFAULT_TECTONIC });
   mapWidth = signal(512);
   mapHeight = signal(256);
 
   // Static stage images (2D canvas, no animation loop)
+  plateImage = signal<StageImage | null>(null);
   faultImage = signal<StageImage | null>(null);
   elevationImage = signal<StageImage | null>(null);
   temperatureImage = signal<StageImage | null>(null);
@@ -88,6 +100,7 @@ export class WorldGenComponent implements OnDestroy {
         height: this.mapHeight(),
         noise: this.noiseConfig(),
         climate: this.climateConfig(),
+        tectonic: this.tectonicConfig(),
       },
     });
   }
@@ -100,6 +113,7 @@ export class WorldGenComponent implements OnDestroy {
     const w = worldData.width;
     const h = worldData.height;
 
+    this.plateImage.set({ rgba: layerImages.plates, width: w, height: h });
     this.faultImage.set({ rgba: layerImages.faultLines, width: w, height: h });
     this.elevationImage.set({ rgba: layerImages.elevation, width: w, height: h });
     this.temperatureImage.set({ rgba: layerImages.temperature, width: w, height: h });

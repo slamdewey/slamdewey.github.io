@@ -5,7 +5,14 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatButtonModule } from '@angular/material/button';
 import { MatExpansionModule } from '@angular/material/expansion';
-import { NoiseVariables, ClimateVariables, DEFAULT_NOISE, DEFAULT_CLIMATE } from '../../lib/types';
+import {
+  NoiseVariables,
+  ClimateVariables,
+  TectonicVariables,
+  DEFAULT_NOISE,
+  DEFAULT_CLIMATE,
+  DEFAULT_TECTONIC,
+} from '../../lib/types';
 
 @Component({
   selector: 'x-param-controls',
@@ -17,6 +24,7 @@ import { NoiseVariables, ClimateVariables, DEFAULT_NOISE, DEFAULT_CLIMATE } from
 export class ParamControlsComponent {
   noise = model<NoiseVariables>({ ...DEFAULT_NOISE });
   climate = model<ClimateVariables>({ ...DEFAULT_CLIMATE });
+  tectonic = model<TectonicVariables>({ ...DEFAULT_TECTONIC });
   mapWidth = model<number>(512);
   mapHeight = model<number>(256);
 
@@ -32,6 +40,10 @@ export class ParamControlsComponent {
 
   updateClimate(key: keyof ClimateVariables, value: number): void {
     this.climate.update((c) => ({ ...c, [key]: value }));
+  }
+
+  updateTectonic(key: keyof TectonicVariables, value: number): void {
+    this.tectonic.update((t) => ({ ...t, [key]: value }));
   }
 
   onRegenerate(): void {

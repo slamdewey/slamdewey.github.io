@@ -1,5 +1,6 @@
 import { Biome, BIOME_COLORS, type LayerName, type WorldData } from './types';
 import { mapToUnsignedRange, mod } from '@lib/math';
+import { PlateType, BoundaryType, type TectonicResult } from './stages/tectonic-plates';
 
 /**
  * Convert a layer's Float32Array data to an RGBA Uint8Array for GPU upload.
@@ -16,6 +17,9 @@ export function layerToRGBA(
   const rgba = new Uint8Array(width * height * 4);
 
   switch (layer) {
+    case 'plates':
+      // Handled separately via platesToRGBA — should not reach here
+      break;
     case 'faultLines':
       colorFaultLines(data, rgba);
       break;
@@ -37,6 +41,124 @@ export function layerToRGBA(
   }
 
   return rgba;
+}
+
+/**
+ * Render tectonic plates as colored Voronoi cells.
+ * Continental plates get warm tints, oceanic get cool tints.
+ * Boundary pixels are colored by type: red=convergent, blue=divergent, yellow=transform.
+ */
+export function platesToRGBA(tectonic: TectonicResult, width: number, height: number): Uint8Array {
+  const { plateMap, plates, boundaries } = tectonic;
+  const size = width * height;
+  const rgba = new Uint8Array(size * 4);
+  const plateCount = plates.length;
+
+  // Build boundary lookup for coloring boundary pixels
+  const boundaryMap = new Map<number, BoundaryType>();
+  for (const b of boundaries) {
+    const lo = Math.min(b.cellA, b.cellB);
+    const hi = Math.max(b.cellA, b.cellB);
+    boundaryMap.set(lo * plateCount + hi, b.type);
+  }
+
+  // Generate plate colors — warm hues for continental, cool for oceanic
+  const plateColors: [number, number, number][] = plates.map((p, i) => {
+    const hue = (i * 137.508) % 360; // golden angle spacing
+    if (p.type === PlateType.Continental) {
+      return hslToRgb(((hue % 120) + 20) / 360, 0.5, 0.5); // warm: 20-140 range
+    } else {
+      return hslToRgb(((hue % 120) + 180) / 360, 0.5, 0.45); // cool: 180-300 range
+    }
+  });
+
+  // Boundary type colors
+  const BOUNDARY_COLORS: Record<BoundaryType, [number, number, number]> = {
+    [BoundaryType.Convergent]: [200, 40, 40],
+    [BoundaryType.Divergent]: [40, 80, 200],
+    [BoundaryType.Transform]: [200, 180, 40],
+  };
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const cell = plateMap[idx];
+      const out = idx * 4;
+
+      // Check if this is a boundary pixel
+      let boundaryType: BoundaryType | null = null;
+      const neighbors = [
+        x > 0 ? plateMap[idx - 1] : plateMap[y * width + width - 1],
+        x < width - 1 ? plateMap[idx + 1] : plateMap[y * width],
+        y > 0 ? plateMap[idx - width] : -1,
+        y < height - 1 ? plateMap[idx + width] : -1,
+      ];
+
+      for (const n of neighbors) {
+        if (n >= 0 && n !== cell) {
+          const lo = Math.min(cell, n);
+          const hi = Math.max(cell, n);
+          const bt = boundaryMap.get(lo * plateCount + hi);
+          if (bt !== undefined) {
+            boundaryType = bt;
+            break;
+          }
+        }
+      }
+
+      if (boundaryType !== null) {
+        const [r, g, b] = BOUNDARY_COLORS[boundaryType];
+        rgba[out] = r;
+        rgba[out + 1] = g;
+        rgba[out + 2] = b;
+      } else {
+        const [r, g, b] = plateColors[cell];
+        rgba[out] = r;
+        rgba[out + 1] = g;
+        rgba[out + 2] = b;
+      }
+      rgba[out + 3] = 255;
+    }
+  }
+
+  return rgba;
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0,
+    g = 0,
+    b = 0;
+  const sector = (h * 6) | 0;
+  switch (sector % 6) {
+    case 0:
+      r = c;
+      g = x;
+      break;
+    case 1:
+      r = x;
+      g = c;
+      break;
+    case 2:
+      g = c;
+      b = x;
+      break;
+    case 3:
+      g = x;
+      b = c;
+      break;
+    case 4:
+      r = x;
+      b = c;
+      break;
+    case 5:
+      r = c;
+      b = x;
+      break;
+  }
+  return [((r + m) * 255) | 0, ((g + m) * 255) | 0, ((b + m) * 255) | 0];
 }
 
 function colorFaultLines(data: Float32Array, rgba: Uint8Array): void {
