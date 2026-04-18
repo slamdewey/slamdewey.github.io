@@ -44,7 +44,7 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [backdrop]="faultDemo" caption="Fault line intensity (grayscale)" />
+          <x-stage-demo [imageData]="faultImage()" caption="Fault line intensity (grayscale)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -64,7 +64,7 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [backdrop]="elevationDemo" caption="Elevation map (blue = water, white = high)" />
+          <x-stage-demo [imageData]="elevationImage()" caption="Elevation map (blue = water, white = high)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -84,7 +84,7 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [backdrop]="temperatureDemo" caption="Temperature (cyan = cold, red = hot)" />
+          <x-stage-demo [imageData]="temperatureImage()" caption="Temperature (cyan = cold, red = hot)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -104,7 +104,7 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [backdrop]="windDemo" caption="Wind direction (R = X component, G = Y component)" />
+          <x-stage-demo [imageData]="windImage()" caption="Wind direction (R = X component, G = Y component)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -124,7 +124,7 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [backdrop]="precipitationDemo" caption="Soil moisture (white = wet, black = dry)" />
+          <x-stage-demo [imageData]="precipitationImage()" caption="Soil moisture (white = wet, black = dry)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -144,7 +144,7 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [backdrop]="biomeDemo" caption="Biome classification (color-coded)" />
+          <x-stage-demo [imageData]="biomeImage()" caption="Biome classification (color-coded)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -174,7 +174,7 @@
         (mousemove)="onPanMove($event)"
         (mouseup)="onPanEnd()"
         (mouseleave)="onPanEnd()">
-        <x-stage-demo [backdrop]="fullDemo" />
+        <x-backdrop [backdrop]="fullDemo" />
       </div>
     </section>
   </article>

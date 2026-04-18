@@ -4,10 +4,34 @@ import { ResolveFn } from '@angular/router';
 import { FAVICON_URL } from '../tokens/favicon-url.token';
 
 let faviconIntervalId: ReturnType<typeof setInterval> | null = null;
+const faviconDataUriCache = new Map<string, string>();
 
-function applyFavicon(link: HTMLLinkElement, url: string): void {
-  link.href = 'assets/' + url;
-  link.type = url.endsWith('.svg') ? 'image/svg+xml' : 'image/x-icon';
+async function resolveDataUri(url: string): Promise<string> {
+  const cached = faviconDataUriCache.get(url);
+  if (cached) {
+    return cached;
+  }
+  try {
+    const response = await fetch('assets/' + url);
+    if (!response.ok) {
+      return 'assets/' + url;
+    }
+    const svgText = await response.text();
+    const dataUri = 'data:image/svg+xml;base64,' + btoa(svgText);
+    faviconDataUriCache.set(url, dataUri);
+    return dataUri;
+  } catch {
+    return 'assets/' + url;
+  }
+}
+
+function applyFavicon(link: HTMLLinkElement, href: string): void {
+  link.href = href;
+  if (href.startsWith('data:')) {
+    link.type = 'image/svg+xml';
+  } else {
+    link.type = href.endsWith('.svg') ? 'image/svg+xml' : 'image/x-icon';
+  }
 }
 
 function shuffle<T>(array: T[]): T[] {
@@ -23,7 +47,7 @@ function shuffle<T>(array: T[]): T[] {
  * @description This resolver is used to set the favicon of the page based on the route.
  * Supports a single favicon string or an array of strings to randomly cycle through.
  */
-export const faviconResolverFn: ResolveFn<void> = () => {
+export const faviconResolverFn: ResolveFn<void> = async () => {
   const platformId = inject(PLATFORM_ID);
 
   if (isPlatformServer(platformId)) {
@@ -44,18 +68,21 @@ export const faviconResolverFn: ResolveFn<void> = () => {
   }
 
   if (Array.isArray(faviconUrl)) {
-    let queue = shuffle(faviconUrl);
+    const resolvedUris = await Promise.all(faviconUrl.map((url) => resolveDataUri(url)));
+
+    let queue = shuffle(resolvedUris);
     let index = 0;
     applyFavicon(faviconLinkElement, queue[0]);
     faviconIntervalId = setInterval(() => {
       index++;
       if (index >= queue.length) {
-        queue = shuffle(faviconUrl);
+        queue = shuffle(resolvedUris);
         index = 0;
       }
       applyFavicon(faviconLinkElement, queue[index]);
     }, 2000);
   } else {
-    applyFavicon(faviconLinkElement, faviconUrl);
+    const resolvedUri = await resolveDataUri(faviconUrl);
+    applyFavicon(faviconLinkElement, resolvedUri);
   }
 };

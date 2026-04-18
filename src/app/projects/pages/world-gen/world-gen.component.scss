@@ -68,6 +68,12 @@
 
   &__layer-toggle {
     margin-bottom: 1rem;
+    flex-wrap: wrap;
+    border-radius: 0;
+
+    .mat-button-toggle {
+      border-radius: 0;
+    }
   }
 
   &__placeholder {
@@ -78,8 +84,19 @@
   }
 
   &__pannable {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #111;
     cursor: grab;
     user-select: none;
+
+    x-backdrop {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
 
     &:active {
       cursor: grabbing;

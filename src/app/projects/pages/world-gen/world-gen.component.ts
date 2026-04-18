@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { BannerComponent } from '@components/banner/banner.component';
-import { StageDemoComponent } from './components/stage-demo/stage-demo.component';
+import { BackdropComponent } from '@components/backdrop/backdrop.component';
+import { StageDemoComponent, StageImage } from './components/stage-demo/stage-demo.component';
 import { ParamControlsComponent } from './components/param-controls/param-controls.component';
 import { MapTextureBackdrop } from './rendering/map-texture-backdrop';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -24,7 +25,14 @@ const ALL_LAYERS: LayerName[] = ['faultLines', 'elevation', 'temperature', 'wind
   selector: 'x-world-gen',
   templateUrl: './world-gen.component.html',
   styleUrls: ['./world-gen.component.scss'],
-  imports: [BannerComponent, StageDemoComponent, ParamControlsComponent, MatButtonToggleModule, FormsModule],
+  imports: [
+    BannerComponent,
+    BackdropComponent,
+    StageDemoComponent,
+    ParamControlsComponent,
+    MatButtonToggleModule,
+    FormsModule,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorldGenComponent {
@@ -36,15 +44,15 @@ export class WorldGenComponent {
   mapWidth = signal(512);
   mapHeight = signal(256);
 
-  // Backdrops for inline demos
-  faultDemo = new MapTextureBackdrop();
-  elevationDemo = new MapTextureBackdrop();
-  temperatureDemo = new MapTextureBackdrop();
-  windDemo = new MapTextureBackdrop();
-  precipitationDemo = new MapTextureBackdrop();
-  biomeDemo = new MapTextureBackdrop();
+  // Static stage images (2D canvas, no animation loop)
+  faultImage = signal<StageImage | null>(null);
+  elevationImage = signal<StageImage | null>(null);
+  temperatureImage = signal<StageImage | null>(null);
+  windImage = signal<StageImage | null>(null);
+  precipitationImage = signal<StageImage | null>(null);
+  biomeImage = signal<StageImage | null>(null);
 
-  // Full demo backdrop + layer selection
+  // Full interactive demo (WebGL for panning)
   fullDemo = new MapTextureBackdrop();
   selectedLayer = signal<LayerName>('biomes');
 
@@ -84,7 +92,20 @@ export class WorldGenComponent {
       }
       this.layerImages = layerImages;
 
-      this.pushToBackdrops(worldData, layerImages);
+      const w = worldData.width;
+      const h = worldData.height;
+
+      // Push to static stage demos
+      this.faultImage.set({ rgba: layerImages.faultLines, width: w, height: h });
+      this.elevationImage.set({ rgba: layerImages.elevation, width: w, height: h });
+      this.temperatureImage.set({ rgba: layerImages.temperature, width: w, height: h });
+      this.windImage.set({ rgba: layerImages.wind, width: w, height: h });
+      this.precipitationImage.set({ rgba: layerImages.precipitation, width: w, height: h });
+      this.biomeImage.set({ rgba: layerImages.biomes, width: w, height: h });
+
+      // Push to interactive full demo
+      this.fullDemo.uploadData(layerImages[this.selectedLayer()], w, h);
+
       this.isGenerating.set(false);
     }, 16);
   }
@@ -115,18 +136,5 @@ export class WorldGenComponent {
 
   onPanEnd(): void {
     this.isPanning = false;
-  }
-
-  private pushToBackdrops(worldData: WorldData, layerImages: Record<LayerName, Uint8Array>): void {
-    const w = worldData.width;
-    const h = worldData.height;
-
-    this.faultDemo.uploadData(layerImages.faultLines, w, h);
-    this.elevationDemo.uploadData(layerImages.elevation, w, h);
-    this.temperatureDemo.uploadData(layerImages.temperature, w, h);
-    this.windDemo.uploadData(layerImages.wind, w, h);
-    this.precipitationDemo.uploadData(layerImages.precipitation, w, h);
-    this.biomeDemo.uploadData(layerImages.biomes, w, h);
-    this.fullDemo.uploadData(layerImages[this.selectedLayer()], w, h);
   }
 }

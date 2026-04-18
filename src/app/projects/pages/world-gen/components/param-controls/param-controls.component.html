@@ -14,37 +14,54 @@
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Octaves: {{ noise().octaves }}</span>
+        <label for="slider-octaves">Octaves: {{ noise().octaves }}</label>
         <mat-slider min="1" max="10" step="1" discrete>
-          <input matSliderThumb [ngModel]="noise().octaves" (ngModelChange)="updateNoise('octaves', $event)" />
+          <input
+            id="slider-octaves"
+            matSliderThumb
+            [ngModel]="noise().octaves"
+            (ngModelChange)="updateNoise('octaves', $event)" />
         </mat-slider>
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Frequency: {{ noise().frequency.toFixed(2) }}</span>
+        <label for="slider-frequency">Frequency: {{ noise().frequency.toFixed(2) }}</label>
         <mat-slider min="0.1" max="5" step="0.1">
-          <input matSliderThumb [ngModel]="noise().frequency" (ngModelChange)="updateNoise('frequency', $event)" />
+          <input
+            id="slider-frequency"
+            matSliderThumb
+            [ngModel]="noise().frequency"
+            (ngModelChange)="updateNoise('frequency', $event)" />
         </mat-slider>
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Persistence: {{ noise().persistence.toFixed(2) }}</span>
+        <label for="slider-persistence">Persistence: {{ noise().persistence.toFixed(2) }}</label>
         <mat-slider min="0.1" max="1" step="0.05">
-          <input matSliderThumb [ngModel]="noise().persistence" (ngModelChange)="updateNoise('persistence', $event)" />
+          <input
+            id="slider-persistence"
+            matSliderThumb
+            [ngModel]="noise().persistence"
+            (ngModelChange)="updateNoise('persistence', $event)" />
         </mat-slider>
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Lacunarity: {{ noise().lacunarity.toFixed(2) }}</span>
+        <label for="slider-lacunarity">Lacunarity: {{ noise().lacunarity.toFixed(2) }}</label>
         <mat-slider min="1" max="4" step="0.1">
-          <input matSliderThumb [ngModel]="noise().lacunarity" (ngModelChange)="updateNoise('lacunarity', $event)" />
+          <input
+            id="slider-lacunarity"
+            matSliderThumb
+            [ngModel]="noise().lacunarity"
+            (ngModelChange)="updateNoise('lacunarity', $event)" />
         </mat-slider>
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Water %: {{ (noise().waterPercentage * 100).toFixed(0) }}%</span>
+        <label for="slider-water">Water %: {{ (noise().waterPercentage * 100).toFixed(0) }}%</label>
         <mat-slider min="0.1" max="0.9" step="0.05">
           <input
+            id="slider-water"
             matSliderThumb
             [ngModel]="noise().waterPercentage"
             (ngModelChange)="updateNoise('waterPercentage', $event)" />
@@ -58,9 +75,10 @@
       </mat-expansion-panel-header>
 
       <div class="param-controls__slider-row">
-        <span>Initial Moisture: {{ climate().initialMoisture.toFixed(2) }}</span>
+        <label for="slider-moisture">Initial Moisture: {{ climate().initialMoisture.toFixed(2) }}</label>
         <mat-slider min="0" max="1" step="0.05">
           <input
+            id="slider-moisture"
             matSliderThumb
             [ngModel]="climate().initialMoisture"
             (ngModelChange)="updateClimate('initialMoisture', $event)" />
@@ -68,9 +86,10 @@
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Evaporation: {{ climate().evaporationFactor.toFixed(2) }}</span>
+        <label for="slider-evaporation">Evaporation: {{ climate().evaporationFactor.toFixed(2) }}</label>
         <mat-slider min="0" max="1" step="0.05">
           <input
+            id="slider-evaporation"
             matSliderThumb
             [ngModel]="climate().evaporationFactor"
             (ngModelChange)="updateClimate('evaporationFactor', $event)" />
@@ -78,9 +97,10 @@
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Precipitation: {{ climate().precipitationFactor.toFixed(2) }}</span>
+        <label for="slider-precip">Precipitation: {{ climate().precipitationFactor.toFixed(2) }}</label>
         <mat-slider min="0" max="1" step="0.05">
           <input
+            id="slider-precip"
             matSliderThumb
             [ngModel]="climate().precipitationFactor"
             (ngModelChange)="updateClimate('precipitationFactor', $event)" />
@@ -88,9 +108,10 @@
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Runoff: {{ climate().runoffFactor.toFixed(2) }}</span>
+        <label for="slider-runoff">Runoff: {{ climate().runoffFactor.toFixed(2) }}</label>
         <mat-slider min="0" max="1" step="0.05">
           <input
+            id="slider-runoff"
             matSliderThumb
             [ngModel]="climate().runoffFactor"
             (ngModelChange)="updateClimate('runoffFactor', $event)" />
@@ -98,9 +119,10 @@
       </div>
 
       <div class="param-controls__slider-row">
-        <span>Climate Cycles: {{ climate().climateCycles }}</span>
+        <label for="slider-cycles">Climate Cycles: {{ climate().climateCycles }}</label>
         <mat-slider min="1" max="20" step="1" discrete>
           <input
+            id="slider-cycles"
             matSliderThumb
             [ngModel]="climate().climateCycles"
             (ngModelChange)="updateClimate('climateCycles', $event)" />

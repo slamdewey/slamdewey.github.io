@@ -4,15 +4,15 @@
 
   &__canvas {
     width: 100%;
-    aspect-ratio: 2 / 1;
     border-radius: 4px;
     overflow: hidden;
     background: #111;
 
-    x-backdrop {
+    canvas {
       display: block;
       width: 100%;
-      height: 100%;
+      height: auto;
+      image-rendering: pixelated;
     }
   }
 
