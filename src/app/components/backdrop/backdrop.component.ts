@@ -8,9 +8,12 @@ import {
   ChangeDetectionStrategy,
   signal,
   AfterViewInit,
+  inject,
+  effect,
 } from '@angular/core';
 import { Backdrop } from './backdrop';
 import { Vector2 } from '@lib/coordinate';
+import { BackdropService, RenderableBackdrop } from '../../services/backdrop.service';
 
 @Component({
   selector: 'x-backdrop',
@@ -18,7 +21,7 @@ import { Vector2 } from '@lib/coordinate';
   styleUrls: ['./backdrop.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class BackdropComponent implements OnDestroy, AfterViewInit {
+export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBackdrop {
   backdrop = input.required<Backdrop>();
   shouldPauseAnimation = input<boolean>(false);
   fullscreen = input<boolean>(false);
@@ -30,11 +33,10 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
 
   public static isWebGlEnabled: boolean;
 
+  private readonly backdropService = inject(BackdropService);
   private canvasBufferSize = new Vector2();
   private canvasElement: HTMLCanvasElement;
   private ctx: RenderingContext;
-  private renderInterval: number;
-  private lastUpdate = 0;
   private resizeObserver: ResizeObserver;
 
   constructor() {
@@ -42,6 +44,16 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
     BackdropComponent.isWebGlEnabled =
       !!window.WebGLRenderingContext || !!e.getContext('webgl') || !!e.getContext('experimental-webgl');
     e.remove();
+
+    effect(() => {
+      const paused = this.shouldPauseAnimation();
+      if (!this.isInitialized) return;
+      if (paused) {
+        this.backdropService.unregister(this);
+      } else {
+        this.backdropService.register(this);
+      }
+    });
   }
 
   ngAfterViewInit(): void {
@@ -65,11 +77,13 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
     backdrop.initialize();
     this.isInitialized = true;
 
-    this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
+    if (!this.shouldPauseAnimation()) {
+      this.backdropService.register(this);
+    }
   }
 
   ngOnDestroy() {
-    window.cancelAnimationFrame(this.renderInterval);
+    this.backdropService.unregister(this);
     this.resizeObserver?.disconnect();
     this.backdrop().onDestroy();
   }
@@ -95,16 +109,10 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
     backdrop.scrollOffset.set([window.scrollX, window.scrollY]);
   }
 
-  public renderLoop(): void {
-    this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
-    if (!this.isInitialized || this.shouldPauseAnimation() || this.isResizing()) {
+  public renderFrame(deltaTime: number): void {
+    if (!this.isInitialized || this.isResizing()) {
       return;
     }
-
-    const now = Date.now();
-    const deltaTime = (now - (this.lastUpdate || now)) / 1000;
-    this.lastUpdate = now;
-
     this.backdrop().tick(deltaTime);
   }
 
@@ -130,5 +138,8 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
     [canvas.width, canvas.height] = [newWidth, newHeight];
 
     backdrop.setSize(newWidth, newHeight);
+
+    // Render a frame after resize so paused backdrops are never blank
+    backdrop.tick(0);
   }
 }

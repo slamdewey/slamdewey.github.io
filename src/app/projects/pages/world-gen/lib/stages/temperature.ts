@@ -1,5 +1,5 @@
-import { OpenSimplexNoise, fBm3D } from '../open-simplex-noise';
-import { map, cylindricalSx, cylindricalCx } from '../math-utils';
+import { OpenSimplexNoise, fBm3D } from '@lib/noise';
+import { map, cylindricalSx, cylindricalCx } from '@lib/math';
 import { NoiseVariables } from '../types';
 
 export function generateTemperature(

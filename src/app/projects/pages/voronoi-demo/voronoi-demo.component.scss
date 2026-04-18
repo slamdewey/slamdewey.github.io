@@ -1,0 +1,177 @@
+@use '../../../../styles' as *;
+
+.voronoi-demo {
+  color: white;
+  width: 80%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 0 4rem;
+
+  &__article {
+    margin-top: 1rem;
+  }
+
+  // --- Sections ---
+
+  &__section {
+    margin-bottom: 3rem;
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 500;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid #333;
+      padding-bottom: 0.5rem;
+    }
+
+    p {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: #ddd;
+      margin-bottom: 0.75rem;
+    }
+
+    a {
+      color: #8be9fd;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    code {
+      background: #1a1a2e;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.9em;
+      color: #8be9fd;
+    }
+
+    strong {
+      color: #fff;
+    }
+
+    em {
+      color: #ccc;
+    }
+  }
+
+  &__columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  &__divider {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 3rem 0;
+  }
+
+  &__text {
+    min-width: 0;
+  }
+
+  &__demo {
+    min-width: 0;
+  }
+
+  // --- Full playground ---
+
+  &__playground {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+    margin-top: 1rem;
+  }
+
+  &__playground-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    mat-form-field {
+      width: 100%;
+    }
+  }
+
+  // --- Slider labels ---
+
+  &__slider-label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.85rem;
+    color: #ccc;
+
+    mat-slider {
+      width: 100%;
+    }
+  }
+
+  // --- Canvas wrappers ---
+
+  &__canvas-wrap {
+    width: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #111;
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    &--wide {
+      min-height: 200px;
+    }
+
+    &--pannable {
+      cursor: grab;
+      user-select: none;
+
+      &:active {
+        cursor: grabbing;
+      }
+    }
+  }
+
+  // --- Inline controls + captions ---
+
+  &__inline-controls {
+    margin-bottom: 0.75rem;
+  }
+
+  &__caption {
+    margin-top: 0.4rem;
+    font-size: 0.85rem !important;
+    color: #888 !important;
+    text-align: center;
+    font-style: italic;
+  }
+
+  // --- Code block spacing ---
+  x-code-block {
+    display: block;
+    margin: 1rem 0;
+  }
+}
+
+@media only screen and (max-width: 1200px) {
+  .voronoi-demo {
+    width: auto;
+    margin-left: 96px;
+    margin-right: 1rem;
+
+    &__playground {
+      grid-template-columns: 1fr;
+    }
+
+    &__columns {
+      grid-template-columns: 1fr;
+    }
+  }
+}

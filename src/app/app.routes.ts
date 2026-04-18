@@ -79,6 +79,12 @@ export const routes: Route[] = [
         title: 'Procedural World Generation',
         loadComponent: () => import('./projects/pages/world-gen/world-gen.component').then((m) => m.WorldGenComponent),
       },
+      {
+        path: 'voronoi-demo',
+        title: 'Voronoi Tessellation',
+        loadComponent: () =>
+          import('./projects/pages/voronoi-demo/voronoi-demo.component').then((m) => m.VoronoiDemoComponent),
+      },
     ],
     providers: [
       {

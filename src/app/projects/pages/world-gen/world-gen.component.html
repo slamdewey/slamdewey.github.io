@@ -170,10 +170,9 @@
 
       <div
         class="world-gen__pannable"
-        (mousedown)="onPanStart($event)"
-        (mousemove)="onPanMove($event)"
-        (mouseup)="onPanEnd()"
-        (mouseleave)="onPanEnd()">
+        (pointerdown)="onPanStart($event)"
+        (pointermove)="onPanMove($event)"
+        (pointerup)="onPanEnd()">
         <x-backdrop [backdrop]="fullDemo" />
       </div>
     </section>

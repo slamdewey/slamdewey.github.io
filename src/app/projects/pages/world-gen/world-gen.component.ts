@@ -119,14 +119,15 @@ export class WorldGenComponent {
 
   // --- Pan controls for full demo ---
 
-  onPanStart(event: MouseEvent): void {
+  onPanStart(event: PointerEvent): void {
     this.isPanning = true;
     this.panStartX = event.clientX;
     this.panBase = this.fullDemo.panOffset;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     event.preventDefault();
   }
 
-  onPanMove(event: MouseEvent): void {
+  onPanMove(event: PointerEvent): void {
     if (!this.isPanning || !this.worldData) return;
     const dx = event.clientX - this.panStartX;
     // Convert pixel delta to UV offset (negative so dragging right moves map right)

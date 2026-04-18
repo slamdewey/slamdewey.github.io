@@ -1,4 +1,4 @@
-import { map, mod } from '../math-utils';
+import { map, mod } from '@lib/math';
 
 const SHALLOW_WATER_RANGE = 0.1;
 const DEEP_WATER_DIFFERENCE = 0.2;

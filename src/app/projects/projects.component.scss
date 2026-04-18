@@ -42,7 +42,7 @@
   }
 
   &:hover .projects__gallery__item__hover {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: transparent;
   }
 }
 
@@ -52,7 +52,7 @@
   left: 0;
   border-radius: 5px;
 
-  background-color: transparent;
+  background-color: rgba(0, 0, 0, 0.5);
 
   width: 100%;
   height: 100%;

@@ -1,5 +1,5 @@
-import { OpenSimplexNoise, fBm3D } from '../open-simplex-noise';
-import { cylindricalSx, cylindricalCx, vec2Normalize } from '../math-utils';
+import { OpenSimplexNoise, fBm3D } from '@lib/noise';
+import { cylindricalSx, cylindricalCx, vec2Normalize } from '@lib/math';
 import { NoiseVariables } from '../types';
 
 /**

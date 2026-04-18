@@ -1,0 +1,48 @@
+.code-block {
+  background: #0d1117;
+  border: 1px solid #282c34;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 0;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  tab-size: 2;
+
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+    color: #c9d1d9;
+    white-space: pre;
+  }
+
+  // Dracula-inspired color scheme
+  .cb-keyword {
+    color: #ff79c6;
+  }
+
+  .cb-type {
+    color: #8be9fd;
+    font-style: italic;
+  }
+
+  .cb-string {
+    color: #f1fa8c;
+  }
+
+  .cb-comment {
+    color: #6272a4;
+    font-style: italic;
+  }
+
+  .cb-number {
+    color: #bd93f9;
+  }
+
+  .cb-operator {
+    color: #ff79c6;
+  }
+
+  .cb-punctuation {
+    color: #a0a8b7;
+  }
+}

@@ -1,5 +1,5 @@
 import { Biome, BIOME_COLORS, type LayerName, type WorldData } from './types';
-import { mapToUnsignedRange, mod } from './math-utils';
+import { mapToUnsignedRange, mod } from '@lib/math';
 
 /**
  * Convert a layer's Float32Array data to an RGBA Uint8Array for GPU upload.

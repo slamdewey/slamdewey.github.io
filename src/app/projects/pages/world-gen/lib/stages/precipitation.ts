@@ -1,4 +1,4 @@
-import { clamp, map, mod, sign } from '../math-utils';
+import { clamp, map, mod, sign } from '@lib/math';
 import { ClimateVariables } from '../types';
 
 export function generatePrecipitation(

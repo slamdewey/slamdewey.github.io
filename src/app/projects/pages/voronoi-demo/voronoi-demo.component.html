@@ -1,0 +1,332 @@
+<div class="voronoi-demo">
+  <x-banner>
+    <ng-container ngProjectAs="title">Voronoi Tessellation</ng-container>
+  </x-banner>
+
+  <article class="voronoi-demo__article">
+    <!-- Intro -->
+    <section class="voronoi-demo__section">
+      <p>
+        A <strong>Voronoi diagram</strong> partitions a plane into cells, one per seed point, where every pixel in a
+        cell is closer to its seed than to any other. This page walks through building a Voronoi tessellation from
+        scratch, adding noise-perturbed boundaries and Lloyd relaxation &mdash; the foundation for realistic tectonic
+        plate generation in the <a routerLink="/projects/world-gen">world-gen</a> system.
+      </p>
+    </section>
+
+    <!-- Full Interactive Playground -->
+    <section class="voronoi-demo__section">
+      <h2>Interactive Playground</h2>
+      <p>
+        The full generator with all parameters. Tweak these to get a feel for how each setting affects the output, then
+        read on below for how each piece works.
+      </p>
+
+      <div class="voronoi-demo__playground">
+        <div class="voronoi-demo__playground-controls">
+          <mat-form-field appearance="outline">
+            <mat-label>Seed</mat-label>
+            <input matInput type="number" [ngModel]="pgSeed()" (ngModelChange)="pgSeed.set($event)" />
+          </mat-form-field>
+          <button mat-stroked-button (click)="randomizeSeed(); generatePlayground()">Randomize</button>
+
+          <label class="voronoi-demo__slider-label">
+            Cells: {{ pgSeedCount() }}
+            <mat-slider min="2" max="40" step="1" discrete>
+              <input matSliderThumb [ngModel]="pgSeedCount()" (ngModelChange)="pgSeedCount.set($event)" />
+            </mat-slider>
+          </label>
+
+          <label class="voronoi-demo__slider-label">
+            Relaxation: {{ pgRelaxation() }}
+            <mat-slider min="0" max="10" step="1" discrete>
+              <input matSliderThumb [ngModel]="pgRelaxation()" (ngModelChange)="pgRelaxation.set($event)" />
+            </mat-slider>
+          </label>
+
+          <label class="voronoi-demo__slider-label">
+            Noise Amplitude: {{ pgAmplitude() }}
+            <mat-slider min="0" max="200" step="5" discrete>
+              <input matSliderThumb [ngModel]="pgAmplitude()" (ngModelChange)="pgAmplitude.set($event)" />
+            </mat-slider>
+          </label>
+
+          <label class="voronoi-demo__slider-label">
+            Noise Frequency: {{ pgFrequency() }}
+            <mat-slider min="0.005" max="0.5" step="0.005">
+              <input matSliderThumb [ngModel]="pgFrequency()" (ngModelChange)="pgFrequency.set($event)" />
+            </mat-slider>
+          </label>
+
+          <mat-checkbox [ngModel]="pgWrapX()" (ngModelChange)="pgWrapX.set($event)">Cylindrical Wrapping</mat-checkbox>
+          <mat-checkbox [ngModel]="pgShowBoundaries()" (ngModelChange)="pgShowBoundaries.set($event)"
+            >Show Boundaries</mat-checkbox
+          >
+          <mat-checkbox [ngModel]="pgShowSeeds()" (ngModelChange)="pgShowSeeds.set($event)"
+            >Show Seed Points</mat-checkbox
+          >
+
+          <button mat-flat-button color="primary" (click)="generatePlayground()">Generate</button>
+        </div>
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--wide"
+          [class.voronoi-demo__canvas-wrap--pannable]="pgWrapX()"
+          (pointerdown)="onPanStart($event)"
+          (pointermove)="onPanMove($event)"
+          (pointerup)="onPanEnd()">
+          <canvas #playgroundCanvas></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============================================================== -->
+    <!-- WALKTHROUGH SECTIONS -->
+    <!-- =============================================================== -->
+
+    <hr class="voronoi-demo__divider" />
+
+    <!-- Section 1: Seed Placement -->
+    <section class="voronoi-demo__section">
+      <h2>1. Seed Placement</h2>
+      <div class="voronoi-demo__columns">
+        <div class="voronoi-demo__text">
+          <p>
+            Everything starts with placing <strong>seed points</strong> on the plane. We need deterministic placement so
+            the same input seed always produces the same diagram. A simple
+            <a href="https://en.wikipedia.org/wiki/Xorshift" target="_blank" rel="noopener">xorshift32</a>
+            PRNG does the job &mdash; it's fast, stateless, and fits in a few lines:
+          </p>
+
+          <x-code-block [code]="codeXorshift" />
+
+          <p>
+            Each seed gets a random <code>(x, y)</code> position within the map dimensions. With only a handful of
+            seeds, the placement looks sparse. Increase the count and the plane fills up &mdash; but notice how some
+            clusters form while other areas are empty. That unevenness is what Lloyd relaxation will fix later.
+          </p>
+
+          <x-code-block [code]="codeGenerateSeeds" />
+        </div>
+        <div class="voronoi-demo__demo">
+          <div class="voronoi-demo__inline-controls">
+            <label class="voronoi-demo__slider-label">
+              Seed Count: {{ s1Count() }}
+              <mat-slider min="2" max="30" step="1" discrete>
+                <input matSliderThumb [ngModel]="s1Count()" (ngModelChange)="s1Count.set($event); generateSeeds()" />
+              </mat-slider>
+            </label>
+          </div>
+          <div class="voronoi-demo__canvas-wrap">
+            <canvas #seedsCanvas></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Nearest-Neighbor Assignment -->
+    <section class="voronoi-demo__section">
+      <h2>2. Nearest-Neighbor Assignment</h2>
+      <div class="voronoi-demo__columns">
+        <div class="voronoi-demo__text">
+          <p>
+            With seeds placed, we assign every pixel to its nearest seed. This is the core of the Voronoi diagram: for
+            each pixel, measure the distance to every seed, and pick the closest one. We use linear distance (with
+            <code>sqrt</code>) so that noise amplitude directly corresponds to pixel displacement of boundaries.
+          </p>
+
+          <x-code-block [code]="codeDist" />
+
+          <p>
+            The assignment loop finds the two closest seeds for each pixel. We track the second-closest because we'll
+            need it later for boundary detection. The noise perturbation (covered in section 4) is applied here too
+            &mdash; each seed has its own noise field so every boundary gets independent distortion. The result is a
+            cell map: every pixel tagged with the index of its owning seed.
+          </p>
+
+          <x-code-block [code]="codeAssignLoop" />
+
+          <p>
+            Notice how the cell edges are perfectly straight lines &mdash; each boundary is the perpendicular bisector
+            between two seeds. The cells have wildly different sizes because the random seed placement is uneven.
+          </p>
+        </div>
+        <div class="voronoi-demo__demo">
+          <div class="voronoi-demo__canvas-wrap">
+            <canvas #nnCanvas></canvas>
+          </div>
+          <p class="voronoi-demo__caption">Raw Voronoi &mdash; no relaxation, no noise. White dots are seed points.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Lloyd Relaxation -->
+    <section class="voronoi-demo__section">
+      <h2>3. Lloyd Relaxation</h2>
+      <div class="voronoi-demo__columns">
+        <div class="voronoi-demo__text">
+          <p>
+            Random placement creates uneven cells. <strong>Lloyd relaxation</strong> fixes this by iteratively moving
+            each seed toward the <em>centroid</em> (center of mass) of its cell, then recomputing the diagram. We use
+            <strong>partial relaxation</strong> &mdash; each iteration moves the seed only halfway toward its centroid
+            rather than jumping all the way there. This gives gradual convergence over several iterations instead of
+            snapping to a near-grid after just one pass. After 3&ndash;5 iterations the cells are fairly uniform &mdash;
+            a much better starting point for tectonic plates.
+          </p>
+
+          <x-code-block [code]="codeCentroid" />
+
+          <p>
+            Drag the slider to see how each iteration redistributes the seeds. At 0 iterations you see the raw random
+            placement. By 3&ndash;5 iterations the cells are fairly uniform. Going beyond that gives diminishing
+            returns.
+          </p>
+        </div>
+        <div class="voronoi-demo__demo">
+          <div class="voronoi-demo__inline-controls">
+            <label class="voronoi-demo__slider-label">
+              Relaxation Iterations: {{ s3Iterations() }}
+              <mat-slider min="0" max="10" step="1" discrete>
+                <input
+                  matSliderThumb
+                  [ngModel]="s3Iterations()"
+                  (ngModelChange)="s3Iterations.set($event); generateRelaxation()" />
+              </mat-slider>
+            </label>
+          </div>
+          <div class="voronoi-demo__canvas-wrap">
+            <canvas #relaxCanvas></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Noisy Boundaries -->
+    <section class="voronoi-demo__section">
+      <h2>4. Noisy Boundaries</h2>
+      <div class="voronoi-demo__columns">
+        <div class="voronoi-demo__text">
+          <p>
+            Pure Voronoi cells have perfectly straight edges &mdash; not very natural looking. To create organic,
+            irregular boundaries (like real tectonic plate edges), we perturb the distance metric with
+            <strong>OpenSimplex noise</strong>. Each seed samples its own noise field (offset in noise space by seed
+            index) so that <em>every</em> boundary between any pair of seeds gets independently perturbed:
+          </p>
+
+          <x-code-block [code]="codeNoiseBias" />
+
+          <p>
+            <strong>Amplitude</strong> controls how far the boundaries shift (in pixels). <strong>Frequency</strong>
+            controls how jagged or smooth the edges are &mdash; low frequency gives broad sweeping curves, high
+            frequency gives fractal-like detail. Together they create edges that look like real geological boundaries.
+          </p>
+        </div>
+        <div class="voronoi-demo__demo">
+          <div class="voronoi-demo__inline-controls">
+            <label class="voronoi-demo__slider-label">
+              Amplitude: {{ s4Amplitude() }}
+              <mat-slider min="0" max="150" step="5" discrete>
+                <input
+                  matSliderThumb
+                  [ngModel]="s4Amplitude()"
+                  (ngModelChange)="s4Amplitude.set($event); generateNoise()" />
+              </mat-slider>
+            </label>
+            <label class="voronoi-demo__slider-label">
+              Frequency: {{ s4Frequency() }}
+              <mat-slider min="0.005" max="0.5" step="0.005">
+                <input
+                  matSliderThumb
+                  [ngModel]="s4Frequency()"
+                  (ngModelChange)="s4Frequency.set($event); generateNoise()" />
+              </mat-slider>
+            </label>
+          </div>
+          <div class="voronoi-demo__canvas-wrap">
+            <canvas #noiseCanvas></canvas>
+          </div>
+          <p class="voronoi-demo__caption">
+            Set amplitude to 0 to see the clean geometric edges, then increase it to watch them warp.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 5: Cylindrical Wrapping -->
+    <section class="voronoi-demo__section">
+      <h2>5. Cylindrical Wrapping</h2>
+      <div class="voronoi-demo__columns">
+        <div class="voronoi-demo__text">
+          <p>
+            For world maps the x-axis must wrap seamlessly &mdash; the left and right edges are the same line on a
+            globe. Without wrapping, cells near the edges get cut off and form hard seams. Two things need to change:
+          </p>
+          <p>
+            <strong>Distance calculation:</strong> When measuring horizontal distance between a pixel and a seed, we
+            check if going "the other way around" is shorter:
+          </p>
+
+          <x-code-block [code]="codeWrapDist" />
+
+          <p>
+            <strong>Centroid calculation:</strong> You can't just average x-coordinates when they wrap &mdash; averaging
+            10 and 490 on a 500-wide map gives 250, which is wrong (the true center is near 0/500). Instead we convert x
+            to an angle, average in polar coordinates, then convert back:
+          </p>
+
+          <x-code-block [code]="codeWrapCentroid" />
+
+          <p>
+            Compare the two diagrams &mdash; same seeds, same noise. On the left, cells are clipped at the edges. On the
+            right, they wrap seamlessly.
+          </p>
+        </div>
+        <div class="voronoi-demo__demo">
+          <div class="voronoi-demo__canvas-wrap">
+            <canvas #wrapOffCanvas></canvas>
+          </div>
+          <p class="voronoi-demo__caption">No wrapping &mdash; hard seams at left/right edges</p>
+          <div
+            class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--pannable"
+            style="margin-top: 1rem"
+            (pointerdown)="onWrapPanStart($event)"
+            (pointermove)="onWrapPanMove($event)"
+            (pointerup)="onWrapPanEnd()">
+            <canvas #wrapOnCanvas></canvas>
+          </div>
+          <p class="voronoi-demo__caption">Cylindrical wrapping &mdash; seamless edges (drag to pan)</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Boundary Detection -->
+    <section class="voronoi-demo__section">
+      <h2>6. Boundary Detection</h2>
+      <div class="voronoi-demo__columns">
+        <div class="voronoi-demo__text">
+          <p>
+            For tectonic plate simulation, we need to know <em>where</em> plate boundaries are and
+            <em>how strong</em> they are. During cell assignment we already track both the nearest and second-nearest
+            seed distances. The ratio between them tells us how close a pixel is to a boundary:
+          </p>
+
+          <x-code-block [code]="codeBoundary" />
+
+          <p>
+            When a pixel's nearest and second-nearest seeds are almost equidistant, it's right on the boundary (strength
+            &rarr; 1). Deep in a cell's interior, the second seed is much farther away (strength &rarr; 0). This
+            gradient is what we'll use to drive mountain range intensity, trench depth, and fault line effects during
+            plate simulation.
+          </p>
+        </div>
+        <div class="voronoi-demo__demo">
+          <div class="voronoi-demo__canvas-wrap">
+            <canvas #boundaryCanvas></canvas>
+          </div>
+          <p class="voronoi-demo__caption">
+            Boundary strength field &mdash; white = strong boundary, black = cell interior.
+          </p>
+        </div>
+      </div>
+    </section>
+  </article>
+</div>

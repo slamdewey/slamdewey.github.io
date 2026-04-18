@@ -7,11 +7,11 @@
   <div class="projects__gallery">
     @for (projectData of projects; track projectData.routerLink) {
       <a [title]="projectData.labelText" class="projects__gallery__item" [routerLink]="projectData.routerLink">
-        <x-backdrop [backdrop]="projectData.backdrop"></x-backdrop>
+        <x-backdrop [backdrop]="projectData.backdrop" [shouldPauseAnimation]="!projectData.hovered()"></x-backdrop>
         <div
           class="projects__gallery__item__hover"
-          (mouseenter)="projectData.onMouseEnter?.()"
-          (mouseleave)="projectData.onMouseExit?.()">
+          (mouseenter)="projectData.hovered.set(true); projectData.onMouseEnter?.()"
+          (mouseleave)="projectData.hovered.set(false); projectData.onMouseExit?.()">
           <div class="projects__gallery__item__hover-content">
             {{ projectData.labelText }}
           </div>
