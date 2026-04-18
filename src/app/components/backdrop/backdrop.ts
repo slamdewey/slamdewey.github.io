@@ -57,7 +57,7 @@ export abstract class WebGLBackdrop extends Backdrop {
   // vertices for a quad (two triangles)
   private readonly vertices: number[] = [-1, 1, -1, -1, 1, -1, -1, 1, 1, -1, 1, 1];
 
-  protected gl: WebGLRenderingContext;
+  protected gl: WebGL2RenderingContext;
   protected shaderProgram: WebGLProgram;
   private vert: WebGLProgram;
   private frag: WebGLProgram;
@@ -106,7 +106,7 @@ void main() {
 
   protected abstract getFragmentShader(): string;
 
-  protected initializeDrawVariables(gl: WebGLRenderingContext, shaderProgram: WebGLProgram): void {
+  protected initializeDrawVariables(gl: WebGL2RenderingContext, shaderProgram: WebGLProgram): void {
     const coord = gl.getAttribLocation(shaderProgram, 'coordinates');
     gl.vertexAttribPointer(coord, 2, gl.FLOAT, false, 2 * Float32Array.BYTES_PER_ELEMENT, 0);
     gl.enableVertexAttribArray(coord);
@@ -124,7 +124,7 @@ void main() {
     this.totalTime += deltaTime;
   }
 
-  protected prepareDrawVariables(gl: WebGLRenderingContext): void {
+  protected prepareDrawVariables(gl: WebGL2RenderingContext): void {
     this.standardUniforms.forEach((uniform) => {
       const value = uniform.value();
       if (!value || !uniform.location) {
@@ -141,7 +141,7 @@ void main() {
     });
   }
 
-  public override setContext(ctx: WebGLRenderingContext): void {
+  public override setContext(ctx: WebGL2RenderingContext): void {
     this.gl = ctx;
   }
 
@@ -166,7 +166,7 @@ void main() {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
   }
 
-  private initWebGL(gl: WebGLRenderingContext): void {
+  private initWebGL(gl: WebGL2RenderingContext): void {
     // Create a new buffer object
     const vertex_buffer = gl.createBuffer();
     if (vertex_buffer === null) throw new Error("Couldn't create vertex buffer!");
@@ -193,7 +193,7 @@ void main() {
   }
 
   public compileWebGLShaders(
-    gl: WebGLRenderingContext,
+    gl: WebGL2RenderingContext,
     vertCode: string,
     fragCode: string
   ): [vertexShader: WebGLShader, fragmentShader: WebGLShader] {
@@ -220,7 +220,7 @@ void main() {
     return [vertShader, fragShader];
   }
 
-  private createAndBindShaderProgram(gl: WebGLRenderingContext, vert: WebGLShader, frag: WebGLShader) {
+  private createAndBindShaderProgram(gl: WebGL2RenderingContext, vert: WebGLShader, frag: WebGLShader) {
     const shaderProgram = gl.createProgram();
     if (shaderProgram === null) {
       throw new Error('Failed To Create Shader Program!');

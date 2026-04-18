@@ -1,0 +1,8 @@
+<figure class="stage-demo">
+  <div class="stage-demo__canvas">
+    <x-backdrop [backdrop]="backdrop()" />
+  </div>
+  @if (caption()) {
+    <figcaption>{{ caption() }}</figcaption>
+  }
+</figure>

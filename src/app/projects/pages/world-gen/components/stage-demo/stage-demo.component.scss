@@ -1,0 +1,26 @@
+.stage-demo {
+  margin: 1.5rem 0;
+  padding: 0;
+
+  &__canvas {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #111;
+
+    x-backdrop {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #aaa;
+    text-align: center;
+    font-style: italic;
+  }
+}

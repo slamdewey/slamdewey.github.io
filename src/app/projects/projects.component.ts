@@ -8,6 +8,7 @@ import { Title } from '@angular/platform-browser';
 import { ProjectTileData } from '../lib/projects';
 import { BannerComponent } from '../components/banner/banner.component';
 import { Backdrop } from '../components/backdrop';
+import { MapTextureBackdrop } from './pages/world-gen/rendering/map-texture-backdrop';
 
 @Component({
   selector: 'x-projects',
@@ -42,6 +43,11 @@ export class ProjectsComponent implements OnInit {
         onMouseExit: () => {
           this.updateShaderCode(this.fragmentWriterTileBackdrop, SHADER_TOY_UV);
         },
+      },
+      {
+        routerLink: 'world-gen',
+        labelText: 'World Generation',
+        backdrop: new MapTextureBackdrop(),
       },
     ];
   }

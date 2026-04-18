@@ -1,0 +1,181 @@
+<div class="world-gen">
+  <x-banner>
+    <ng-container ngProjectAs="title">Procedural World Generation</ng-container>
+  </x-banner>
+
+  <article class="world-gen__content">
+    <!-- Intro -->
+    <section class="world-gen__section">
+      <h2>Overview</h2>
+      <p>
+        This is an interactive walkthrough of a procedural world generation system that uses weather simulation
+        techniques to produce realistic biome distributions. The system builds a world through sequential stages:
+        terrain generation, climate modeling, and biome classification.
+      </p>
+      <p>
+        Each stage below shows a visualization of the generated data. Adjust the parameters and click
+        <strong>Regenerate</strong> to see how they affect the output.
+      </p>
+
+      <x-param-controls
+        [(noise)]="noiseConfig"
+        [(climate)]="climateConfig"
+        [(mapWidth)]="mapWidth"
+        [(mapHeight)]="mapHeight"
+        (regenerate)="regenerate()" />
+
+      @if (isGenerating()) {
+        <div class="world-gen__loading">
+          <span>Generating world...</span>
+        </div>
+      }
+    </section>
+
+    <!-- Stage 1: Fault Lines -->
+    <section class="world-gen__section world-gen__section--stage">
+      <div class="world-gen__text">
+        <h2>Stage 1: Fault Lines</h2>
+        <p>
+          The generation begins by simulating tectonic plate boundaries. Two noise sources create continent-scale
+          features (plate noise) and mountain ridge boundaries (ridge noise). The ridge noise uses the formula
+          <code>(1 - |noise|)^3</code> to create sharp ridges from smooth noise. Both sources use cylindrical coordinate
+          wrapping via 3D noise evaluation, so the world tiles seamlessly horizontally.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo [backdrop]="faultDemo" caption="Fault line intensity (grayscale)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 2: Elevation -->
+    <section class="world-gen__section world-gen__section--stage">
+      <div class="world-gen__text">
+        <h2>Stage 2: Elevation</h2>
+        <p>
+          Elevation is generated using Fractal Brownian Motion (fBm) &mdash; multiple octaves of OpenSimplex noise
+          layered at increasing frequencies and decreasing amplitudes. The raw noise is blended 50/50 with the fault
+          line data to create terrain that follows tectonic boundaries. Sea level is determined by the water percentage
+          parameter: all elevation values are sorted and the percentile cutoff becomes sea level.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo [backdrop]="elevationDemo" caption="Elevation map (blue = water, white = high)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 3: Temperature -->
+    <section class="world-gen__section world-gen__section--stage">
+      <div class="world-gen__text">
+        <h2>Stage 3: Temperature</h2>
+        <p>
+          Temperature is primarily driven by latitude using an inverse parabola function
+          <code>T(y) = 1 - (2y - 1)^2</code>, which gives maximum warmth at the equator and minimum at the poles. A
+          small noise jitter adds local variation. Above sea level, an atmospheric lapse rate reduces temperature with
+          elevation (higher = colder). Ocean cells are also cooled by a fixed factor.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo [backdrop]="temperatureDemo" caption="Temperature (cyan = cold, red = hot)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 4: Wind -->
+    <section class="world-gen__section world-gen__section--stage">
+      <div class="world-gen__text">
+        <h2>Stage 4: Wind</h2>
+        <p>
+          Global wind patterns are modeled after Earth's atmospheric circulation cells. Six latitudinal zones (three per
+          hemisphere) represent the Hadley, Ferrel, and Polar cells. Each zone has alternating vertical and horizontal
+          dominant wind directions, with smooth interpolation between zones and noise-based jitter for natural
+          variation.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo [backdrop]="windDemo" caption="Wind direction (R = X component, G = Y component)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 5: Precipitation -->
+    <section class="world-gen__section world-gen__section--stage">
+      <div class="world-gen__text">
+        <h2>Stage 5: Precipitation</h2>
+        <p>
+          This is the most complex stage &mdash; a multi-cycle weather simulation. Each cycle: ocean cells evaporate
+          moisture into clouds; clouds are pushed by wind (advection); precipitation falls based on temperature (warmer
+          air holds more moisture); excess moisture runs off to lower-elevation neighbors. After several cycles,
+          realistic moisture patterns emerge &mdash; rain shadows behind mountains, wet coastlines, and dry interiors.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo [backdrop]="precipitationDemo" caption="Soil moisture (white = wet, black = dry)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 6: Biome Classification -->
+    <section class="world-gen__section world-gen__section--stage">
+      <div class="world-gen__text">
+        <h2>Stage 6: Biome Classification</h2>
+        <p>
+          Finally, each cell is classified into a biome using a Whittaker-diagram-inspired 6&times;6 lookup table
+          indexed by moisture and temperature. Water cells are classified by depth (shallow vs. deep ocean), and cells
+          above a high elevation threshold become mountains. The remaining land is mapped to one of nine terrestrial
+          biomes: Arctic, Tundra, Desert, Grassland, Savanna, Boreal Forest, Temperate Forest, or Rainforest.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo [backdrop]="biomeDemo" caption="Biome classification (color-coded)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Full Interactive Demo -->
+    <section class="world-gen__section world-gen__section--full">
+      <h2>Full Generator</h2>
+      <p>
+        Switch between layers to inspect different aspects of the generated world. Drag horizontally to pan &mdash; the
+        world wraps seamlessly.
+      </p>
+
+      <mat-button-toggle-group
+        [value]="selectedLayer()"
+        (valueChange)="onLayerChange($event)"
+        class="world-gen__layer-toggle">
+        @for (opt of layerOptions; track opt.value) {
+          <mat-button-toggle [value]="opt.value">{{ opt.label }}</mat-button-toggle>
+        }
+      </mat-button-toggle-group>
+
+      <div
+        class="world-gen__pannable"
+        (mousedown)="onPanStart($event)"
+        (mousemove)="onPanMove($event)"
+        (mouseup)="onPanEnd()"
+        (mouseleave)="onPanEnd()">
+        <x-stage-demo [backdrop]="fullDemo" />
+      </div>
+    </section>
+  </article>
+</div>

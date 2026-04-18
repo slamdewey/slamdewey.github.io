@@ -1,0 +1,100 @@
+@use '../../../../styles' as *;
+
+.world-gen {
+  color: white;
+  width: 80%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 0 4rem;
+
+  &__content {
+    margin-top: 1rem;
+  }
+
+  &__section {
+    margin-bottom: 3rem;
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 500;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid #333;
+      padding-bottom: 0.5rem;
+    }
+
+    p {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: #ddd;
+      margin-bottom: 0.75rem;
+    }
+
+    code {
+      background: #222;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.9em;
+      color: #8be9fd;
+    }
+
+    &--stage {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    &--full {
+      margin-bottom: 0;
+    }
+  }
+
+  &__text {
+    min-width: 0;
+  }
+
+  &__demo {
+    min-width: 0;
+  }
+
+  &__loading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1rem 0;
+    color: #aaa;
+    font-size: 0.9rem;
+  }
+
+  &__layer-toggle {
+    margin-bottom: 1rem;
+  }
+
+  &__placeholder {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    background: #111;
+    border-radius: 4px;
+  }
+
+  &__pannable {
+    cursor: grab;
+    user-select: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+}
+
+@media only screen and (max-width: 1200px) {
+  .world-gen {
+    width: auto;
+    margin-left: 96px; // 80px nav + 16px gap
+    margin-right: 1rem;
+
+    &__section--stage {
+      grid-template-columns: 1fr;
+    }
+  }
+}

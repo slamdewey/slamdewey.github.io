@@ -74,6 +74,11 @@ export const routes: Route[] = [
         loadComponent: () =>
           import('./projects/pages/shooting-game/shooting-game.component').then((m) => m.ShootingGameComponent),
       },
+      {
+        path: 'world-gen',
+        title: 'Procedural World Generation',
+        loadComponent: () => import('./projects/pages/world-gen/world-gen.component').then((m) => m.WorldGenComponent),
+      },
     ],
     providers: [
       {
