@@ -28,9 +28,7 @@ export class VoronoiBackdrop extends Backdrop {
       width: this.width,
       height: this.height,
       seedCount: 14,
-      noiseSeed: 42,
-      noiseAmplitude: 40,
-      noiseFrequency: 0.02,
+      seed: 42,
       relaxationIterations: 3,
       wrapX: false,
     });

@@ -38,6 +38,7 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
   private canvasElement: HTMLCanvasElement;
   private ctx: RenderingContext;
   private resizeObserver: ResizeObserver;
+  private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     const e = document.createElement('canvas');
@@ -85,6 +86,9 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
   ngOnDestroy() {
     this.backdropService.unregister(this);
     this.resizeObserver?.disconnect();
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+    }
     this.backdrop().onDestroy();
   }
 
@@ -116,6 +120,8 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
     this.backdrop().tick(deltaTime);
   }
 
+  private static readonly RESIZE_DEBOUNCE_MS = 150;
+
   private onResize(entries: ResizeObserverEntry[]) {
     let newWidth: number, newHeight: number;
 
@@ -132,14 +138,24 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
       return;
     }
 
-    const backdrop = this.backdrop();
-    const canvas = this.ctx.canvas;
-    this.canvasBufferSize.set([newWidth, newHeight]);
-    [canvas.width, canvas.height] = [newWidth, newHeight];
+    this.isResizing.set(true);
 
-    backdrop.setSize(newWidth, newHeight);
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+    }
 
-    // Render a frame after resize so paused backdrops are never blank
-    backdrop.tick(0);
+    this.resizeTimeout = setTimeout(() => {
+      const backdrop = this.backdrop();
+      const canvas = this.ctx.canvas;
+      this.canvasBufferSize.set([newWidth, newHeight]);
+      [canvas.width, canvas.height] = [newWidth, newHeight];
+
+      backdrop.setSize(newWidth, newHeight);
+
+      this.isResizing.set(false);
+
+      // Render a frame after resize so paused backdrops are never blank
+      backdrop.tick(0);
+    }, BackdropComponent.RESIZE_DEBOUNCE_MS);
   }
 }

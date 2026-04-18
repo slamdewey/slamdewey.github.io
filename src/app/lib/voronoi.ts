@@ -1,4 +1,3 @@
-import { OpenSimplexNoise } from '@lib/noise';
 import { mod } from '@lib/math';
 
 export interface VoronoiSeed {
@@ -10,11 +9,7 @@ export interface VoronoiConfig {
   width: number;
   height: number;
   seedCount: number;
-  noiseSeed: number;
-  /** Amplitude of noise displacement on cell boundaries, in pixels. 0 = pure Voronoi. */
-  noiseAmplitude: number;
-  /** Frequency of the boundary noise. Higher = more jagged edges. */
-  noiseFrequency: number;
+  seed: number;
   /** Number of Lloyd relaxation iterations. 0 = raw random placement. */
   relaxationIterations: number;
   /** Whether the x-axis wraps (cylindrical topology). */
@@ -24,10 +19,24 @@ export interface VoronoiConfig {
 export interface VoronoiResult {
   /** Per-pixel cell assignment (index into seeds array). */
   cells: Int32Array;
-  /** Per-pixel boundary strength [0, 1]. Higher = closer to a cell boundary. */
-  boundaries: Float32Array;
   /** The final seed positions after relaxation. */
   seeds: VoronoiSeed[];
+}
+
+export interface VoronoiEdge {
+  /** Index of the first cell. */
+  cellA: number;
+  /** Index of the second cell. */
+  cellB: number;
+  /** Length of the shared boundary in pixels. */
+  length: number;
+}
+
+export interface VoronoiGraph {
+  /** For each cell, the indices of its neighbors. */
+  neighbors: number[][];
+  /** All edges between adjacent cells. */
+  edges: VoronoiEdge[];
 }
 
 /**
@@ -59,7 +68,7 @@ function dist(ax: number, ay: number, bx: number, by: number, width: number, wra
  * Generate initial seed points with deterministic random placement.
  */
 function generateSeeds(config: VoronoiConfig): VoronoiSeed[] {
-  const rng = { s: config.noiseSeed | 1 }; // ensure non-zero
+  const rng = { s: config.seed | 1 }; // ensure non-zero
   const seeds: VoronoiSeed[] = [];
   for (let i = 0; i < config.seedCount; i++) {
     seeds.push({
@@ -89,8 +98,7 @@ function lloydRelax(
   const current = seeds.map((s) => ({ ...s }));
 
   for (let iter = 0; iter < iterations; iter++) {
-    // Assign cells with current seeds (no noise during relaxation)
-    assignCells(current, cells, width, height, wrapX, null, 0, 0);
+    assignCells(current, cells, width, height, wrapX);
 
     // Compute centroids using circular averaging for wrapped x
     const sumX = new Float64Array(current.length);
@@ -147,101 +155,46 @@ function lloydRelax(
 }
 
 /**
- * Assign each pixel to its nearest seed. Optionally applies noise to the
- * distance metric to create organic, irregular cell boundaries.
- *
- * Each seed gets its own noise field (offset in noise space by seed index)
- * so every boundary between any pair of seeds is independently perturbed.
- *
- * Uses linear distance so that noiseAmplitude directly corresponds to
- * pixel displacement of boundaries.
- *
- * Also computes boundary strength: how close the nearest two seeds are
- * in distance (normalized). A pixel far from any boundary → 0, on a
- * boundary → 1.
+ * Assign each pixel to its nearest seed.
  */
-function assignCells(
-  seeds: VoronoiSeed[],
-  cells: Int32Array,
-  width: number,
-  height: number,
-  wrapX: boolean,
-  noise: OpenSimplexNoise | null,
-  noiseAmplitude: number,
-  noiseFrequency: number
-): Float32Array {
-  const boundaries = new Float32Array(width * height);
+function assignCells(seeds: VoronoiSeed[], cells: Int32Array, width: number, height: number, wrapX: boolean): void {
   const n = seeds.length;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
-
       let minDist = Infinity;
-      let secondDist = Infinity;
       let closest = 0;
 
       for (let i = 0; i < n; i++) {
-        let d = dist(x, y, seeds[i].x, seeds[i].y, width, wrapX);
-
-        // Per-seed noise: each seed samples a unique noise field, so every
-        // boundary between any pair of seeds gets independent perturbation.
-        // Uses linear distance so amplitude = pixels of displacement.
-        // When wrapX is on, sample 3D noise on a cylinder so boundaries
-        // wrap seamlessly at the left/right edges.
-        if (noise && noiseAmplitude > 0) {
-          if (wrapX) {
-            const angle = (x / width) * Math.PI * 2;
-            const r = (width * noiseFrequency) / (Math.PI * 2);
-            d += noise.eval3D(Math.cos(angle) * r + i * 100, Math.sin(angle) * r, y * noiseFrequency) * noiseAmplitude;
-          } else {
-            d += noise.eval2D(x * noiseFrequency + i * 100, y * noiseFrequency) * noiseAmplitude;
-          }
-        }
-
+        const d = dist(x, y, seeds[i].x, seeds[i].y, width, wrapX);
         if (d < minDist) {
-          secondDist = minDist;
           minDist = d;
           closest = i;
-        } else if (d < secondDist) {
-          secondDist = d;
         }
       }
 
       cells[idx] = closest;
-
-      // Boundary strength: ratio of how close the two nearest seeds are
-      if (secondDist > 0) {
-        boundaries[idx] = 1 - (secondDist - minDist) / secondDist;
-      } else {
-        boundaries[idx] = 1;
-      }
     }
   }
-
-  return boundaries;
 }
 
 /**
- * Generate a Voronoi tessellation with optional noise-perturbed boundaries
- * and Lloyd relaxation for more uniform cell sizes.
+ * Generate a Voronoi tessellation with Lloyd relaxation
+ * for more uniform cell sizes.
  */
 export function generateVoronoi(config: VoronoiConfig): VoronoiResult {
-  const { width, height, wrapX, noiseAmplitude, noiseFrequency, noiseSeed } = config;
-  const totalPixels = width * height;
-  const cells = new Int32Array(totalPixels);
+  const { width, height, wrapX } = config;
+  const cells = new Int32Array(width * height);
 
-  // Generate and relax seeds
   let seeds = generateSeeds(config);
   if (config.relaxationIterations > 0) {
     seeds = lloydRelax(seeds, cells, width, height, wrapX, config.relaxationIterations);
   }
 
-  // Final assignment with noise
-  const noise = noiseAmplitude > 0 ? new OpenSimplexNoise(noiseSeed) : null;
-  const boundaries = assignCells(seeds, cells, width, height, wrapX, noise, noiseAmplitude, noiseFrequency);
+  assignCells(seeds, cells, width, height, wrapX);
 
-  return { cells, boundaries, seeds };
+  return { cells, seeds };
 }
 
 /**
@@ -297,20 +250,60 @@ export function voronoiToRGBA(
 }
 
 /**
- * Render the boundary strength field as a grayscale RGBA image.
- * White = strong boundary, black = cell interior.
+ * Build a cell adjacency graph from a Voronoi result.
+ * Scans the cell map for neighboring pixels that belong to different cells,
+ * producing an edge list and per-cell neighbor lists. When wrapX is true,
+ * the left and right edges of the map are treated as adjacent.
  */
-export function voronoiBoundariesToRGBA(result: VoronoiResult, width: number, height: number): Uint8Array {
-  const rgba = new Uint8Array(width * height * 4);
-  for (let i = 0; i < width * height; i++) {
-    const v = (result.boundaries[i] * 255) | 0;
-    const out = i * 4;
-    rgba[out] = v;
-    rgba[out + 1] = v;
-    rgba[out + 2] = v;
-    rgba[out + 3] = 255;
+export function buildVoronoiGraph(
+  cells: Int32Array,
+  width: number,
+  height: number,
+  seedCount: number,
+  wrapX: boolean
+): VoronoiGraph {
+  const edgeMap = new Map<number, number>(); // packed key -> edge index
+  const edges: VoronoiEdge[] = [];
+  const neighbors: number[][] = Array.from({ length: seedCount }, () => []);
+
+  const addEdge = (a: number, b: number): void => {
+    const lo = a < b ? a : b;
+    const hi = a < b ? b : a;
+    const key = lo * seedCount + hi;
+    const idx = edgeMap.get(key);
+    if (idx !== undefined) {
+      edges[idx].length++;
+    } else {
+      edgeMap.set(key, edges.length);
+      neighbors[lo].push(hi);
+      neighbors[hi].push(lo);
+      edges.push({ cellA: lo, cellB: hi, length: 1 });
+    }
+  };
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const cell = cells[idx];
+
+      // Right neighbor
+      if (x < width - 1) {
+        const right = cells[idx + 1];
+        if (right !== cell) addEdge(cell, right);
+      } else if (wrapX) {
+        const wrapped = cells[y * width];
+        if (wrapped !== cell) addEdge(cell, wrapped);
+      }
+
+      // Bottom neighbor
+      if (y < height - 1) {
+        const below = cells[idx + width];
+        if (below !== cell) addEdge(cell, below);
+      }
+    }
   }
-  return rgba;
+
+  return { neighbors, edges };
 }
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {

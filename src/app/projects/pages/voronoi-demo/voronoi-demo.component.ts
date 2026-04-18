@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -8,7 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { BannerComponent } from '@components/banner/banner.component';
 import { CodeBlockComponent } from '@components/code-block/code-block.component';
-import { generateVoronoi, voronoiToRGBA, voronoiBoundariesToRGBA, VoronoiConfig } from '@lib/voronoi';
+import { generateVoronoi, voronoiToRGBA, buildVoronoiGraph, VoronoiConfig } from '@lib/voronoi';
 
 /** Shared dimensions for section demos. */
 const DEMO_W = 600;
@@ -23,7 +22,6 @@ const DEMO_COUNT = 12;
   imports: [
     BannerComponent,
     CodeBlockComponent,
-    RouterLink,
     FormsModule,
     MatSliderModule,
     MatInputModule,
@@ -46,7 +44,7 @@ export class VoronoiDemoComponent {
 }`;
 
   readonly codeGenerateSeeds = `function generateSeeds(config: VoronoiConfig): VoronoiSeed[] {
-  const rng = { s: config.noiseSeed | 1 };
+  const rng = { s: config.seed | 1 };
   const seeds: VoronoiSeed[] = [];
   for (let i = 0; i < config.seedCount; i++) {
     seeds.push({
@@ -72,22 +70,10 @@ export class VoronoiDemoComponent {
 }`;
 
   readonly codeAssignLoop = `for (let i = 0; i < n; i++) {
-  let d = dist(x, y, seeds[i].x, seeds[i].y, width, wrapX);
-
-  // Per-seed noise perturbation (see section 4)
-  if (noise && noiseAmplitude > 0) {
-    d += noise.eval2D(
-      x * noiseFrequency + i * 100,
-      y * noiseFrequency
-    ) * noiseAmplitude;
-  }
-
+  const d = dist(x, y, seeds[i].x, seeds[i].y, width, wrapX);
   if (d < minDist) {
-    secondDist = minDist;
     minDist = d;
     closest = i;
-  } else if (d < secondDist) {
-    secondDist = d;
   }
 }
 cells[idx] = closest;`;
@@ -117,22 +103,6 @@ for (let i = 0; i < current.length; i++) {
   current[i].y += (cy - current[i].y) * RELAXATION_FACTOR;
 }`;
 
-  readonly codeNoiseBias = `// Per-seed noise field: offset in noise space by seed index
-// so every boundary gets independent perturbation.
-// Uses linear distance so amplitude = pixels of displacement.
-for (let i = 0; i < n; i++) {
-  let d = dist(x, y, seeds[i].x, seeds[i].y, width, wrapX);
-
-  if (noise && noiseAmplitude > 0) {
-    d += noise.eval2D(
-      x * noiseFrequency + i * 100,
-      y * noiseFrequency
-    ) * noiseAmplitude;
-  }
-
-  // ... find closest ...
-}`;
-
   readonly codeWrapDist = `let dx = ax - bx;
 if (wrapX) {
   if (dx > width / 2) dx -= width;
@@ -148,25 +118,46 @@ cosSum[cell] += Math.cos(angle);
 const avgAngle = Math.atan2(sinSum[i], cosSum[i]);
 current[i].x = mod((avgAngle / TWO_PI) * width, width);`;
 
-  readonly codeBoundary = `// Boundary strength: how close the two nearest seeds are
-if (secondDist > 0) {
-  boundaries[idx] = 1 - (secondDist - minDist) / secondDist;
-} else {
-  boundaries[idx] = 1;
+  readonly codeGraph = `interface VoronoiEdge {
+  cellA: number;
+  cellB: number;
+  length: number;  // shared boundary pixels
+}
+
+interface VoronoiGraph {
+  neighbors: number[][];  // per-cell neighbor list
+  edges: VoronoiEdge[];
+}`;
+
+  readonly codeGraphBuild = `for (let y = 0; y < height; y++) {
+  for (let x = 0; x < width; x++) {
+    const cell = cells[y * width + x];
+
+    // Check right neighbor (with wrap support)
+    const right = x < width - 1
+      ? cells[y * width + x + 1]
+      : wrapX ? cells[y * width] : cell;
+    if (right !== cell) addEdge(cell, right);
+
+    // Check bottom neighbor
+    if (y < height - 1) {
+      const below = cells[(y + 1) * width + x];
+      if (below !== cell) addEdge(cell, below);
+    }
+  }
 }`;
 
   // --- Full playground ---
   private playgroundCanvas = viewChild<ElementRef<HTMLCanvasElement>>('playgroundCanvas');
-  pgWidth = signal(512);
-  pgHeight = signal(256);
+  pgWidth = signal(1024);
+  pgHeight = signal(512);
   pgSeedCount = signal(12);
   pgSeed = signal(42);
-  pgAmplitude = signal(40);
-  pgFrequency = signal(0.02);
   pgRelaxation = signal(3);
   pgWrapX = signal(true);
   pgShowBoundaries = signal(true);
   pgShowSeeds = signal(true);
+  pgShowGraph = signal(false);
 
   // Pan state for playground (only active when wrapX is on)
   private pgOffscreen: HTMLCanvasElement | null = null;
@@ -186,12 +177,6 @@ if (secondDist > 0) {
   private relaxCanvas = viewChild<ElementRef<HTMLCanvasElement>>('relaxCanvas');
   s3Iterations = signal(0);
 
-  // --- Section 4: Noisy boundaries ---
-  private noiseCanvas = viewChild<ElementRef<HTMLCanvasElement>>('noiseCanvas');
-  s4Amplitude = signal(40);
-  s4Frequency = signal(0.02);
-
-  // --- Section 5: Wrapping ---
   private wrapOnCanvas = viewChild<ElementRef<HTMLCanvasElement>>('wrapOnCanvas');
   private wrapOffCanvas = viewChild<ElementRef<HTMLCanvasElement>>('wrapOffCanvas');
   private wrapOffscreen: HTMLCanvasElement | null = null;
@@ -200,8 +185,13 @@ if (secondDist > 0) {
   private wrapPanBase = 0;
   private wrapPanOffset = 0;
 
-  // --- Section 6: Boundary detection ---
-  private boundaryCanvas = viewChild<ElementRef<HTMLCanvasElement>>('boundaryCanvas');
+  // --- Section 5: Cell adjacency graph ---
+  private graphCanvas = viewChild<ElementRef<HTMLCanvasElement>>('graphCanvas');
+  private graphOffscreen: HTMLCanvasElement | null = null;
+  private isGraphPanning = false;
+  private graphPanStartX = 0;
+  private graphPanBase = 0;
+  private graphPanOffset = 0;
 
   constructor() {
     setTimeout(() => this.generateAll(), 0);
@@ -216,9 +206,8 @@ if (secondDist > 0) {
     this.generateSeeds();
     this.generateNearestNeighbor();
     this.generateRelaxation();
-    this.generateNoise();
     this.generateWrapping();
-    this.generateBoundary();
+    this.generateGraph();
   }
 
   // --- Full playground ---
@@ -231,9 +220,7 @@ if (secondDist > 0) {
       width: this.pgWidth(),
       height: this.pgHeight(),
       seedCount: this.pgSeedCount(),
-      noiseSeed: this.pgSeed(),
-      noiseAmplitude: this.pgAmplitude(),
-      noiseFrequency: this.pgFrequency(),
+      seed: this.pgSeed(),
       relaxationIterations: this.pgRelaxation(),
       wrapX: this.pgWrapX(),
     };
@@ -247,6 +234,45 @@ if (secondDist > 0) {
     offscreen.height = config.height;
     const offCtx = offscreen.getContext('2d')!;
     offCtx.putImageData(new ImageData(new Uint8ClampedArray(rgba), config.width, config.height), 0, 0);
+
+    if (this.pgShowGraph()) {
+      const graph = buildVoronoiGraph(result.cells, config.width, config.height, config.seedCount, config.wrapX);
+      offCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      offCtx.lineWidth = 1.5;
+      for (const edge of graph.edges) {
+        const a = result.seeds[edge.cellA];
+        const b = result.seeds[edge.cellB];
+        if (config.wrapX) {
+          let dx = b.x - a.x;
+          if (dx > config.width / 2) dx -= config.width;
+          else if (dx < -config.width / 2) dx += config.width;
+          const bxW = a.x + dx;
+          if (bxW < 0 || bxW >= config.width) {
+            const t = bxW < 0 ? -a.x / dx : (config.width - a.x) / dx;
+            const seam = bxW < 0 ? 0 : config.width;
+            const midY = a.y + (b.y - a.y) * t;
+            offCtx.beginPath();
+            offCtx.moveTo(a.x, a.y);
+            offCtx.lineTo(seam, midY);
+            offCtx.stroke();
+            offCtx.beginPath();
+            offCtx.moveTo(config.width - seam, midY);
+            offCtx.lineTo(b.x, b.y);
+            offCtx.stroke();
+          } else {
+            offCtx.beginPath();
+            offCtx.moveTo(a.x, a.y);
+            offCtx.lineTo(bxW, b.y);
+            offCtx.stroke();
+          }
+        } else {
+          offCtx.beginPath();
+          offCtx.moveTo(a.x, a.y);
+          offCtx.lineTo(b.x, b.y);
+          offCtx.stroke();
+        }
+      }
+    }
 
     if (this.pgShowSeeds()) {
       offCtx.fillStyle = '#fff';
@@ -333,9 +359,7 @@ if (secondDist > 0) {
       width: DEMO_W,
       height: DEMO_H,
       seedCount: this.s1Count(),
-      noiseSeed: DEMO_SEED,
-      noiseAmplitude: 0,
-      noiseFrequency: 0,
+      seed: DEMO_SEED,
       relaxationIterations: 0,
       wrapX: false,
     });
@@ -361,9 +385,7 @@ if (secondDist > 0) {
       width: DEMO_W,
       height: DEMO_H,
       seedCount: DEMO_COUNT,
-      noiseSeed: DEMO_SEED,
-      noiseAmplitude: 0,
-      noiseFrequency: 0,
+      seed: DEMO_SEED,
       relaxationIterations: 0,
       wrapX: false,
     });
@@ -383,9 +405,7 @@ if (secondDist > 0) {
       width: DEMO_W,
       height: DEMO_H,
       seedCount: DEMO_COUNT,
-      noiseSeed: DEMO_SEED,
-      noiseAmplitude: 0,
-      noiseFrequency: 0,
+      seed: DEMO_SEED,
       relaxationIterations: this.s3Iterations(),
       wrapX: false,
     });
@@ -395,37 +415,14 @@ if (secondDist > 0) {
     this.drawSeeds(ref, result.seeds);
   }
 
-  // --- Section 4: Noisy boundaries ---
-
-  generateNoise(): void {
-    const ref = this.noiseCanvas();
-    if (!ref) return;
-
-    const result = generateVoronoi({
-      width: DEMO_W,
-      height: DEMO_H,
-      seedCount: DEMO_COUNT,
-      noiseSeed: DEMO_SEED,
-      noiseAmplitude: this.s4Amplitude(),
-      noiseFrequency: this.s4Frequency(),
-      relaxationIterations: 3,
-      wrapX: false,
-    });
-
-    const rgba = voronoiToRGBA(result, DEMO_W, DEMO_H, true);
-    this.renderToCanvas(ref, rgba, DEMO_W, DEMO_H);
-  }
-
-  // --- Section 5: Wrapping ---
+  // --- Section 4: Wrapping ---
 
   generateWrapping(): void {
     const configBase: VoronoiConfig = {
       width: DEMO_W,
       height: DEMO_H,
       seedCount: 8,
-      noiseSeed: DEMO_SEED,
-      noiseAmplitude: 30,
-      noiseFrequency: 0.02,
+      seed: DEMO_SEED,
       relaxationIterations: 3,
       wrapX: false,
     };
@@ -498,25 +495,128 @@ if (secondDist > 0) {
     this.isWrapPanning = false;
   }
 
-  // --- Section 6: Boundary detection ---
+  // --- Section 5: Cell adjacency graph ---
 
-  generateBoundary(): void {
-    const ref = this.boundaryCanvas();
+  generateGraph(): void {
+    const ref = this.graphCanvas();
     if (!ref) return;
 
-    const result = generateVoronoi({
+    const config: VoronoiConfig = {
       width: DEMO_W,
       height: DEMO_H,
       seedCount: DEMO_COUNT,
-      noiseSeed: DEMO_SEED,
-      noiseAmplitude: 30,
-      noiseFrequency: 0.02,
+      seed: DEMO_SEED,
       relaxationIterations: 3,
-      wrapX: false,
-    });
+      wrapX: true,
+    };
 
-    const rgba = voronoiBoundariesToRGBA(result, DEMO_W, DEMO_H);
-    this.renderToCanvas(ref, rgba, DEMO_W, DEMO_H);
+    const result = generateVoronoi(config);
+    const graph = buildVoronoiGraph(result.cells, DEMO_W, DEMO_H, DEMO_COUNT, true);
+
+    // Render cells to offscreen canvas, then overlay graph
+    const rgba = voronoiToRGBA(result, DEMO_W, DEMO_H, true);
+    const offscreen = document.createElement('canvas');
+    offscreen.width = DEMO_W;
+    offscreen.height = DEMO_H;
+    const ctx = offscreen.getContext('2d')!;
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), DEMO_W, DEMO_H), 0, 0);
+
+    // Draw edges — wrap-aware: if the shortest path crosses the seam,
+    // draw two line segments (one at each edge of the canvas).
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 1.5;
+    for (const edge of graph.edges) {
+      const a = result.seeds[edge.cellA];
+      const b = result.seeds[edge.cellB];
+      let dx = b.x - a.x;
+      if (dx > DEMO_W / 2) dx -= DEMO_W;
+      else if (dx < -DEMO_W / 2) dx += DEMO_W;
+      const bxWrapped = a.x + dx;
+
+      if (bxWrapped < 0 || bxWrapped >= DEMO_W) {
+        // Edge crosses the seam — draw two segments
+        const t =
+          bxWrapped < 0
+            ? -a.x / dx // fraction where line hits x=0
+            : (DEMO_W - a.x) / dx; // fraction where line hits x=width
+        const seam = bxWrapped < 0 ? 0 : DEMO_W;
+        const midY = a.y + (b.y - a.y) * t;
+
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(seam, midY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(DEMO_W - seam, midY);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(bxWrapped, b.y);
+        ctx.stroke();
+      }
+    }
+
+    // Draw seed nodes
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
+    for (const seed of result.seeds) {
+      ctx.beginPath();
+      ctx.arc(seed.x, seed.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    this.graphOffscreen = offscreen;
+    this.graphPanOffset = 0;
+    this.renderGraph();
+  }
+
+  private renderGraph(): void {
+    const ref = this.graphCanvas();
+    if (!ref || !this.graphOffscreen) return;
+
+    const el = ref.nativeElement;
+    const w = this.graphOffscreen.width;
+    const h = this.graphOffscreen.height;
+    if (el.width !== w || el.height !== h) {
+      el.width = w;
+      el.height = h;
+    }
+    const ctx = el.getContext('2d')!;
+
+    if (this.graphPanOffset !== 0) {
+      const px = ((this.graphPanOffset % w) + w) % w;
+      ctx.drawImage(this.graphOffscreen, px, 0, w - px, h, 0, 0, w - px, h);
+      if (px > 0) {
+        ctx.drawImage(this.graphOffscreen, 0, 0, px, h, w - px, 0, px, h);
+      }
+    } else {
+      ctx.drawImage(this.graphOffscreen, 0, 0);
+    }
+  }
+
+  onGraphPanStart(event: PointerEvent): void {
+    this.isGraphPanning = true;
+    this.graphPanStartX = event.clientX;
+    this.graphPanBase = this.graphPanOffset;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  onGraphPanMove(event: PointerEvent): void {
+    if (!this.isGraphPanning || !this.graphOffscreen) return;
+    const target = event.currentTarget as HTMLElement;
+    const scale = this.graphOffscreen.width / target.clientWidth;
+    this.graphPanOffset = this.graphPanBase - (event.clientX - this.graphPanStartX) * scale;
+    this.renderGraph();
+  }
+
+  onGraphPanEnd(): void {
+    this.isGraphPanning = false;
   }
 
   // --- Shared rendering helpers ---

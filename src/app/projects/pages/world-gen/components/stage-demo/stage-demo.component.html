@@ -1,5 +1,9 @@
 <figure class="stage-demo">
-  <div class="stage-demo__canvas">
+  <div
+    class="stage-demo__canvas"
+    (pointerdown)="onPanStart($event)"
+    (pointermove)="onPanMove($event)"
+    (pointerup)="onPanEnd()">
     <canvas #canvas></canvas>
   </div>
   @if (caption()) {

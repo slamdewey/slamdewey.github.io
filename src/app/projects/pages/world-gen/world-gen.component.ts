@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, signal } from '@angular/core';
 import { BannerComponent } from '@components/banner/banner.component';
 import { BackdropComponent } from '@components/backdrop/backdrop.component';
 import { StageDemoComponent, StageImage } from './components/stage-demo/stage-demo.component';
@@ -7,8 +7,7 @@ import { MapTextureBackdrop } from './rendering/map-texture-backdrop';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { FormsModule } from '@angular/forms';
 import { NoiseVariables, ClimateVariables, DEFAULT_NOISE, DEFAULT_CLIMATE, LayerName, WorldData } from './lib/types';
-import { WorldGenerator } from './lib/pipeline';
-import { layerToRGBA } from './lib/color-maps';
+import { WorkerResponse } from './lib/worker-types';
 
 const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'biomes', label: 'Biomes' },
@@ -18,8 +17,6 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'wind', label: 'Wind' },
   { value: 'precipitation', label: 'Precipitation' },
 ];
-
-const ALL_LAYERS: LayerName[] = ['faultLines', 'elevation', 'temperature', 'wind', 'precipitation', 'biomes'];
 
 @Component({
   selector: 'x-world-gen',
@@ -35,7 +32,7 @@ const ALL_LAYERS: LayerName[] = ['faultLines', 'elevation', 'temperature', 'wind
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WorldGenComponent {
+export class WorldGenComponent implements OnDestroy {
   readonly layerOptions = LAYER_OPTIONS;
 
   // Configuration signals
@@ -66,48 +63,53 @@ export class WorldGenComponent {
   private panStartX = 0;
   private panBase = 0;
 
+  // Worker
+  private worker: Worker | null = null;
+
   constructor() {
     setTimeout(() => this.regenerate(), 0);
+  }
+
+  ngOnDestroy(): void {
+    this.worker?.terminate();
   }
 
   regenerate(): void {
     this.isGenerating.set(true);
 
-    setTimeout(() => {
-      const generator = new WorldGenerator({
+    if (!this.worker) {
+      this.worker = new Worker(new URL('./lib/world-gen.worker', import.meta.url), { type: 'module' });
+      this.worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => this.onWorkerResult(data);
+    }
+
+    this.worker.postMessage({
+      config: {
         width: this.mapWidth(),
         height: this.mapHeight(),
         noise: this.noiseConfig(),
         climate: this.climateConfig(),
-      });
+      },
+    });
+  }
 
-      const worldData = generator.generate();
-      this.worldData = worldData;
+  private onWorkerResult(result: WorkerResponse): void {
+    const { worldData, layerImages } = result;
+    this.worldData = worldData;
+    this.layerImages = layerImages;
 
-      // Pre-render all layers to RGBA
-      const layerImages = {} as Record<LayerName, Uint8Array>;
-      for (const layer of ALL_LAYERS) {
-        const data = layer === 'wind' ? worldData.wind : worldData[layer];
-        layerImages[layer] = layerToRGBA(data, worldData.width, worldData.height, layer, worldData.seaLevel, worldData);
-      }
-      this.layerImages = layerImages;
+    const w = worldData.width;
+    const h = worldData.height;
 
-      const w = worldData.width;
-      const h = worldData.height;
+    this.faultImage.set({ rgba: layerImages.faultLines, width: w, height: h });
+    this.elevationImage.set({ rgba: layerImages.elevation, width: w, height: h });
+    this.temperatureImage.set({ rgba: layerImages.temperature, width: w, height: h });
+    this.windImage.set({ rgba: layerImages.wind, width: w, height: h });
+    this.precipitationImage.set({ rgba: layerImages.precipitation, width: w, height: h });
+    this.biomeImage.set({ rgba: layerImages.biomes, width: w, height: h });
 
-      // Push to static stage demos
-      this.faultImage.set({ rgba: layerImages.faultLines, width: w, height: h });
-      this.elevationImage.set({ rgba: layerImages.elevation, width: w, height: h });
-      this.temperatureImage.set({ rgba: layerImages.temperature, width: w, height: h });
-      this.windImage.set({ rgba: layerImages.wind, width: w, height: h });
-      this.precipitationImage.set({ rgba: layerImages.precipitation, width: w, height: h });
-      this.biomeImage.set({ rgba: layerImages.biomes, width: w, height: h });
+    this.fullDemo.uploadData(layerImages[this.selectedLayer()], w, h);
 
-      // Push to interactive full demo
-      this.fullDemo.uploadData(layerImages[this.selectedLayer()], w, h);
-
-      this.isGenerating.set(false);
-    }, 16);
+    this.isGenerating.set(false);
   }
 
   onLayerChange(layer: LayerName): void {

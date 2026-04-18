@@ -20,7 +20,8 @@
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  justify-content: space-evenly;
+  justify-content: center;
+  gap: 5rem;
   max-width: 1200px;
 }
 
@@ -33,7 +34,6 @@
 
   display: flex;
   justify-content: center;
-  margin: auto;
 
   &:hover {
     box-shadow:
