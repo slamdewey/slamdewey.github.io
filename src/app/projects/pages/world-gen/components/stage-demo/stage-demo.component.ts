@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, effect, input, viewChild } from '@angular/core';
+import { SkeletonLoaderComponent } from '@components/skeleton-loader/skeleton-loader.component';
 
 export interface StageImage {
   rgba: Uint8Array;
@@ -10,11 +11,13 @@ export interface StageImage {
   selector: 'x-stage-demo',
   templateUrl: './stage-demo.component.html',
   styleUrls: ['./stage-demo.component.scss'],
+  imports: [SkeletonLoaderComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StageDemoComponent {
   imageData = input<StageImage | null>(null);
   caption = input<string>('');
+  loading = input<boolean>(false);
 
   private canvas = viewChild<ElementRef<HTMLCanvasElement>>('canvas');
   private bitmap: ImageBitmap | null = null;

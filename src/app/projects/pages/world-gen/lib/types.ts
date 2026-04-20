@@ -17,12 +17,17 @@ export interface ClimateVariables {
 
 export interface TectonicVariables {
   plateCount: number;
+  cellCount: number;
   relaxationIterations: number;
+  /** Global multiplier for all boundary falloff widths. Default 1.0. */
+  boundaryFalloffScale: number;
 }
 
 export const DEFAULT_TECTONIC: TectonicVariables = {
-  plateCount: 16,
-  relaxationIterations: 0,
+  plateCount: 32,
+  cellCount: 750,
+  relaxationIterations: 1,
+  boundaryFalloffScale: 1.0,
 };
 
 export interface WorldConfig {

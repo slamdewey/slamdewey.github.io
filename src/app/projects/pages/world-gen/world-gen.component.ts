@@ -1,9 +1,8 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, OnDestroy, signal } from '@angular/core';
 import { BannerComponent } from '@components/banner/banner.component';
-import { BackdropComponent } from '@components/backdrop/backdrop.component';
+import { CodeBlockComponent } from '@components/code-block/code-block.component';
 import { StageDemoComponent, StageImage } from './components/stage-demo/stage-demo.component';
 import { ParamControlsComponent } from './components/param-controls/param-controls.component';
-import { MapTextureBackdrop } from './rendering/map-texture-backdrop';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { FormsModule } from '@angular/forms';
 import {
@@ -14,7 +13,6 @@ import {
   DEFAULT_CLIMATE,
   DEFAULT_TECTONIC,
   LayerName,
-  WorldData,
 } from './lib/types';
 import { WorkerResponse } from './lib/worker-types';
 
@@ -34,9 +32,9 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   styleUrls: ['./world-gen.component.scss'],
   imports: [
     BannerComponent,
-    BackdropComponent,
     StageDemoComponent,
     ParamControlsComponent,
+    CodeBlockComponent,
     MatButtonToggleModule,
     FormsModule,
   ],
@@ -45,12 +43,56 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
 export class WorldGenComponent implements OnDestroy {
   readonly layerOptions = LAYER_OPTIONS;
 
+  // --- Code snippets ---
+
+  readonly codeInteractionType = `enum InteractionType {
+  Collision,          // cont-cont convergent (Himalayas)
+  Subduction,         // ocean-cont convergent (Andes)
+  OceanicConvergence, // ocean-ocean convergent (Mariana Trench)
+  ContinentalRift,    // cont divergent (East Africa)
+  OceanicRidge,       // ocean-ocean divergent (Mid-Atlantic Ridge)
+  Transform,          // any transform (San Andreas)
+}`;
+
+  readonly codeInteractionElevation = `function interactionElevation(
+  interaction: InteractionType,
+  pixelPlateType: PlateType,
+  intensity: number,
+  t: number // 1.0 at boundary, 0.0 at falloff edge
+): { elevDelta: number; mountainRange: number } {
+  const f = intensity * t;
+  switch (interaction) {
+    case InteractionType.Collision:
+      // Both sides crumple upward
+      return { elevDelta: 0.4 * f, mountainRange: 0.8 * t };
+    case InteractionType.Subduction:
+      if (pixelPlateType === PlateType.Continental) {
+        // Continental side: coastal mountain range
+        return { elevDelta: 0.35 * f, mountainRange: 0.6 * t };
+      }
+      // Oceanic side: trench — elevation drops
+      return { elevDelta: -0.15 * f, mountainRange: 0 };
+    case InteractionType.OceanicConvergence:
+      // Subtle trench, stays underwater
+      return { elevDelta: -0.05 * f, mountainRange: 0 };
+    case InteractionType.ContinentalRift:
+      // Rift valley — depression
+      return { elevDelta: -0.1 * f, mountainRange: 0 };
+    case InteractionType.OceanicRidge:
+      // Subtle underwater rise
+      return { elevDelta: 0.03 * f, mountainRange: 0 };
+    case InteractionType.Transform:
+      // Grinding — minimal elevation change
+      return { elevDelta: 0, mountainRange: 0 };
+  }
+}`;
+
   // Configuration signals
   noiseConfig = signal<NoiseVariables>({ ...DEFAULT_NOISE });
   climateConfig = signal<ClimateVariables>({ ...DEFAULT_CLIMATE });
   tectonicConfig = signal<TectonicVariables>({ ...DEFAULT_TECTONIC });
-  mapWidth = signal(512);
-  mapHeight = signal(256);
+  mapWidth = signal(1024);
+  mapHeight = signal(512);
 
   // Static stage images (2D canvas, no animation loop)
   plateImage = signal<StageImage | null>(null);
@@ -61,19 +103,33 @@ export class WorldGenComponent implements OnDestroy {
   precipitationImage = signal<StageImage | null>(null);
   biomeImage = signal<StageImage | null>(null);
 
-  // Full interactive demo (WebGL for panning)
-  fullDemo = new MapTextureBackdrop();
+  // Full interactive demo — selected layer
   selectedLayer = signal<LayerName>('biomes');
+
+  fullDemoImage = computed<StageImage | null>(() => {
+    const layer = this.selectedLayer();
+    switch (layer) {
+      case 'plates':
+        return this.plateImage();
+      case 'faultLines':
+        return this.faultImage();
+      case 'elevation':
+        return this.elevationImage();
+      case 'temperature':
+        return this.temperatureImage();
+      case 'wind':
+        return this.windImage();
+      case 'precipitation':
+        return this.precipitationImage();
+      case 'biomes':
+        return this.biomeImage();
+      default:
+        return null;
+    }
+  });
 
   // State
   isGenerating = signal(false);
-  private worldData: WorldData | null = null;
-  private layerImages: Record<LayerName, Uint8Array> | null = null;
-
-  // Pan state for full demo
-  private isPanning = false;
-  private panStartX = 0;
-  private panBase = 0;
 
   // Worker
   private worker: Worker | null = null;
@@ -107,8 +163,6 @@ export class WorldGenComponent implements OnDestroy {
 
   private onWorkerResult(result: WorkerResponse): void {
     const { worldData, layerImages } = result;
-    this.worldData = worldData;
-    this.layerImages = layerImages;
 
     const w = worldData.width;
     const h = worldData.height;
@@ -121,37 +175,10 @@ export class WorldGenComponent implements OnDestroy {
     this.precipitationImage.set({ rgba: layerImages.precipitation, width: w, height: h });
     this.biomeImage.set({ rgba: layerImages.biomes, width: w, height: h });
 
-    this.fullDemo.uploadData(layerImages[this.selectedLayer()], w, h);
-
     this.isGenerating.set(false);
   }
 
   onLayerChange(layer: LayerName): void {
     this.selectedLayer.set(layer);
-    if (this.layerImages && this.worldData) {
-      this.fullDemo.uploadData(this.layerImages[layer], this.worldData.width, this.worldData.height);
-    }
-  }
-
-  // --- Pan controls for full demo ---
-
-  onPanStart(event: PointerEvent): void {
-    this.isPanning = true;
-    this.panStartX = event.clientX;
-    this.panBase = this.fullDemo.panOffset;
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-    event.preventDefault();
-  }
-
-  onPanMove(event: PointerEvent): void {
-    if (!this.isPanning || !this.worldData) return;
-    const dx = event.clientX - this.panStartX;
-    // Convert pixel delta to UV offset (negative so dragging right moves map right)
-    const target = event.currentTarget as HTMLElement;
-    this.fullDemo.panOffset = this.panBase - dx / target.clientWidth;
-  }
-
-  onPanEnd(): void {
-    this.isPanning = false;
   }
 }

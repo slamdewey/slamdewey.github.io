@@ -57,8 +57,8 @@ export function platesToRGBA(tectonic: TectonicResult, width: number, height: nu
   // Build boundary lookup for coloring boundary pixels
   const boundaryMap = new Map<number, BoundaryType>();
   for (const b of boundaries) {
-    const lo = Math.min(b.cellA, b.cellB);
-    const hi = Math.max(b.cellA, b.cellB);
+    const lo = Math.min(b.plateA, b.plateB);
+    const hi = Math.max(b.plateA, b.plateB);
     boundaryMap.set(lo * plateCount + hi, b.type);
   }
 

@@ -7,12 +7,23 @@
 
       <div class="param-controls__slider-row">
         <label for="slider-platecount">Plate Count: {{ tectonic().plateCount }}</label>
-        <mat-slider min="8" max="30" step="1" discrete>
+        <mat-slider min="5" max="50" step="1" discrete>
           <input
             id="slider-platecount"
             matSliderThumb
             [ngModel]="tectonic().plateCount"
             (ngModelChange)="updateTectonic('plateCount', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-cellcount">Cell Count: {{ tectonic().cellCount }}</label>
+        <mat-slider min="100" max="2000" step="50" discrete>
+          <input
+            id="slider-cellcount"
+            matSliderThumb
+            [ngModel]="tectonic().cellCount"
+            (ngModelChange)="updateTectonic('cellCount', $event)" />
         </mat-slider>
       </div>
 
@@ -24,6 +35,17 @@
             matSliderThumb
             [ngModel]="tectonic().relaxationIterations"
             (ngModelChange)="updateTectonic('relaxationIterations', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-falloff">Boundary Falloff: {{ tectonic().boundaryFalloffScale.toFixed(2) }}</label>
+        <mat-slider min="0.2" max="3" step="0.1">
+          <input
+            id="slider-falloff"
+            matSliderThumb
+            [ngModel]="tectonic().boundaryFalloffScale"
+            (ngModelChange)="updateTectonic('boundaryFalloffScale', $event)" />
         </mat-slider>
       </div>
     </mat-expansion-panel>
@@ -160,7 +182,7 @@
 
     <mat-expansion-panel>
       <mat-expansion-panel-header>
-        <mat-panel-title>Map Size</mat-panel-title>
+        <mat-panel-title>Canvas Size</mat-panel-title>
       </mat-expansion-panel-header>
 
       <div class="param-controls__row">

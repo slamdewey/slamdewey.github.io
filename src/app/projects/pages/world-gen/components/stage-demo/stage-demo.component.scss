@@ -22,6 +22,13 @@
     }
   }
 
+  &__skeleton {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
   figcaption {
     margin-top: 0.5rem;
     font-size: 0.85rem;

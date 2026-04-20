@@ -24,29 +24,37 @@
         [(mapWidth)]="mapWidth"
         [(mapHeight)]="mapHeight"
         (regenerate)="regenerate()" />
-
-      @if (isGenerating()) {
-        <div class="world-gen__loading">
-          <span>Generating world...</span>
-        </div>
-      }
     </section>
 
     <!-- Stage 1: Tectonic Plates -->
     <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 1: Tectonic Plates</h2>
       <div class="world-gen__text">
-        <h2>Stage 1: Tectonic Plates</h2>
         <p>
-          The generation begins by partitioning the world into tectonic plates using Voronoi tessellation with
-          cylindrical wrapping. Each plate is assigned a type (continental or oceanic) and a random drift vector. Plate
-          boundaries are classified by relative motion: convergent (collision), divergent (spreading), or transform
-          (sliding). The boundary type and plate types determine where mountains, rifts, and fault lines form.
+          The generation begins by creating a dense Voronoi tessellation of hundreds of small cells, then grouping them
+          into tectonic plates. This gives plates natural, irregular boundaries rather than smooth geometric edges.
+          Plate sizes follow a power-law distribution &mdash; a handful of major plates cover most of the globe while
+          many smaller plates fill the margins, mimicking Earth's actual plate size distribution.
+        </p>
+        <p>
+          Seed placement uses a two-phase approach: major plates are placed first via farthest-point sampling for even
+          spacing, then a preview growth pass partitions the map to find boundary regions. Minor plate seeds are placed
+          exclusively at these boundaries, ensuring small plates always form at the margins between large plates &mdash;
+          never as isolated islands inside them. Plates grow outward from their seeds using a cost-scaled Dijkstra
+          algorithm where each plate's per-hop cost is inversely proportional to its target area, so large plates expand
+          further while small plates stay compact.
+        </p>
+        <p>
+          Each plate is assigned a type (continental or oceanic) and a random drift vector. Plate boundaries are
+          classified by relative motion: convergent (collision), divergent (spreading), or transform (sliding). The
+          boundary type and plate types determine where mountains, rifts, and fault lines form.
         </p>
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
           <x-stage-demo
             [imageData]="plateImage()"
+            [loading]="isGenerating()"
             caption="Tectonic plates (warm = continental, cool = oceanic; red/blue/yellow = boundary type)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
@@ -54,20 +62,40 @@
       </div>
     </section>
 
-    <!-- Stage 1b: Boundary Intensity -->
+    <!-- Stage 1b: Plate Interactions -->
     <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 1b: Plate Interactions</h2>
       <div class="world-gen__text">
-        <h2>Stage 1b: Boundary Intensity</h2>
         <p>
-          The plate boundaries are rasterized into fault line and mountain range intensity maps. Convergent boundaries
-          (especially continental-continental collisions) produce the strongest mountain ranges. Divergent boundaries
-          create mid-ocean ridges and rift valleys. Transform boundaries produce fault lines with minimal mountain
-          building. A distance falloff spreads boundary influence outward so features have realistic width.
+          The combination of boundary motion (convergent, divergent, transform) and plate types (continental, oceanic)
+          determines the physical interaction at each boundary. These six interactions each produce a distinct elevation
+          profile &mdash; and critically, some are <strong>asymmetric</strong>: at a subduction zone, the continental
+          side gets mountains while the oceanic side gets a trench.
+        </p>
+
+        <x-code-block [code]="codeInteractionType" />
+
+        <p>
+          Each pixel near a boundary gets an elevation delta based on its interaction type, the boundary intensity (how
+          fast the plates are moving relative to each other), and a distance falloff from the boundary. The key insight
+          is that the pixel's own plate type determines which side of an asymmetric interaction it's on:
+        </p>
+
+        <x-code-block [code]="codeInteractionElevation" />
+
+        <p>
+          A Chamfer distance transform computes each pixel's distance to the nearest boundary, and a BFS propagation
+          carries the boundary identity outward. The final base elevation for each pixel is its plate-type base
+          (continental = high, oceanic = low) plus the interaction-specific delta, producing trenches, mountain ranges,
+          rift valleys, and ridges in physically correct locations.
         </p>
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [imageData]="faultImage()" caption="Boundary intensity (grayscale)" />
+          <x-stage-demo
+            [imageData]="faultImage()"
+            [loading]="isGenerating()"
+            caption="Boundary intensity (grayscale)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -76,18 +104,21 @@
 
     <!-- Stage 2: Elevation -->
     <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 2: Elevation</h2>
       <div class="world-gen__text">
-        <h2>Stage 2: Elevation</h2>
         <p>
-          Elevation combines three components: a base value from plate type (continental plates sit higher, oceanic
-          plates lower), boundary contributions from tectonic activity, and Fractal Brownian Motion (fBm) noise for
-          terrain detail. This produces continents and oceans that follow plate structure rather than random noise. Sea
-          level is determined by the water percentage parameter as a percentile cutoff.
+          The tectonic stage produces a base elevation field that already encodes plate type and interaction profiles.
+          The elevation stage simply layers Fractal Brownian Motion (fBm) noise on top for terrain detail &mdash;
+          continental surfaces get rugged variation while ocean floors stay relatively smooth. The result is normalized
+          to [-1, 1] and sea level is set by the water percentage percentile cutoff.
         </p>
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [imageData]="elevationImage()" caption="Elevation map (blue = water, white = high)" />
+          <x-stage-demo
+            [imageData]="elevationImage()"
+            [loading]="isGenerating()"
+            caption="Elevation map (blue = water, white = high)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -96,8 +127,8 @@
 
     <!-- Stage 3: Temperature -->
     <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 3: Temperature</h2>
       <div class="world-gen__text">
-        <h2>Stage 3: Temperature</h2>
         <p>
           Temperature is primarily driven by latitude using an inverse parabola function
           <code>T(y) = 1 - (2y - 1)^2</code>, which gives maximum warmth at the equator and minimum at the poles. A
@@ -107,7 +138,10 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [imageData]="temperatureImage()" caption="Temperature (cyan = cold, red = hot)" />
+          <x-stage-demo
+            [imageData]="temperatureImage()"
+            [loading]="isGenerating()"
+            caption="Temperature (cyan = cold, red = hot)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -116,8 +150,8 @@
 
     <!-- Stage 4: Wind -->
     <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 4: Wind</h2>
       <div class="world-gen__text">
-        <h2>Stage 4: Wind</h2>
         <p>
           Global wind patterns are modeled after Earth's atmospheric circulation cells. Six latitudinal zones (three per
           hemisphere) represent the Hadley, Ferrel, and Polar cells. Each zone has alternating vertical and horizontal
@@ -127,7 +161,10 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [imageData]="windImage()" caption="Wind direction (R = X component, G = Y component)" />
+          <x-stage-demo
+            [imageData]="windImage()"
+            [loading]="isGenerating()"
+            caption="Wind direction (R = X component, G = Y component)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -136,8 +173,8 @@
 
     <!-- Stage 5: Precipitation -->
     <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 5: Precipitation</h2>
       <div class="world-gen__text">
-        <h2>Stage 5: Precipitation</h2>
         <p>
           This is the most complex stage &mdash; a multi-cycle weather simulation. Each cycle: ocean cells evaporate
           moisture into clouds; clouds are pushed by wind (advection); precipitation falls based on temperature (warmer
@@ -147,7 +184,10 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [imageData]="precipitationImage()" caption="Soil moisture (white = wet, black = dry)" />
+          <x-stage-demo
+            [imageData]="precipitationImage()"
+            [loading]="isGenerating()"
+            caption="Soil moisture (white = wet, black = dry)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -156,8 +196,8 @@
 
     <!-- Stage 6: Biome Classification -->
     <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 6: Biome Classification</h2>
       <div class="world-gen__text">
-        <h2>Stage 6: Biome Classification</h2>
         <p>
           Finally, each cell is classified into a biome using a Whittaker-diagram-inspired 6&times;6 lookup table
           indexed by moisture and temperature. Water cells are classified by depth (shallow vs. deep ocean), and cells
@@ -167,7 +207,10 @@
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
-          <x-stage-demo [imageData]="biomeImage()" caption="Biome classification (color-coded)" />
+          <x-stage-demo
+            [imageData]="biomeImage()"
+            [loading]="isGenerating()"
+            caption="Biome classification (color-coded)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -191,13 +234,7 @@
         }
       </mat-button-toggle-group>
 
-      <div
-        class="world-gen__pannable"
-        (pointerdown)="onPanStart($event)"
-        (pointermove)="onPanMove($event)"
-        (pointerup)="onPanEnd()">
-        <x-backdrop [backdrop]="fullDemo" />
-      </div>
+      <x-stage-demo [imageData]="fullDemoImage()" [loading]="isGenerating()" />
     </section>
   </article>
 </div>

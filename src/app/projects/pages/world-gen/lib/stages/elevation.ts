@@ -1,7 +1,7 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { map, cylindricalSx, cylindricalCx } from '@lib/math';
 import { NoiseVariables } from '../types';
-import { TectonicResult, PlateType } from './tectonic-plates';
+import { TectonicResult } from './tectonic-plates';
 
 export interface ElevationResult {
   elevation: Float32Array;
@@ -31,22 +31,12 @@ export function generateElevation(
 
       const idx = y * width + x;
 
-      // Base elevation from plate type
-      const plate = tectonic.plates[tectonic.plateMap[idx]];
-      const isContinental = plate.type === PlateType.Continental;
-      const base = isContinental ? 0.25 : -0.35;
+      // Tectonic base elevation already encodes plate type and interaction profiles
+      const base = tectonic.baseElevation[idx];
 
-      // Boundary contribution — scale by plate type so oceanic boundaries
-      // create subtle underwater ridges rather than surface mountains
-      const boundaryScale = isContinental ? 0.5 : 0.1;
-      const boundaryContrib = tectonic.faults[idx] * boundaryScale;
-
-      // Noise variation — oceanic floors are smoother than continental terrain
+      // Layer noise for terrain detail
       const n = fBm3D(noise, sx, ny, cx, nv.octaves, baseFreq, nv.persistence, nv.lacunarity);
-      const noiseScale = isContinental ? 0.3 : 0.15;
-      const noiseContrib = n * noiseScale;
-
-      elevation[idx] = base + boundaryContrib + noiseContrib;
+      elevation[idx] = base + n * 0.2;
 
       if (elevation[idx] > max) max = elevation[idx];
       if (elevation[idx] < min) min = elevation[idx];
