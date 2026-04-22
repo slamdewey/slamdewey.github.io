@@ -30,12 +30,16 @@ export const DEFAULT_TECTONIC: TectonicVariables = {
   boundaryFalloffScale: 1.0,
 };
 
+import { DEFAULT_HYDROLOGY, type HydrologyVariables } from './stages/hydrology';
+export { DEFAULT_HYDROLOGY, type HydrologyVariables };
+
 export interface WorldConfig {
   width: number;
   height: number;
   noise: NoiseVariables;
   climate: ClimateVariables;
   tectonic: TectonicVariables;
+  hydrology: HydrologyVariables;
 }
 
 export enum Biome {
@@ -64,9 +68,22 @@ export interface WorldData {
   wind: Float32Array; // interleaved [dx, dy, dx, dy, ...] length = width*height*2
   precipitation: Float32Array;
   biomes: Float32Array; // biome index as float
+  flowAccumulation: Float32Array;
+  rivers: Float32Array; // [0, 1] river intensity on land, 0 on ocean
+  lakes: Uint8Array; // 0/1 lake mask
 }
 
-export type LayerName = 'plates' | 'faultLines' | 'elevation' | 'temperature' | 'wind' | 'precipitation' | 'biomes';
+export type LayerName =
+  | 'plates'
+  | 'faultLines'
+  | 'elevation'
+  | 'temperature'
+  | 'wind'
+  | 'precipitation'
+  | 'biomes'
+  | 'flowAccumulation'
+  | 'rivers'
+  | 'lakes';
 
 // XNA Color equivalents as [r, g, b] 0-255
 export const BIOME_COLORS: Record<Biome, [number, number, number]> = {

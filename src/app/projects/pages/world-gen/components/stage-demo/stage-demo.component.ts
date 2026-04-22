@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, effect, input, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, effect, input, model, viewChild } from '@angular/core';
 import { SkeletonLoaderComponent } from '@components/skeleton-loader/skeleton-loader.component';
 
 export interface StageImage {
@@ -18,12 +18,13 @@ export class StageDemoComponent {
   imageData = input<StageImage | null>(null);
   caption = input<string>('');
   loading = input<boolean>(false);
+  /** Two-way model so multiple demos can share a single pan offset. */
+  panOffset = model<number>(0);
 
   private canvas = viewChild<ElementRef<HTMLCanvasElement>>('canvas');
   private bitmap: ImageBitmap | null = null;
   private imgWidth = 0;
   private imgHeight = 0;
-  private panOffset = 0;
   private isPanning = false;
   private panStartX = 0;
   private panBase = 0;
@@ -39,7 +40,6 @@ export class StageDemoComponent {
       el.height = data.height;
       this.imgWidth = data.width;
       this.imgHeight = data.height;
-      this.panOffset = 0;
 
       const img = new ImageData(new Uint8ClampedArray(data.rgba), data.width, data.height);
       createImageBitmap(img).then((bmp) => {
@@ -47,6 +47,12 @@ export class StageDemoComponent {
         this.bitmap = bmp;
         this.draw();
       });
+    });
+
+    // Redraw whenever the shared pan offset changes (from this demo or another).
+    effect(() => {
+      this.panOffset();
+      this.draw();
     });
   }
 
@@ -57,8 +63,10 @@ export class StageDemoComponent {
     if (!ctx) return;
 
     const w = this.imgWidth;
-    // Normalize offset to [0, w)
-    const ox = ((this.panOffset % w) + w) % w;
+    // Snap to integer pixels: a fractional drawImage offset anti-aliases the
+    // bitmap edges, which shows up as a 1px seam at the wrap boundary.
+    const ox = Math.floor(((this.panOffset() % w) + w) % w);
+    ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, w, this.imgHeight);
     ctx.drawImage(this.bitmap, -ox, 0);
     ctx.drawImage(this.bitmap, w - ox, 0);
@@ -67,7 +75,7 @@ export class StageDemoComponent {
   onPanStart(event: PointerEvent): void {
     this.isPanning = true;
     this.panStartX = event.clientX;
-    this.panBase = this.panOffset;
+    this.panBase = this.panOffset();
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     event.preventDefault();
   }
@@ -77,10 +85,8 @@ export class StageDemoComponent {
     const el = this.canvas()?.nativeElement;
     if (!el) return;
     const dx = event.clientX - this.panStartX;
-    // Scale pixel delta to canvas-data coordinates
     const scale = this.imgWidth / el.clientWidth;
-    this.panOffset = this.panBase - dx * scale;
-    this.draw();
+    this.panOffset.set(this.panBase - dx * scale);
   }
 
   onPanEnd(): void {

@@ -49,7 +49,9 @@ export function classifyBiomes(
   elevation: Float32Array,
   temperature: Float32Array,
   precipitation: Float32Array,
-  seaLevel: number
+  seaLevel: number,
+  rivers?: Float32Array,
+  lakes?: Uint8Array
 ): Float32Array {
   const biomes = new Float32Array(width * height);
   const shallowWaterLevel = seaLevel - SHALLOW_WATER_RANGE;
@@ -64,6 +66,12 @@ export function classifyBiomes(
       // Water classification
       if (elevation[idx] < seaLevel) {
         biomes[idx] = elevation[idx] < shallowWaterLevel ? Biome.Ocean : Biome.ShallowWater;
+        continue;
+      }
+
+      // Inland water — rivers and lakes override terrestrial biomes.
+      if (lakes?.[idx] === 1 || (rivers && rivers[idx] > 0.5)) {
+        biomes[idx] = Biome.ShallowWater;
         continue;
       }
 

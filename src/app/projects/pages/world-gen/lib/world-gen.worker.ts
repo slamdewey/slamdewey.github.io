@@ -1,9 +1,20 @@
 import { WorldGenerator } from './pipeline';
 import { layerToRGBA, platesToRGBA } from './color-maps';
-import { LayerName } from './types';
+import { LayerName, WorldData } from './types';
 import { WorkerRequest, WorkerResponse } from './worker-types';
 
-const ALL_LAYERS: LayerName[] = ['plates', 'faultLines', 'elevation', 'temperature', 'wind', 'precipitation', 'biomes'];
+const ALL_LAYERS: LayerName[] = [
+  'plates',
+  'faultLines',
+  'elevation',
+  'temperature',
+  'wind',
+  'precipitation',
+  'biomes',
+  'flowAccumulation',
+  'rivers',
+  'lakes',
+];
 
 addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
   const generator = new WorldGenerator(data.config);
@@ -14,7 +25,7 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
     if (layer === 'plates') {
       layerImages[layer] = platesToRGBA(tectonicResult, worldData.width, worldData.height);
     } else {
-      const src = layer === 'wind' ? worldData.wind : worldData[layer];
+      const src = selectLayerSource(worldData, layer);
       layerImages[layer] = layerToRGBA(src, worldData.width, worldData.height, layer, worldData.seaLevel, worldData);
     }
   }
@@ -31,8 +42,36 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
     worldData.wind.buffer,
     worldData.precipitation.buffer,
     worldData.biomes.buffer,
+    worldData.flowAccumulation.buffer,
+    worldData.rivers.buffer,
+    worldData.lakes.buffer,
     ...ALL_LAYERS.map((l) => layerImages[l].buffer),
   ];
 
   postMessage(response, transfer);
 });
+
+function selectLayerSource(worldData: WorldData, layer: LayerName): Float32Array | Uint8Array {
+  switch (layer) {
+    case 'wind':
+      return worldData.wind;
+    case 'flowAccumulation':
+      return worldData.flowAccumulation;
+    case 'rivers':
+      return worldData.rivers;
+    case 'lakes':
+      return worldData.lakes;
+    case 'faultLines':
+      return worldData.faultLines;
+    case 'elevation':
+      return worldData.elevation;
+    case 'temperature':
+      return worldData.temperature;
+    case 'precipitation':
+      return worldData.precipitation;
+    case 'biomes':
+      return worldData.biomes;
+    default:
+      throw new Error(`Unhandled layer ${layer}`);
+  }
+}

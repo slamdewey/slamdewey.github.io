@@ -85,24 +85,35 @@ function simulatePrecipitation(
           cMoisture -= evaporation;
         }
 
-        // Orographic lift: wind blowing into higher terrain increases precipitation
+        // Orographic lift: wind blowing into higher terrain increases precipitation.
+        // Rain shadow: descending air on the leeward side warms adiabatically,
+        // drying out instead of releasing moisture.
         const windIdx = idx * 2;
         const windX = wind[windIdx];
         const windY = wind[windIdx + 1];
         let orographicBoost = 1;
-        {
+        let rainShadow = 1;
+        if (elevation[idx] > seaLevel) {
           const downwindX = mod(x + sign(windX), width);
           const downwindY = clamp(y + sign(windY), 0, height - 1);
-          const downwindElev = elevation[downwindY * width + downwindX];
-          const elevDelta = downwindElev - elevation[idx];
-          if (elevDelta > 0 && elevation[idx] > seaLevel) {
-            // Wind is pushing into higher terrain — force extra precipitation
+          const elevDelta = elevation[downwindY * width + downwindX] - elevation[idx];
+          if (elevDelta > 0) {
             orographicBoost = 1 + elevDelta * 3;
+          }
+
+          const upwindX = mod(x - sign(windX), width);
+          const upwindY = clamp(y - sign(windY), 0, height - 1);
+          const descent = elevation[upwindY * width + upwindX] - elevation[idx];
+          if (descent > 0) {
+            // Foehn-style drying: stronger descent reabsorbs more cloud water.
+            rainShadow = Math.max(0, 1 - descent * 4);
+            const reabsorbed = cClouds * (1 - rainShadow) * 0.5;
+            cClouds -= reabsorbed;
           }
         }
 
         // Precipitation
-        const precip = cClouds * cv.precipitationFactor * temperature[idx] * orographicBoost;
+        const precip = cClouds * cv.precipitationFactor * temperature[idx] * orographicBoost * rainShadow;
         cClouds -= precip;
         cMoisture += precip;
 

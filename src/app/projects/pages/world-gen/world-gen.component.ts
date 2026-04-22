@@ -9,20 +9,26 @@ import {
   NoiseVariables,
   ClimateVariables,
   TectonicVariables,
+  HydrologyVariables,
   DEFAULT_NOISE,
   DEFAULT_CLIMATE,
   DEFAULT_TECTONIC,
+  DEFAULT_HYDROLOGY,
   LayerName,
 } from './lib/types';
 import { WorkerResponse } from './lib/worker-types';
 
+// Layer toggles follow pipeline execution order (Biomes first as the summary view).
 const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'biomes', label: 'Biomes' },
   { value: 'plates', label: 'Plates' },
   { value: 'faultLines', label: 'Faults' },
   { value: 'elevation', label: 'Elevation' },
-  { value: 'temperature', label: 'Temperature' },
+  { value: 'flowAccumulation', label: 'Flow' },
+  { value: 'rivers', label: 'Rivers' },
+  { value: 'lakes', label: 'Lakes' },
   { value: 'wind', label: 'Wind' },
+  { value: 'temperature', label: 'Temperature' },
   { value: 'precipitation', label: 'Precipitation' },
 ];
 
@@ -91,6 +97,7 @@ export class WorldGenComponent implements OnDestroy {
   noiseConfig = signal<NoiseVariables>({ ...DEFAULT_NOISE });
   climateConfig = signal<ClimateVariables>({ ...DEFAULT_CLIMATE });
   tectonicConfig = signal<TectonicVariables>({ ...DEFAULT_TECTONIC });
+  hydrologyConfig = signal<HydrologyVariables>({ ...DEFAULT_HYDROLOGY });
   mapWidth = signal(1024);
   mapHeight = signal(512);
 
@@ -102,6 +109,12 @@ export class WorldGenComponent implements OnDestroy {
   windImage = signal<StageImage | null>(null);
   precipitationImage = signal<StageImage | null>(null);
   biomeImage = signal<StageImage | null>(null);
+  flowImage = signal<StageImage | null>(null);
+  riverImage = signal<StageImage | null>(null);
+  lakeImage = signal<StageImage | null>(null);
+
+  // Shared horizontal pan offset across every stage demo, in image pixels.
+  sharedPanOffset = signal(0);
 
   // Full interactive demo — selected layer
   selectedLayer = signal<LayerName>('biomes');
@@ -123,6 +136,12 @@ export class WorldGenComponent implements OnDestroy {
         return this.precipitationImage();
       case 'biomes':
         return this.biomeImage();
+      case 'flowAccumulation':
+        return this.flowImage();
+      case 'rivers':
+        return this.riverImage();
+      case 'lakes':
+        return this.lakeImage();
       default:
         return null;
     }
@@ -144,6 +163,7 @@ export class WorldGenComponent implements OnDestroy {
 
   regenerate(): void {
     this.isGenerating.set(true);
+    this.sharedPanOffset.set(0);
 
     if (!this.worker) {
       this.worker = new Worker(new URL('./lib/world-gen.worker', import.meta.url), { type: 'module' });
@@ -157,6 +177,7 @@ export class WorldGenComponent implements OnDestroy {
         noise: this.noiseConfig(),
         climate: this.climateConfig(),
         tectonic: this.tectonicConfig(),
+        hydrology: this.hydrologyConfig(),
       },
     });
   }
@@ -174,6 +195,9 @@ export class WorldGenComponent implements OnDestroy {
     this.windImage.set({ rgba: layerImages.wind, width: w, height: h });
     this.precipitationImage.set({ rgba: layerImages.precipitation, width: w, height: h });
     this.biomeImage.set({ rgba: layerImages.biomes, width: w, height: h });
+    this.flowImage.set({ rgba: layerImages.flowAccumulation, width: w, height: h });
+    this.riverImage.set({ rgba: layerImages.rivers, width: w, height: h });
+    this.lakeImage.set({ rgba: layerImages.lakes, width: w, height: h });
 
     this.isGenerating.set(false);
   }

@@ -4,6 +4,34 @@
   </x-banner>
 
   <article class="world-gen__content">
+    <!-- Full Interactive Demo -->
+    <section class="world-gen__section world-gen__section--full">
+      <h2>Full Generator</h2>
+      <p>
+        Switch between layers to inspect different aspects of the generated world. Drag horizontally to pan &mdash; the
+        world wraps seamlessly.
+      </p>
+
+      <x-stage-demo [imageData]="fullDemoImage()" [loading]="isGenerating()" [(panOffset)]="sharedPanOffset" />
+
+      <mat-button-toggle-group
+        [value]="selectedLayer()"
+        (valueChange)="onLayerChange($event)"
+        class="world-gen__layer-toggle">
+        @for (opt of layerOptions; track opt.value) {
+          <mat-button-toggle [value]="opt.value">{{ opt.label }}</mat-button-toggle>
+        }
+      </mat-button-toggle-group>
+
+      <x-param-controls
+        [(noise)]="noiseConfig"
+        [(climate)]="climateConfig"
+        [(tectonic)]="tectonicConfig"
+        [(mapWidth)]="mapWidth"
+        [(mapHeight)]="mapHeight"
+        (regenerate)="regenerate()" />
+    </section>
+
     <!-- Intro -->
     <section class="world-gen__section">
       <h2>Overview</h2>
@@ -16,14 +44,6 @@
         Each stage below shows a visualization of the generated data. Adjust the parameters and click
         <strong>Regenerate</strong> to see how they affect the output.
       </p>
-
-      <x-param-controls
-        [(noise)]="noiseConfig"
-        [(climate)]="climateConfig"
-        [(tectonic)]="tectonicConfig"
-        [(mapWidth)]="mapWidth"
-        [(mapHeight)]="mapHeight"
-        (regenerate)="regenerate()" />
     </section>
 
     <!-- Stage 1: Tectonic Plates -->
@@ -55,6 +75,7 @@
           <x-stage-demo
             [imageData]="plateImage()"
             [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
             caption="Tectonic plates (warm = continental, cool = oceanic; red/blue/yellow = boundary type)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
@@ -95,6 +116,7 @@
           <x-stage-demo
             [imageData]="faultImage()"
             [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
             caption="Boundary intensity (grayscale)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
@@ -118,6 +140,7 @@
           <x-stage-demo
             [imageData]="elevationImage()"
             [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
             caption="Elevation map (blue = water, white = high)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
@@ -125,32 +148,71 @@
       </div>
     </section>
 
-    <!-- Stage 3: Temperature -->
+    <!-- Stage 2b: Hydrology & Erosion -->
     <section class="world-gen__section world-gen__section--stage">
-      <h2>Stage 3: Temperature</h2>
+      <h2>Stage 2b: Hydrology &amp; Erosion</h2>
       <div class="world-gen__text">
         <p>
-          Temperature is primarily driven by latitude using an inverse parabola function
-          <code>T(y) = 1 - (2y - 1)^2</code>, which gives maximum warmth at the equator and minimum at the poles. A
-          small noise jitter adds local variation. Above sea level, an atmospheric lapse rate reduces temperature with
-          elevation (higher = colder). Ocean cells are also cooled by a fixed factor.
+          Before climate runs, a hydrology pass carves drainage into the raw elevation. A priority-flood fill
+          (Barnes&ndash;Lehman 2014) seeds every ocean cell and Y-edge cell as an outlet, then grows a depression-free
+          &ldquo;filled&rdquo; surface inward &mdash; cells where the filled surface sits above the raw elevation become
+          lake pixels, catching interior basins (the endorheic lakes you see in the middle of large continents).
+        </p>
+        <p>
+          On the filled surface, every land cell gets a D8 steepest-descent flow direction. Cells are then sorted by
+          descending elevation and walked in order, pushing one unit of flow into each downstream neighbor &mdash; this
+          gives a dendritic flow accumulation field where trunk rivers light up near the coast and tributaries feather
+          out into the highlands. The flow field is rainfall-agnostic in this pass: terrain alone carries the drainage
+          pattern.
+        </p>
+        <p>
+          Erosion uses the classic stream-power law:
+          <code>dE = -K &middot; A<sup>m</sup> &middot; S<sup>n</sup></code
+          >, where A is flow accumulation and S is slope to the downstream neighbor. A few iterations of this,
+          interleaved with a mild hillslope diffusion pass, break the &ldquo;blobby&rdquo; noise terrain into sharper
+          ridges and carved valleys. Because erosion runs before wind, ocean currents, and precipitation, the sharper
+          mountain spines feed directly into the orographic and rain-shadow calculations downstream &mdash; deserts
+          behind ranges end up more pronounced for free.
         </p>
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
           <x-stage-demo
-            [imageData]="temperatureImage()"
+            [imageData]="flowImage()"
             [loading]="isGenerating()"
-            caption="Temperature (cyan = cold, red = hot)" />
+            [(panOffset)]="sharedPanOffset"
+            caption="Flow accumulation (dark = dry, cyan = major river)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="riverImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="River network (blue overlay on land)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="lakeImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Lakes (interior depressions detected during the fill pass)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
       </div>
     </section>
 
-    <!-- Stage 4: Wind -->
+    <!-- Stage 3: Wind -->
     <section class="world-gen__section world-gen__section--stage">
-      <h2>Stage 4: Wind</h2>
+      <h2>Stage 3: Wind</h2>
       <div class="world-gen__text">
         <p>
           Global wind patterns are modeled after Earth's atmospheric circulation cells. Six latitudinal zones (three per
@@ -158,13 +220,72 @@
           dominant wind directions, with smooth interpolation between zones and noise-based jitter for natural
           variation.
         </p>
+        <p>
+          A second pass deflects wind around terrain. The elevation gradient at each land cell tells us the uphill
+          direction; if the wind has a component pointing uphill, that component is dampened proportional to the slope
+          and the vector is renormalized. The tangential (along-contour) component is preserved, so flow routes around
+          ridges instead of charging straight into them.
+        </p>
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
           <x-stage-demo
             [imageData]="windImage()"
             [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
             caption="Wind direction (R = X component, G = Y component)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 3b: Ocean Currents -->
+    <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 3b: Ocean Currents</h2>
+      <div class="world-gen__text">
+        <p>
+          Surface ocean currents are driven by wind, so the wind field over ocean cells doubles as a first-order current
+          field. What matters for climate is whether each current is carrying water from a hotter or colder latitude
+          than the cell it's passing through.
+        </p>
+        <p>
+          The modifier reduces to <code>-currentY &times; polewardness &times; strength</code>, where polewardness is
+          <code>+1</code> at the north pole and <code>-1</code> at the south pole. A southward current in the northern
+          hemisphere is advecting cold polar water and yields a negative (cooling) modifier; a northward current in the
+          same hemisphere advects warm equatorial water and warms the cells it passes through. The southern hemisphere
+          flips the sign automatically. A chamfer pass then carries the modifier into the nearest land cells with a
+          linear falloff, so the temperature stage can use it for both ocean and coastal land.
+        </p>
+      </div>
+    </section>
+
+    <!-- Stage 4: Temperature -->
+    <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 4: Temperature</h2>
+      <div class="world-gen__text">
+        <p>
+          Temperature is primarily driven by latitude using an inverse parabola function
+          <code>T(y) = 1 - (2y - 1)^2</code>, which gives maximum warmth at the equator and minimum at the poles. A
+          small noise jitter adds local variation. Above sea level, an atmospheric lapse rate reduces temperature with
+          elevation (higher = colder).
+        </p>
+        <p>
+          Coastal moderation blends inland temperatures toward the local ocean baseline using a chamfer
+          distance-to-ocean field, so coasts have smaller swings than continental interiors. The ocean baseline itself
+          is offset by the wind-driven heat advection from Stage 3b &mdash; a current carrying water away from the
+          equator warms the cells it passes through (Gulf Stream), while one carrying water toward the equator cools
+          them (California current). The chamfer pass also propagates that modifier into the nearest land cells, so
+          coastal climates inherit the asymmetry.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="temperatureImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Temperature (cyan = cold, red = hot)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -179,7 +300,14 @@
           This is the most complex stage &mdash; a multi-cycle weather simulation. Each cycle: ocean cells evaporate
           moisture into clouds; clouds are pushed by wind (advection); precipitation falls based on temperature (warmer
           air holds more moisture); excess moisture runs off to lower-elevation neighbors. After several cycles,
-          realistic moisture patterns emerge &mdash; rain shadows behind mountains, wet coastlines, and dry interiors.
+          realistic moisture patterns emerge &mdash; wet coastlines and dry interiors.
+        </p>
+        <p>
+          Mountains modify the cycle in two complementary ways. Where wind is blowing into rising terrain, an orographic
+          boost forces extra precipitation on the windward face. Where wind is descending from a higher upwind cell, an
+          explicit rain-shadow factor suppresses precipitation and re-absorbs a fraction of the remaining cloud water
+          back into vapor &mdash; the Foehn effect. Together they carve the asymmetric wet/dry bands seen behind real
+          mountain ranges (the Atacama, the Gobi, the Great Basin).
         </p>
       </div>
       <div class="world-gen__demo">
@@ -187,6 +315,7 @@
           <x-stage-demo
             [imageData]="precipitationImage()"
             [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
             caption="Soil moisture (white = wet, black = dry)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
@@ -210,31 +339,12 @@
           <x-stage-demo
             [imageData]="biomeImage()"
             [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
             caption="Biome classification (color-coded)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
       </div>
-    </section>
-
-    <!-- Full Interactive Demo -->
-    <section class="world-gen__section world-gen__section--full">
-      <h2>Full Generator</h2>
-      <p>
-        Switch between layers to inspect different aspects of the generated world. Drag horizontally to pan &mdash; the
-        world wraps seamlessly.
-      </p>
-
-      <mat-button-toggle-group
-        [value]="selectedLayer()"
-        (valueChange)="onLayerChange($event)"
-        class="world-gen__layer-toggle">
-        @for (opt of layerOptions; track opt.value) {
-          <mat-button-toggle [value]="opt.value">{{ opt.label }}</mat-button-toggle>
-        }
-      </mat-button-toggle-group>
-
-      <x-stage-demo [imageData]="fullDemoImage()" [loading]="isGenerating()" />
     </section>
   </article>
 </div>

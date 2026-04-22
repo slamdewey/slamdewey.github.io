@@ -7,7 +7,7 @@ import { PlateType, BoundaryType, type TectonicResult } from './stages/tectonic-
  * Biome layer uses hillshading from elevation for a 3D effect.
  */
 export function layerToRGBA(
-  data: Float32Array,
+  data: Float32Array | Uint8Array,
   width: number,
   height: number,
   layer: LayerName,
@@ -21,22 +21,31 @@ export function layerToRGBA(
       // Handled separately via platesToRGBA — should not reach here
       break;
     case 'faultLines':
-      colorFaultLines(data, rgba);
+      colorFaultLines(data as Float32Array, rgba);
       break;
     case 'elevation':
-      colorElevation(data, rgba, seaLevel);
+      colorElevation(data as Float32Array, rgba, seaLevel);
       break;
     case 'temperature':
-      colorTemperature(data, rgba);
+      colorTemperature(data as Float32Array, rgba);
       break;
     case 'wind':
-      colorWind(data, rgba, width, height);
+      colorWind(data as Float32Array, rgba, width, height);
       break;
     case 'precipitation':
-      colorPrecipitation(data, rgba);
+      colorPrecipitation(data as Float32Array, rgba);
       break;
     case 'biomes':
-      colorBiomes(data, rgba, width, height, worldData);
+      colorBiomes(data as Float32Array, rgba, width, height, worldData);
+      break;
+    case 'flowAccumulation':
+      colorFlowAccumulation(data as Float32Array, rgba, seaLevel, worldData);
+      break;
+    case 'rivers':
+      colorRivers(data as Float32Array, rgba, seaLevel, worldData);
+      break;
+    case 'lakes':
+      colorLakes(data as Uint8Array, rgba, seaLevel, worldData);
       break;
   }
 
@@ -247,6 +256,81 @@ function colorBiomes(data: Float32Array, rgba: Uint8Array, width: number, height
     rgba[o] = Math.min(255, Math.round(color[0] * shade));
     rgba[o + 1] = Math.min(255, Math.round(color[1] * shade));
     rgba[o + 2] = Math.min(255, Math.round(color[2] * shade));
+    rgba[o + 3] = 255;
+  }
+}
+
+function colorFlowAccumulation(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
+  const elevation = worldData?.elevation;
+  // log2(1 + max) roughly — clamp to a sensible upper bound so visualization
+  // doesn't collapse around one absurdly-long main stem.
+  const LOG_CAP = 18;
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    if (elevation && elevation[i] < seaLevel) {
+      rgba[o] = 10;
+      rgba[o + 1] = 20;
+      rgba[o + 2] = 60;
+      rgba[o + 3] = 255;
+      continue;
+    }
+    const v = Math.min(Math.log2(1 + data[i]) / LOG_CAP, 1);
+    // Dark brown (low flow, dry land) → cyan (major rivers)
+    rgba[o] = Math.round((1 - v) * 80 + v * 120);
+    rgba[o + 1] = Math.round((1 - v) * 60 + v * 220);
+    rgba[o + 2] = Math.round((1 - v) * 30 + v * 255);
+    rgba[o + 3] = 255;
+  }
+}
+
+function colorRivers(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
+  const elevation = worldData?.elevation;
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    if (elevation && elevation[i] < seaLevel) {
+      // Ocean background — same palette as elevation layer.
+      const depth = mapToUnsignedRange(elevation[i]);
+      rgba[o] = 0;
+      rgba[o + 1] = Math.round(depth * 80);
+      rgba[o + 2] = Math.round(100 + depth * 155);
+      rgba[o + 3] = 255;
+      continue;
+    }
+    const base = elevation ? Math.round(mapToUnsignedRange(elevation[i]) * 255) : 128;
+    const t = data[i];
+    // Blend grayscale land with a river blue.
+    const RIVER_R = 40;
+    const RIVER_G = 120;
+    const RIVER_B = 220;
+    rgba[o] = Math.round(base * (1 - t) + RIVER_R * t);
+    rgba[o + 1] = Math.round(base * (1 - t) + RIVER_G * t);
+    rgba[o + 2] = Math.round(base * (1 - t) + RIVER_B * t);
+    rgba[o + 3] = 255;
+  }
+}
+
+function colorLakes(data: Uint8Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
+  const elevation = worldData?.elevation;
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    if (elevation && elevation[i] < seaLevel) {
+      const depth = mapToUnsignedRange(elevation[i]);
+      rgba[o] = 0;
+      rgba[o + 1] = Math.round(depth * 80);
+      rgba[o + 2] = Math.round(100 + depth * 155);
+      rgba[o + 3] = 255;
+      continue;
+    }
+    if (data[i] === 1) {
+      rgba[o] = 30;
+      rgba[o + 1] = 90;
+      rgba[o + 2] = 200;
+    } else {
+      const v = elevation ? Math.round(mapToUnsignedRange(elevation[i]) * 255) : 128;
+      rgba[o] = v;
+      rgba[o + 1] = v;
+      rgba[o + 2] = v;
+    }
     rgba[o + 3] = 255;
   }
 }

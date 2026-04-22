@@ -630,6 +630,22 @@ const FALLOFF_MULTIPLIER: Record<InteractionType, number> = {
 /** Subducting-side falloff is narrower (trench). */
 const SUBDUCTION_TRENCH_MULTIPLIER = 0.4;
 
+// ── Continental shelf ─────────────────────────────────────────────────────
+
+/**
+ * Width of the continental shelf band (in multiples of baseFalloff), measured
+ * inland from a passive-style continental-oceanic margin. Scales with map size
+ * via baseFalloff.
+ */
+const SHELF_WIDTH_MULTIPLIER = 3.0;
+
+/**
+ * Target elevation for the near-margin shelf band. Sits just below the sea
+ * level the percentile rule tends to land on, so fBm detail can lift parts
+ * of it back above water as offshore islands.
+ */
+const SHELF_TARGET = -0.25;
+
 // ── Rasterization ─────────────────────────────────────────────────────────
 
 function rasterizePlateInteractions(
@@ -660,6 +676,12 @@ function rasterizePlateInteractions(
   const isBoundary = new Uint8Array(size);
   const nearestBoundary = new Int16Array(size).fill(-1);
   const pinnedElevation = new Float32Array(size);
+  // Pixels on continental plates that border an oceanic plate via a passive-style
+  // interaction (transform or rift). Seeds the shelf distance transform so the
+  // Jacobi target can sag toward shallow-water depth on this side of the margin.
+  // Subduction continental-side pixels are intentionally excluded so the
+  // mountain belt there keeps its full height.
+  const shelfSeedMask = new Uint8Array(size);
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -674,14 +696,26 @@ function rasterizePlateInteractions(
       ];
 
       let bestIntensity = -1;
+      let hasPassiveOceanicNeighbor = false;
       for (const neighbor of neighbors) {
         if (neighbor >= 0 && neighbor !== plate) {
           const lo = Math.min(plate, neighbor);
           const hi = Math.max(plate, neighbor);
           const bi = boundaryMap.get(lo * plateCount + hi);
-          if (bi !== undefined && boundaries[bi].intensity > bestIntensity) {
-            bestIntensity = boundaries[bi].intensity;
-            nearestBoundary[idx] = bi;
+          if (bi !== undefined) {
+            const nb = boundaries[bi];
+            if (nb.intensity > bestIntensity) {
+              bestIntensity = nb.intensity;
+              nearestBoundary[idx] = bi;
+            }
+            if (
+              plates[plate].type === PlateType.Continental &&
+              plates[neighbor].type === PlateType.Oceanic &&
+              (nb.interactionType === InteractionType.Transform ||
+                nb.interactionType === InteractionType.ContinentalRift)
+            ) {
+              hasPassiveOceanicNeighbor = true;
+            }
           }
         }
       }
@@ -696,11 +730,21 @@ function rasterizePlateInteractions(
         const { elevDelta } = interactionElevation(b.interactionType, plateType, b.intensity, 1.0, isSubducting);
         pinnedElevation[idx] = plateBase + elevDelta;
       }
+      if (hasPassiveOceanicNeighbor) {
+        shelfSeedMask[idx] = 1;
+      }
     }
   }
 
   // Pass 2: Chamfer distance transform
   const dist = chamferDistance(isBoundary, width, height);
+
+  // Pass 2b: Chamfer distance to nearest passive-margin shelf seed. Continental
+  // pixels within shelf range get their gravity target pulled toward SHELF_TARGET,
+  // producing the shallow band that gives coastlines their ragged, island-dotted
+  // character. Pixels far inland (or outside continental plates entirely) keep
+  // their plate's baseline as the target.
+  const distToShelfSeed = chamferDistance(shelfSeedMask, width, height);
 
   // Pass 3: BFS from boundary pixels to propagate boundary index outward
   // Use the maximum possible falloff width for BFS reach, then per-pixel widths in Pass 5
@@ -708,19 +752,33 @@ function rasterizePlateInteractions(
   const maxFalloffWidth = Math.ceil(baseFalloff * 1.8 * falloffScale); // 1.8 = largest multiplier (Collision)
   propagateBoundaryIndex(nearestBoundary, isBoundary, dist, maxFalloffWidth, width, height);
 
-  // Pass 4: Jacobi relaxation for smooth interior elevation gradients
-  // Initialize: boundary pixels pinned, interior pixels at isostatic base
+  const shelfWidth = baseFalloff * SHELF_WIDTH_MULTIPLIER * falloffScale;
+
+  // Pass 4: Jacobi relaxation for smooth interior elevation gradients.
+  // Each pixel has an "effective base" — usually its plate's isostatic
+  // baseline, but pulled toward SHELF_TARGET on the continental side of
+  // passive-style cont-ocean margins.
+  const effectiveBase = (idx: number): number => {
+    const plate = plates[plateMap[idx]];
+    if (plate.type !== PlateType.Continental) return plate.baseElevation;
+    const d = distToShelfSeed[idx];
+    if (d >= shelfWidth) return plate.baseElevation;
+    const t = d / shelfWidth; // 0 at seed, 1 at far edge of shelf band
+    return SHELF_TARGET * (1 - t) + plate.baseElevation * t;
+  };
+
+  // Initialize: boundary pixels pinned, interior pixels at their effective base
   for (let i = 0; i < size; i++) {
     if (isBoundary[i]) {
       baseElevation[i] = pinnedElevation[i];
     } else {
-      baseElevation[i] = plates[plateMap[i]].baseElevation;
+      baseElevation[i] = effectiveBase(i);
     }
   }
 
   // Jacobi iterations: smooth interior while keeping boundaries pinned
   const JACOBI_ITERATIONS = 8;
-  const GRAVITY_ALPHA = 0.1; // pull toward plate base — higher = flatter interiors
+  const GRAVITY_ALPHA = 0.1; // pull toward effective base — higher = flatter interiors
   const temp = new Float32Array(size);
 
   for (let iter = 0; iter < JACOBI_ITERATIONS; iter++) {
@@ -739,8 +797,7 @@ function rasterizePlateInteractions(
         const down = y < height - 1 ? baseElevation[(y + 1) * width + x] : baseElevation[idx];
         const avg = (left + right + up + down) / 4;
 
-        const plateBase = plates[plateMap[idx]].baseElevation;
-        temp[idx] = (1 - GRAVITY_ALPHA) * avg + GRAVITY_ALPHA * plateBase;
+        temp[idx] = (1 - GRAVITY_ALPHA) * avg + GRAVITY_ALPHA * effectiveBase(idx);
       }
     }
     // Swap

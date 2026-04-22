@@ -1,5 +1,5 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
-import { cylindricalSx, cylindricalCx, vec2Normalize } from '@lib/math';
+import { clamp, cylindricalSx, cylindricalCx, mod, vec2Normalize } from '@lib/math';
 import { NoiseVariables } from '../types';
 
 /**
@@ -80,4 +80,54 @@ export function generateWind(width: number, height: number, nv: NoiseVariables):
   }
 
   return wind;
+}
+
+/**
+ * Deflect wind away from steep terrain. Where wind blows uphill, the
+ * upslope component is dampened proportionally to the slope, then the
+ * vector is renormalized — this preserves the tangential (along-contour)
+ * component, mimicking flow being routed around ridges.
+ */
+export function applyTerrainDeflection(
+  width: number,
+  height: number,
+  wind: Float32Array,
+  elevation: Float32Array,
+  seaLevel: number
+): void {
+  const slopeScale = 8;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (elevation[idx] <= seaLevel) continue;
+
+      const wIdx = idx * 2;
+      let wx = wind[wIdx];
+      let wy = wind[wIdx + 1];
+
+      const xL = mod(x - 1, width);
+      const xR = mod(x + 1, width);
+      const yT = clamp(y - 1, 0, height - 1);
+      const yB = clamp(y + 1, 0, height - 1);
+      const gx = (elevation[y * width + xR] - elevation[y * width + xL]) * 0.5;
+      const gy = (elevation[yB * width + x] - elevation[yT * width + x]) * 0.5;
+      const gMag = Math.sqrt(gx * gx + gy * gy);
+      if (gMag < 1e-3) continue;
+
+      const nx = gx / gMag;
+      const ny = gy / gMag;
+      const along = wx * nx + wy * ny;
+      if (along <= 0) continue;
+
+      const slope = Math.min(gMag * slopeScale, 1);
+      const reduction = along * slope;
+      wx -= nx * reduction;
+      wy -= ny * reduction;
+      [wx, wy] = vec2Normalize(wx, wy);
+
+      wind[wIdx] = wx;
+      wind[wIdx + 1] = wy;
+    }
+  }
 }
