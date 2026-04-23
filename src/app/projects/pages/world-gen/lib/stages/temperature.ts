@@ -2,6 +2,8 @@ import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { map, cylindricalSx, cylindricalCx } from '@lib/math';
 import { NoiseVariables } from '../types';
 
+export type Season = 'summer' | 'winter' | 'mean';
+
 export function generateTemperature(
   width: number,
   height: number,
@@ -9,7 +11,9 @@ export function generateTemperature(
   seaLevel: number,
   nv: NoiseVariables,
   oceanTempModifier: Float32Array,
-  distToOcean: Float32Array
+  distToOcean: Float32Array,
+  season: Season = 'mean',
+  seasonalTilt = 0
 ): Float32Array {
   const noise = new OpenSimplexNoise((nv.seed ^ 0xf88f88f8) | 0);
   const temperature = new Float32Array(width * height);
@@ -20,11 +24,19 @@ export function generateTemperature(
   // Max influence distance: pixels beyond this are fully "inland"
   const maxOceanInfluence = Math.round(width / 8);
 
+  // Hemispheric tilt sign per season. Northern summer = +1 (NH warmer), winter = -1.
+  const tiltSign = season === 'summer' ? 1 : season === 'winter' ? -1 : 0;
+  const tiltAmount = tiltSign * seasonalTilt;
+
   for (let y = 0; y < height; y++) {
     const ny = y * yScale;
     // Inverse parabola: T(y) = 1 - (2y/height - 1)^2
     // Use raw y/height for latitude (geographic, not noise-space)
-    const latitudeTemp = 1 - Math.pow((2 * y) / height - 1, 2);
+    const latNorm = (2 * y) / height - 1; // +1 at south pole, -1 at north pole
+    let latitudeTemp = 1 - latNorm * latNorm;
+    // Hemispheric tilt: warm one hemisphere, cool the other.
+    // latNorm < 0 = northern, > 0 = southern.
+    latitudeTemp += tiltAmount * -latNorm;
 
     // Ocean baseline at this latitude — gets per-cell adjustment from currents.
     const baseOceanTemp = latitudeTemp * 0.8;

@@ -675,7 +675,6 @@ function rasterizePlateInteractions(
   // Pass 1: Detect plate-boundary pixels, record highest-intensity boundary index
   const isBoundary = new Uint8Array(size);
   const nearestBoundary = new Int16Array(size).fill(-1);
-  const pinnedElevation = new Float32Array(size);
   // Pixels on continental plates that border an oceanic plate via a passive-style
   // interaction (transform or rift). Seeds the shelf distance transform so the
   // Jacobi target can sag toward shallow-water depth on this side of the margin.
@@ -721,14 +720,6 @@ function rasterizePlateInteractions(
       }
       if (bestIntensity >= 0) {
         isBoundary[idx] = 1;
-
-        // Pin boundary pixel elevation
-        const b = boundaries[nearestBoundary[idx]];
-        const plateType = plates[plate].type;
-        const plateBase = plates[plate].baseElevation;
-        const isSubducting = b.subductingPlate === plate;
-        const { elevDelta } = interactionElevation(b.interactionType, plateType, b.intensity, 1.0, isSubducting);
-        pinnedElevation[idx] = plateBase + elevDelta;
       }
       if (hasPassiveOceanicNeighbor) {
         shelfSeedMask[idx] = 1;
@@ -767,13 +758,13 @@ function rasterizePlateInteractions(
     return SHELF_TARGET * (1 - t) + plate.baseElevation * t;
   };
 
-  // Initialize: boundary pixels pinned, interior pixels at their effective base
+  // Initialize every pixel (boundary and interior) at its effective base.
+  // This lets continental boundary pixels adjacent to passive oceanic margins
+  // sag toward SHELF_TARGET along with their neighbors, instead of standing up
+  // as a one-pixel cliff above the shelf (which previously formed a ring of
+  // strip-islands tracing the continental fault lines).
   for (let i = 0; i < size; i++) {
-    if (isBoundary[i]) {
-      baseElevation[i] = pinnedElevation[i];
-    } else {
-      baseElevation[i] = effectiveBase(i);
-    }
+    baseElevation[i] = effectiveBase(i);
   }
 
   // Jacobi iterations: smooth interior while keeping boundaries pinned
@@ -838,10 +829,9 @@ function rasterizePlateInteractions(
       isSubducting
     );
 
-    // For non-boundary pixels, blend interaction delta on top of gradient base
-    if (!isBoundary[i]) {
-      baseElevation[i] += elevDelta;
-    }
+    // Apply interaction delta to every pixel in the falloff band, including
+    // boundaries (t=1 there, matching the previously pinned crest magnitude).
+    baseElevation[i] += elevDelta;
     mountainRanges[i] = mountainRange;
     faults[i] = b.intensity * falloff;
   }

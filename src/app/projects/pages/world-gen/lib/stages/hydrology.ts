@@ -211,7 +211,8 @@ function computeFlowAccumulation(
   flowDir: Int8Array,
   width: number,
   height: number,
-  seaLevel: number
+  seaLevel: number,
+  rainfall?: Float32Array
 ): Float32Array {
   const size = width * height;
   const flowAcc = new Float32Array(size);
@@ -222,7 +223,7 @@ function computeFlowAccumulation(
   for (let i = 0; i < size; i++) {
     if (filled[i] >= seaLevel) {
       landIdx[landCount++] = i;
-      flowAcc[i] = 1;
+      flowAcc[i] = rainfall ? rainfall[i] : 1;
     }
   }
   const landView = landIdx.subarray(0, landCount);
@@ -330,6 +331,32 @@ function buildRiverMask(
     rivers[i] = t > 1 ? 1 : t;
   }
   return rivers;
+}
+
+// --- Pass 2: rain-aware flow & rivers (no erosion) -------------------------
+
+/**
+ * Re-runs depression fill, D8 routing, accumulation (weighted by `rainfall`),
+ * and river/lake masking on the post-erosion elevation. Used as a cheap
+ * second pass after climate so rivers and lakes reflect actual precipitation
+ * rather than the uniform rainfall assumption used during erosion.
+ *
+ * Erosion is intentionally skipped — topology is locked in by pass 1.
+ */
+export function computeFlowAndRivers(
+  width: number,
+  height: number,
+  elevation: Float32Array,
+  seaLevel: number,
+  rainfall: Float32Array,
+  config: HydrologyVariables
+): HydrologyResult {
+  const filled = priorityFloodFill(elevation, width, height, seaLevel);
+  const lakes = buildLakeMask(elevation, filled, seaLevel, config.lakeDepthEpsilon);
+  const flowDir = computeD8FlowDir(filled, width, height, seaLevel);
+  const flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel, rainfall);
+  const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
+  return { flowAccumulation: flowAcc, rivers, lakes };
 }
 
 // --- Binary min-heap keyed on a Float32 priority ----------------------------

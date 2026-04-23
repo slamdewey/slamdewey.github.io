@@ -36,7 +36,7 @@ export function generateElevation(
 
       // Layer noise for terrain detail
       const n = fBm3D(noise, sx, ny, cx, nv.octaves, baseFreq, nv.persistence, nv.lacunarity);
-      elevation[idx] = base + n * 0.2;
+      elevation[idx] = base + n * 0.8;
 
       if (elevation[idx] > max) max = elevation[idx];
       if (elevation[idx] < min) min = elevation[idx];

@@ -178,6 +178,94 @@
             (ngModelChange)="updateClimate('climateCycles', $event)" />
         </mat-slider>
       </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-tilt">Seasonal Tilt: {{ climate().seasonalTilt.toFixed(2) }}</label>
+        <mat-slider min="0" max="0.5" step="0.01">
+          <input
+            id="slider-tilt"
+            matSliderThumb
+            [ngModel]="climate().seasonalTilt"
+            (ngModelChange)="updateClimate('seasonalTilt', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-itcz">ITCZ Shift: {{ climate().itczShift.toFixed(2) }}</label>
+        <mat-slider min="0" max="0.2" step="0.01">
+          <input
+            id="slider-itcz"
+            matSliderThumb
+            [ngModel]="climate().itczShift"
+            (ngModelChange)="updateClimate('itczShift', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-orographic">Orographic Lift: {{ climate().orographicLiftStrength.toFixed(1) }}</label>
+        <mat-slider min="0" max="10" step="0.5">
+          <input
+            id="slider-orographic"
+            matSliderThumb
+            [ngModel]="climate().orographicLiftStrength"
+            (ngModelChange)="updateClimate('orographicLiftStrength', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-rainshadow">Rain Shadow: {{ climate().rainShadowStrength.toFixed(1) }}</label>
+        <mat-slider min="0" max="10" step="0.5">
+          <input
+            id="slider-rainshadow"
+            matSliderThumb
+            [ngModel]="climate().rainShadowStrength"
+            (ngModelChange)="updateClimate('rainShadowStrength', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-advection">Cloud Advection: {{ climate().cloudAdvectionRate.toFixed(2) }}</label>
+        <mat-slider min="0.1" max="3" step="0.1">
+          <input
+            id="slider-advection"
+            matSliderThumb
+            [ngModel]="climate().cloudAdvectionRate"
+            (ngModelChange)="updateClimate('cloudAdvectionRate', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-cc">CC Scale: {{ climate().precipTemperatureScale.toFixed(2) }}</label>
+        <mat-slider min="0" max="3" step="0.1">
+          <input
+            id="slider-cc"
+            matSliderThumb
+            [ngModel]="climate().precipTemperatureScale"
+            (ngModelChange)="updateClimate('precipTemperatureScale', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-frost">Frost Threshold: {{ climate().frostThreshold.toFixed(2) }}</label>
+        <mat-slider min="0" max="0.7" step="0.05">
+          <input
+            id="slider-frost"
+            matSliderThumb
+            [ngModel]="climate().frostThreshold"
+            (ngModelChange)="updateClimate('frostThreshold', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-wilt">Wilt Point: {{ climate().aridityWiltPoint.toFixed(2) }}</label>
+        <mat-slider min="0" max="0.6" step="0.02">
+          <input
+            id="slider-wilt"
+            matSliderThumb
+            [ngModel]="climate().aridityWiltPoint"
+            (ngModelChange)="updateClimate('aridityWiltPoint', $event)" />
+        </mat-slider>
+      </div>
     </mat-expansion-panel>
 
     <mat-expansion-panel>

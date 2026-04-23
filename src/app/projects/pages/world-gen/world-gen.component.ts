@@ -21,6 +21,7 @@ import { WorkerResponse } from './lib/worker-types';
 // Layer toggles follow pipeline execution order (Biomes first as the summary view).
 const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'biomes', label: 'Biomes' },
+  { value: 'koppen', label: 'Köppen' },
   { value: 'plates', label: 'Plates' },
   { value: 'faultLines', label: 'Faults' },
   { value: 'elevation', label: 'Elevation' },
@@ -30,6 +31,9 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'wind', label: 'Wind' },
   { value: 'temperature', label: 'Temperature' },
   { value: 'precipitation', label: 'Precipitation' },
+  { value: 'aridity', label: 'Aridity' },
+  { value: 'seasonality', label: 'Seasonality' },
+  { value: 'growingSeason', label: 'Growing' },
 ];
 
 @Component({
@@ -112,6 +116,10 @@ export class WorldGenComponent implements OnDestroy {
   flowImage = signal<StageImage | null>(null);
   riverImage = signal<StageImage | null>(null);
   lakeImage = signal<StageImage | null>(null);
+  aridityImage = signal<StageImage | null>(null);
+  seasonalityImage = signal<StageImage | null>(null);
+  growingSeasonImage = signal<StageImage | null>(null);
+  koppenImage = signal<StageImage | null>(null);
 
   // Shared horizontal pan offset across every stage demo, in image pixels.
   sharedPanOffset = signal(0);
@@ -142,6 +150,14 @@ export class WorldGenComponent implements OnDestroy {
         return this.riverImage();
       case 'lakes':
         return this.lakeImage();
+      case 'aridity':
+        return this.aridityImage();
+      case 'seasonality':
+        return this.seasonalityImage();
+      case 'growingSeason':
+        return this.growingSeasonImage();
+      case 'koppen':
+        return this.koppenImage();
       default:
         return null;
     }
@@ -198,6 +214,10 @@ export class WorldGenComponent implements OnDestroy {
     this.flowImage.set({ rgba: layerImages.flowAccumulation, width: w, height: h });
     this.riverImage.set({ rgba: layerImages.rivers, width: w, height: h });
     this.lakeImage.set({ rgba: layerImages.lakes, width: w, height: h });
+    this.aridityImage.set({ rgba: layerImages.aridity, width: w, height: h });
+    this.seasonalityImage.set({ rgba: layerImages.seasonality, width: w, height: h });
+    this.growingSeasonImage.set({ rgba: layerImages.growingSeason, width: w, height: h });
+    this.koppenImage.set({ rgba: layerImages.koppen, width: w, height: h });
 
     this.isGenerating.set(false);
   }

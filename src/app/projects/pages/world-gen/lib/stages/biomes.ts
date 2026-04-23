@@ -1,54 +1,74 @@
-import { Biome } from '../types';
+import { Biome, KoppenClass } from '../types';
 
 const MOUNTAIN_LEVEL = 0.85;
 const SHALLOW_WATER_RANGE = 0.1;
+const RIVER_THRESHOLD = 0.5;
 
-// 6x6 classification table: [moisture][temperature]
-// moisture rows: Dryest → Wettest
-// temperature cols: Coldest → Hottest
-const CLASSIFICATION_TABLE: Biome[][] = [
-  /*  Dryest  */ [Biome.Arctic, Biome.Arctic, Biome.Tundra, Biome.Desert, Biome.Desert, Biome.Desert],
-  /*  Dryer   */ [Biome.Arctic, Biome.Tundra, Biome.BorealForest, Biome.Grassland, Biome.Savanna, Biome.Desert],
-  /*  Dry     */ [
-    Biome.Arctic,
-    Biome.BorealForest,
-    Biome.BorealForest,
-    Biome.Grassland,
-    Biome.TempForest,
-    Biome.Savanna,
-  ],
-  /*  Wet     */ [
-    Biome.Arctic,
-    Biome.BorealForest,
-    Biome.BorealForest,
-    Biome.TempForest,
-    Biome.TempForest,
-    Biome.TempForest,
-  ],
-  /*  Wetter  */ [
-    Biome.Arctic,
-    Biome.BorealForest,
-    Biome.BorealForest,
-    Biome.TempForest,
-    Biome.Rainforest,
-    Biome.Rainforest,
-  ],
-  /*  Wettest */ [
-    Biome.Arctic,
-    Biome.BorealForest,
-    Biome.TempForest,
-    Biome.Rainforest,
-    Biome.Rainforest,
-    Biome.Rainforest,
-  ],
-];
+/**
+ * Map a Köppen-Geiger class to one of our visualization biomes.
+ * Multiple Köppen classes can collapse to one biome where the visual
+ * distinction isn't worth a separate color (e.g. Dfa and Dfb both feel
+ * like "boreal forest" at world-map zoom).
+ */
+function koppenToBiome(k: KoppenClass): Biome {
+  switch (k) {
+    // Tropical
+    case KoppenClass.Af:
+      return Biome.Rainforest;
+    case KoppenClass.Am:
+      return Biome.MonsoonForest;
+    case KoppenClass.Aw:
+      return Biome.Savanna;
+    // Arid
+    case KoppenClass.BWh:
+      return Biome.Desert;
+    case KoppenClass.BWk:
+      return Biome.ColdDesert;
+    case KoppenClass.BSh:
+      return Biome.Savanna;
+    case KoppenClass.BSk:
+      return Biome.Grassland;
+    // Temperate
+    case KoppenClass.Cfa:
+      return Biome.TempForest;
+    case KoppenClass.Cfb:
+      return Biome.TempForest;
+    case KoppenClass.Csa:
+      return Biome.MediterraneanShrub;
+    case KoppenClass.Csb:
+      return Biome.MediterraneanShrub;
+    case KoppenClass.Cwa:
+      return Biome.MonsoonForest;
+    case KoppenClass.Cwb:
+      return Biome.TempForest;
+    // Continental
+    case KoppenClass.Dfa:
+      return Biome.TempForest;
+    case KoppenClass.Dfb:
+      return Biome.BorealForest;
+    case KoppenClass.Dfc:
+      return Biome.BorealForest;
+    case KoppenClass.Dwa:
+      return Biome.Grassland;
+    case KoppenClass.Dwb:
+      return Biome.BorealForest;
+    case KoppenClass.Dsa:
+      return Biome.Grassland;
+    case KoppenClass.Dsb:
+      return Biome.BorealForest;
+    // Polar
+    case KoppenClass.ET:
+      return Biome.Tundra;
+    case KoppenClass.EF:
+      return Biome.Arctic;
+  }
+}
 
 export function classifyBiomes(
   width: number,
   height: number,
   elevation: Float32Array,
-  temperature: Float32Array,
-  precipitation: Float32Array,
+  koppenClass: Uint8Array,
   seaLevel: number,
   rivers?: Float32Array,
   lakes?: Uint8Array
@@ -56,40 +76,29 @@ export function classifyBiomes(
   const biomes = new Float32Array(width * height);
   const shallowWaterLevel = seaLevel - SHALLOW_WATER_RANGE;
 
-  const moistureBuckets = CLASSIFICATION_TABLE.length; // 6
-  const temperatureBuckets = CLASSIFICATION_TABLE[0].length; // 6
-
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
 
-      // Water classification
+      // Water: depth-based ocean classification.
       if (elevation[idx] < seaLevel) {
         biomes[idx] = elevation[idx] < shallowWaterLevel ? Biome.Ocean : Biome.ShallowWater;
         continue;
       }
 
       // Inland water — rivers and lakes override terrestrial biomes.
-      if (lakes?.[idx] === 1 || (rivers && rivers[idx] > 0.5)) {
+      if (lakes?.[idx] === 1 || (rivers && rivers[idx] > RIVER_THRESHOLD)) {
         biomes[idx] = Biome.ShallowWater;
         continue;
       }
 
-      // Mountain classification
+      // Mountain override above all terrestrial classification.
       if (elevation[idx] > MOUNTAIN_LEVEL) {
         biomes[idx] = Biome.Mountain;
         continue;
       }
 
-      // Terrestrial biome lookup
-      let moistureIndex = Math.floor(precipitation[idx] * moistureBuckets);
-      let tempIndex = Math.floor(temperature[idx] * temperatureBuckets);
-      if (moistureIndex >= moistureBuckets) moistureIndex = moistureBuckets - 1;
-      if (tempIndex >= temperatureBuckets) tempIndex = temperatureBuckets - 1;
-      if (moistureIndex < 0) moistureIndex = 0;
-      if (tempIndex < 0) tempIndex = 0;
-
-      biomes[idx] = CLASSIFICATION_TABLE[moistureIndex][tempIndex];
+      biomes[idx] = koppenToBiome(koppenClass[idx] as KoppenClass);
     }
   }
 

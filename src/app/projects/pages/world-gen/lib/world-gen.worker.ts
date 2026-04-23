@@ -14,6 +14,10 @@ const ALL_LAYERS: LayerName[] = [
   'flowAccumulation',
   'rivers',
   'lakes',
+  'aridity',
+  'seasonality',
+  'growingSeason',
+  'koppen',
 ];
 
 addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
@@ -32,15 +36,29 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
 
   const response: WorkerResponse = { worldData, layerImages };
 
-  // Collect all typed array buffers for zero-copy transfer
+  // Collect all typed array buffers for zero-copy transfer.
+  // NOTE: temperature and precipitation alias temperatureMean / precipAnnual,
+  // so we transfer each underlying buffer exactly once.
   const transfer: ArrayBuffer[] = [
     worldData.plateMap.buffer,
     worldData.faultLines.buffer,
     worldData.mountainRanges.buffer,
     worldData.elevation.buffer,
-    worldData.temperature.buffer,
+    worldData.temperatureSummer.buffer,
+    worldData.temperatureWinter.buffer,
+    worldData.temperatureMean.buffer,
     worldData.wind.buffer,
-    worldData.precipitation.buffer,
+    worldData.petSummer.buffer,
+    worldData.petWinter.buffer,
+    worldData.petAnnual.buffer,
+    worldData.precipSummer.buffer,
+    worldData.precipWinter.buffer,
+    worldData.precipAnnual.buffer,
+    worldData.aridityIndex.buffer,
+    worldData.seasonality.buffer,
+    worldData.continentality.buffer,
+    worldData.growingSeason.buffer,
+    worldData.koppenClass.buffer,
     worldData.biomes.buffer,
     worldData.flowAccumulation.buffer,
     worldData.rivers.buffer,
@@ -66,11 +84,19 @@ function selectLayerSource(worldData: WorldData, layer: LayerName): Float32Array
     case 'elevation':
       return worldData.elevation;
     case 'temperature':
-      return worldData.temperature;
+      return worldData.temperatureMean;
     case 'precipitation':
-      return worldData.precipitation;
+      return worldData.precipAnnual;
     case 'biomes':
       return worldData.biomes;
+    case 'aridity':
+      return worldData.aridityIndex;
+    case 'seasonality':
+      return worldData.seasonality;
+    case 'growingSeason':
+      return worldData.growingSeason;
+    case 'koppen':
+      return worldData.koppenClass;
     default:
       throw new Error(`Unhandled layer ${layer}`);
   }

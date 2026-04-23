@@ -1,12 +1,11 @@
 import { WorldConfig, WorldData } from './types';
 import { generateTectonicPlates, type TectonicResult } from './stages/tectonic-plates';
 import { generateElevation } from './stages/elevation';
-import { generateTemperature } from './stages/temperature';
 import { generateWind, applyTerrainDeflection } from './stages/wind';
 import { generateOceanCurrents } from './stages/ocean-currents';
-import { generatePrecipitation } from './stages/precipitation';
 import { applyMountainRangesAndContinentalShelves } from './stages/post-processing';
-import { runHydrology } from './stages/hydrology';
+import { runHydrology, computeFlowAndRivers } from './stages/hydrology';
+import { runClimate } from './stages/climate';
 import { classifyBiomes } from './stages/biomes';
 
 export interface GeneratorResult {
@@ -29,20 +28,41 @@ export class WorldGenerator {
     // precipitation all see the same mountain/shelf surface.
     applyMountainRangesAndContinentalShelves(width, height, elevation, mountainRanges, seaLevel);
 
-    // Carve drainage into the terrain before climate stages. Erosion modifies
-    // elevation in-place, so downstream stages see the eroded surface.
-    const { flowAccumulation, rivers, lakes } = runHydrology(width, height, elevation, seaLevel, hydrology);
+    // Pass 1: erode terrain with uniform rainfall. Topology is mostly
+    // insensitive to rainfall magnitude (stream-power scales A^m, m≈0.5).
+    runHydrology(width, height, elevation, seaLevel, hydrology);
 
     const wind = generateWind(width, height, noise);
     applyTerrainDeflection(width, height, wind, elevation, seaLevel);
 
     const { tempModifier, distToOcean } = generateOceanCurrents(width, height, wind, elevation, seaLevel);
 
-    const temperature = generateTemperature(width, height, elevation, seaLevel, noise, tempModifier, distToOcean);
+    // Climate sub-pipeline: seasonal temps, PET, two-pass humidity sim,
+    // aridity/seasonality/continentality/growing-season, Köppen classes.
+    const climateResult = runClimate(
+      width,
+      height,
+      elevation,
+      seaLevel,
+      wind,
+      tempModifier,
+      distToOcean,
+      noise,
+      climate
+    );
 
-    const precipitation = generatePrecipitation(width, height, wind, elevation, temperature, seaLevel, climate);
+    // Pass 2: rerun flow/rivers/lakes weighted by real annual precipitation.
+    // No erosion — topology is locked in from pass 1.
+    const { flowAccumulation, rivers, lakes } = computeFlowAndRivers(
+      width,
+      height,
+      elevation,
+      seaLevel,
+      climateResult.precipAnnual,
+      hydrology
+    );
 
-    const biomes = classifyBiomes(width, height, elevation, temperature, precipitation, seaLevel, rivers, lakes);
+    const biomes = classifyBiomes(width, height, elevation, climateResult.koppenClass, seaLevel, rivers, lakes);
 
     return {
       worldData: {
@@ -53,9 +73,21 @@ export class WorldGenerator {
         mountainRanges,
         elevation,
         seaLevel,
-        temperature,
+        temperatureSummer: climateResult.temperatureSummer,
+        temperatureWinter: climateResult.temperatureWinter,
+        temperatureMean: climateResult.temperatureMean,
         wind,
-        precipitation,
+        petSummer: climateResult.petSummer,
+        petWinter: climateResult.petWinter,
+        petAnnual: climateResult.petAnnual,
+        precipSummer: climateResult.precipSummer,
+        precipWinter: climateResult.precipWinter,
+        precipAnnual: climateResult.precipAnnual,
+        aridityIndex: climateResult.aridityIndex,
+        seasonality: climateResult.seasonality,
+        continentality: climateResult.continentality,
+        growingSeason: climateResult.growingSeason,
+        koppenClass: climateResult.koppenClass,
         biomes,
         flowAccumulation,
         rivers,

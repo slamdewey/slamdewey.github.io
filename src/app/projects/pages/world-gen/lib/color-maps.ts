@@ -1,4 +1,4 @@
-import { Biome, BIOME_COLORS, type LayerName, type WorldData } from './types';
+import { Biome, BIOME_COLORS, KoppenClass, type LayerName, type WorldData } from './types';
 import { mapToUnsignedRange, mod } from '@lib/math';
 import { PlateType, BoundaryType, type TectonicResult } from './stages/tectonic-plates';
 
@@ -46,6 +46,18 @@ export function layerToRGBA(
       break;
     case 'lakes':
       colorLakes(data as Uint8Array, rgba, seaLevel, worldData);
+      break;
+    case 'aridity':
+      colorAridity(data as Float32Array, rgba, seaLevel, worldData);
+      break;
+    case 'seasonality':
+      colorScalar(data as Float32Array, rgba, [50, 50, 80], [240, 200, 80], 1, seaLevel, worldData);
+      break;
+    case 'growingSeason':
+      colorScalar(data as Float32Array, rgba, [120, 80, 40], [40, 180, 60], 1, seaLevel, worldData);
+      break;
+    case 'koppen':
+      colorKoppen(data as Uint8Array, rgba, seaLevel, worldData);
       break;
   }
 
@@ -331,6 +343,106 @@ function colorLakes(data: Uint8Array, rgba: Uint8Array, seaLevel: number, worldD
       rgba[o + 1] = v;
       rgba[o + 2] = v;
     }
+    rgba[o + 3] = 255;
+  }
+}
+
+function colorAridity(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
+  const elevation = worldData?.elevation;
+  // Aridity in [0, 1.5+]. Color stops:
+  //   0.0  hyper-arid → deep tan/brown
+  //   0.2  arid       → tan
+  //   0.5  semi-arid  → olive
+  //   0.65 humid      → green
+  //   1.0+ very humid → deep green
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    if (elevation && elevation[i] < seaLevel) {
+      rgba[o] = 0;
+      rgba[o + 1] = 30;
+      rgba[o + 2] = 80;
+      rgba[o + 3] = 255;
+      continue;
+    }
+    const v = Math.min(data[i], 1);
+    const r = Math.round((1 - v) * 200 + v * 30);
+    const g = Math.round((1 - v) * 150 + v * 140);
+    const b = Math.round((1 - v) * 80 + v * 60);
+    rgba[o] = r;
+    rgba[o + 1] = g;
+    rgba[o + 2] = b;
+    rgba[o + 3] = 255;
+  }
+}
+
+function colorScalar(
+  data: Float32Array,
+  rgba: Uint8Array,
+  low: [number, number, number],
+  high: [number, number, number],
+  scale: number,
+  seaLevel: number,
+  worldData?: WorldData
+): void {
+  const elevation = worldData?.elevation;
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    if (elevation && elevation[i] < seaLevel) {
+      rgba[o] = 0;
+      rgba[o + 1] = 30;
+      rgba[o + 2] = 80;
+      rgba[o + 3] = 255;
+      continue;
+    }
+    const t = Math.max(0, Math.min(1, data[i] * scale));
+    rgba[o] = Math.round(low[0] * (1 - t) + high[0] * t);
+    rgba[o + 1] = Math.round(low[1] * (1 - t) + high[1] * t);
+    rgba[o + 2] = Math.round(low[2] * (1 - t) + high[2] * t);
+    rgba[o + 3] = 255;
+  }
+}
+
+const KOPPEN_COLORS: Record<KoppenClass, [number, number, number]> = {
+  [KoppenClass.Af]: [0, 0, 254],
+  [KoppenClass.Am]: [0, 119, 255],
+  [KoppenClass.Aw]: [70, 169, 250],
+  [KoppenClass.BWh]: [254, 0, 0],
+  [KoppenClass.BWk]: [254, 150, 150],
+  [KoppenClass.BSh]: [245, 163, 1],
+  [KoppenClass.BSk]: [255, 219, 99],
+  [KoppenClass.Cfa]: [198, 255, 78],
+  [KoppenClass.Cfb]: [102, 255, 51],
+  [KoppenClass.Csa]: [255, 255, 0],
+  [KoppenClass.Csb]: [198, 199, 0],
+  [KoppenClass.Cwa]: [150, 255, 150],
+  [KoppenClass.Cwb]: [99, 199, 100],
+  [KoppenClass.Dfa]: [55, 200, 255],
+  [KoppenClass.Dfb]: [55, 150, 200],
+  [KoppenClass.Dfc]: [3, 120, 120],
+  [KoppenClass.Dwa]: [171, 177, 255],
+  [KoppenClass.Dwb]: [90, 120, 220],
+  [KoppenClass.Dsa]: [255, 0, 254],
+  [KoppenClass.Dsb]: [198, 0, 199],
+  [KoppenClass.ET]: [178, 178, 178],
+  [KoppenClass.EF]: [102, 102, 102],
+};
+
+function colorKoppen(data: Uint8Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
+  const elevation = worldData?.elevation;
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    if (elevation && elevation[i] < seaLevel) {
+      const depth = mapToUnsignedRange(elevation[i]);
+      rgba[o] = 0;
+      rgba[o + 1] = Math.round(depth * 80);
+      rgba[o + 2] = Math.round(100 + depth * 155);
+      rgba[o + 3] = 255;
+      continue;
+    }
+    const color = KOPPEN_COLORS[data[i] as KoppenClass] ?? [255, 0, 255];
+    rgba[o] = color[0];
+    rgba[o + 1] = color[1];
+    rgba[o + 2] = color[2];
     rgba[o + 3] = 255;
   }
 }
