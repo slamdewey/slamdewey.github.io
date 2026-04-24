@@ -125,61 +125,6 @@
       </mat-expansion-panel-header>
 
       <div class="param-controls__slider-row">
-        <label for="slider-moisture">Initial Moisture: {{ climate().initialMoisture.toFixed(2) }}</label>
-        <mat-slider min="0" max="1" step="0.05">
-          <input
-            id="slider-moisture"
-            matSliderThumb
-            [ngModel]="climate().initialMoisture"
-            (ngModelChange)="updateClimate('initialMoisture', $event)" />
-        </mat-slider>
-      </div>
-
-      <div class="param-controls__slider-row">
-        <label for="slider-evaporation">Evaporation: {{ climate().evaporationFactor.toFixed(2) }}</label>
-        <mat-slider min="0" max="1" step="0.05">
-          <input
-            id="slider-evaporation"
-            matSliderThumb
-            [ngModel]="climate().evaporationFactor"
-            (ngModelChange)="updateClimate('evaporationFactor', $event)" />
-        </mat-slider>
-      </div>
-
-      <div class="param-controls__slider-row">
-        <label for="slider-precip">Precipitation: {{ climate().precipitationFactor.toFixed(2) }}</label>
-        <mat-slider min="0" max="1" step="0.05">
-          <input
-            id="slider-precip"
-            matSliderThumb
-            [ngModel]="climate().precipitationFactor"
-            (ngModelChange)="updateClimate('precipitationFactor', $event)" />
-        </mat-slider>
-      </div>
-
-      <div class="param-controls__slider-row">
-        <label for="slider-runoff">Runoff: {{ climate().runoffFactor.toFixed(2) }}</label>
-        <mat-slider min="0" max="1" step="0.05">
-          <input
-            id="slider-runoff"
-            matSliderThumb
-            [ngModel]="climate().runoffFactor"
-            (ngModelChange)="updateClimate('runoffFactor', $event)" />
-        </mat-slider>
-      </div>
-
-      <div class="param-controls__slider-row">
-        <label for="slider-cycles">Climate Cycles: {{ climate().climateCycles }}</label>
-        <mat-slider min="1" max="20" step="1" discrete>
-          <input
-            id="slider-cycles"
-            matSliderThumb
-            [ngModel]="climate().climateCycles"
-            (ngModelChange)="updateClimate('climateCycles', $event)" />
-        </mat-slider>
-      </div>
-
-      <div class="param-controls__slider-row">
         <label for="slider-tilt">Seasonal Tilt: {{ climate().seasonalTilt.toFixed(2) }}</label>
         <mat-slider min="0" max="0.5" step="0.01">
           <input
@@ -220,28 +165,6 @@
             matSliderThumb
             [ngModel]="climate().rainShadowStrength"
             (ngModelChange)="updateClimate('rainShadowStrength', $event)" />
-        </mat-slider>
-      </div>
-
-      <div class="param-controls__slider-row">
-        <label for="slider-advection">Cloud Advection: {{ climate().cloudAdvectionRate.toFixed(2) }}</label>
-        <mat-slider min="0.1" max="3" step="0.1">
-          <input
-            id="slider-advection"
-            matSliderThumb
-            [ngModel]="climate().cloudAdvectionRate"
-            (ngModelChange)="updateClimate('cloudAdvectionRate', $event)" />
-        </mat-slider>
-      </div>
-
-      <div class="param-controls__slider-row">
-        <label for="slider-cc">CC Scale: {{ climate().precipTemperatureScale.toFixed(2) }}</label>
-        <mat-slider min="0" max="3" step="0.1">
-          <input
-            id="slider-cc"
-            matSliderThumb
-            [ngModel]="climate().precipTemperatureScale"
-            (ngModelChange)="updateClimate('precipTemperatureScale', $event)" />
         </mat-slider>
       </div>
 

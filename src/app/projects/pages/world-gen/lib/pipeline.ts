@@ -52,13 +52,15 @@ export class WorldGenerator {
     );
 
     // Pass 2: rerun flow/rivers/lakes weighted by real annual precipitation.
-    // No erosion — topology is locked in from pass 1.
+    // No erosion — topology is locked in from pass 1. Aridity gates lake
+    // formation so dry rift valleys don't become spurious lakes.
     const { flowAccumulation, rivers, lakes } = computeFlowAndRivers(
       width,
       height,
       elevation,
       seaLevel,
       climateResult.precipAnnual,
+      climateResult.aridityIndex,
       hydrology
     );
 

@@ -1,4 +1,4 @@
-import { Biome, BIOME_COLORS, KoppenClass, type LayerName, type WorldData } from './types';
+import { KoppenClass, type LayerName, type WorldData } from './types';
 import { mapToUnsignedRange, mod } from '@lib/math';
 import { PlateType, BoundaryType, type TectonicResult } from './stages/tectonic-plates';
 
@@ -251,25 +251,149 @@ function colorPrecipitation(data: Float32Array, rgba: Uint8Array): void {
   }
 }
 
-function colorBiomes(data: Float32Array, rgba: Uint8Array, width: number, height: number, worldData?: WorldData): void {
-  // Precompute hillshade from elevation if available
-  let hillshade: Float32Array | null = null;
-  if (worldData) {
-    hillshade = computeHillshade(worldData.elevation, width, height);
-  }
+// Satellite-realistic palette indexed by Köppen class. Colors picked to
+// resemble Blue Marble at global scale rather than the high-saturation
+// political-map Köppen palette used in the dedicated Köppen layer.
+const KOPPEN_NATURAL: Record<KoppenClass, [number, number, number]> = {
+  [KoppenClass.Af]: [30, 80, 35], // tropical rainforest — deep green
+  [KoppenClass.Am]: [45, 100, 45], // monsoon — slightly lighter
+  [KoppenClass.Aw]: [165, 145, 80], // savanna — yellow-green
+  [KoppenClass.BWh]: [225, 200, 145], // hot desert — pale tan
+  [KoppenClass.BWk]: [180, 165, 130], // cold desert — gray-tan
+  [KoppenClass.BSh]: [195, 170, 110], // hot steppe — straw
+  [KoppenClass.BSk]: [170, 160, 110], // cold steppe — drab khaki
+  [KoppenClass.Cfa]: [80, 130, 65], // humid subtropical — medium green
+  [KoppenClass.Cfb]: [95, 145, 75], // oceanic — fresh green
+  [KoppenClass.Csa]: [150, 145, 85], // mediterranean hot — olive
+  [KoppenClass.Csb]: [135, 140, 95], // mediterranean warm — gray-olive
+  [KoppenClass.Cwa]: [90, 135, 70], // subtropical monsoon
+  [KoppenClass.Cwb]: [100, 145, 80], // subtropical highland
+  [KoppenClass.Dfa]: [80, 115, 60], // hot continental
+  [KoppenClass.Dfb]: [70, 105, 60], // warm continental
+  [KoppenClass.Dfc]: [70, 95, 65], // subarctic — darker olive
+  [KoppenClass.Dwa]: [110, 130, 80],
+  [KoppenClass.Dwb]: [85, 110, 70],
+  [KoppenClass.Dsa]: [135, 130, 80],
+  [KoppenClass.Dsb]: [115, 125, 85],
+  [KoppenClass.ET]: [155, 155, 140], // tundra — pale olive-gray
+  [KoppenClass.EF]: [240, 242, 245], // ice cap — bright white
+};
 
-  for (let i = 0; i < data.length; i++) {
-    const biome = data[i] as Biome;
-    const color = BIOME_COLORS[biome] ?? [255, 0, 255];
+const SHALLOW_OCEAN: [number, number, number] = [60, 110, 165];
+const DEEP_OCEAN: [number, number, number] = [10, 30, 75];
+const COASTAL_SHELF: [number, number, number] = [80, 140, 180];
+const LAKE_COLOR: [number, number, number] = [50, 95, 150];
+const RIVER_COLOR: [number, number, number] = [70, 115, 165];
+const ROCK_COLOR: [number, number, number] = [120, 110, 95];
+const SNOW_COLOR: [number, number, number] = [248, 250, 252];
+
+const MOUNTAIN_LEVEL = 0.85;
+const SNOW_TEMPERATURE = 0.32; // mean temperature below this gets snow
+const SNOW_ELEVATION = 0.7; // and elevation above this gets snow
+
+function colorBiomes(
+  _data: Float32Array,
+  rgba: Uint8Array,
+  width: number,
+  height: number,
+  worldData?: WorldData
+): void {
+  if (!worldData) return;
+  const { elevation, koppenClass, temperatureMean, rivers, lakes, seaLevel } = worldData;
+  const hillshade = computeHillshade(elevation, width, height);
+
+  for (let i = 0; i < elevation.length; i++) {
     const o = i * 4;
+    const e = elevation[i];
 
-    // Apply hillshading: shade ranges from ~0.6 (shadow) to ~1.2 (lit)
-    const shade = hillshade ? hillshade[i] : 1;
+    // --- Water cells ------------------------------------------------------
+    if (e < seaLevel) {
+      // Ocean depth shading: depth measured below sea level, normalized.
+      const depth = (seaLevel - e) / Math.max(0.01, seaLevel + 1); // 0 at coast, 1 at -1
+      const t = Math.min(1, depth * 2);
+      // Blend coastal shelf → shallow → deep
+      let r: number, g: number, b: number;
+      if (t < 0.15) {
+        const k = t / 0.15;
+        r = COASTAL_SHELF[0] * (1 - k) + SHALLOW_OCEAN[0] * k;
+        g = COASTAL_SHELF[1] * (1 - k) + SHALLOW_OCEAN[1] * k;
+        b = COASTAL_SHELF[2] * (1 - k) + SHALLOW_OCEAN[2] * k;
+      } else {
+        const k = (t - 0.15) / 0.85;
+        r = SHALLOW_OCEAN[0] * (1 - k) + DEEP_OCEAN[0] * k;
+        g = SHALLOW_OCEAN[1] * (1 - k) + DEEP_OCEAN[1] * k;
+        b = SHALLOW_OCEAN[2] * (1 - k) + DEEP_OCEAN[2] * k;
+      }
+      rgba[o] = Math.round(r);
+      rgba[o + 1] = Math.round(g);
+      rgba[o + 2] = Math.round(b);
+      rgba[o + 3] = 255;
+      continue;
+    }
+
+    // --- Inland water: lakes & rivers -------------------------------------
+    if (lakes[i] === 1) {
+      rgba[o] = LAKE_COLOR[0];
+      rgba[o + 1] = LAKE_COLOR[1];
+      rgba[o + 2] = LAKE_COLOR[2];
+      rgba[o + 3] = 255;
+      continue;
+    }
+    const riverIntensity = rivers[i];
+    if (riverIntensity > 0.5) {
+      // Rivers blend over the underlying terrain so they don't look painted on.
+      const baseColor = baseTerrainColor(koppenClass[i] as KoppenClass);
+      const t = Math.min(1, (riverIntensity - 0.5) * 2);
+      const r = baseColor[0] * (1 - t) + RIVER_COLOR[0] * t;
+      const g = baseColor[1] * (1 - t) + RIVER_COLOR[1] * t;
+      const b = baseColor[2] * (1 - t) + RIVER_COLOR[2] * t;
+      const shade = hillshade[i];
+      rgba[o] = Math.min(255, Math.round(r * shade));
+      rgba[o + 1] = Math.min(255, Math.round(g * shade));
+      rgba[o + 2] = Math.min(255, Math.round(b * shade));
+      rgba[o + 3] = 255;
+      continue;
+    }
+
+    // --- Land: Köppen → natural color, optional snow cap, hillshade -------
+    let color = baseTerrainColor(koppenClass[i] as KoppenClass);
+
+    // Bare-rock blend on very high terrain even before snow takes over.
+    if (e > MOUNTAIN_LEVEL) {
+      const k = Math.min(1, (e - MOUNTAIN_LEVEL) / (1 - MOUNTAIN_LEVEL));
+      color = [
+        color[0] * (1 - k) + ROCK_COLOR[0] * k,
+        color[1] * (1 - k) + ROCK_COLOR[1] * k,
+        color[2] * (1 - k) + ROCK_COLOR[2] * k,
+      ];
+    }
+
+    // Snow cap: cold + high. Polar regions get snow at lower elevation.
+    const tMean = temperatureMean[i];
+    const snowChance =
+      Math.max(0, (SNOW_TEMPERATURE - tMean) / SNOW_TEMPERATURE) +
+      Math.max(0, (e - SNOW_ELEVATION) / (1 - SNOW_ELEVATION)) * 0.6;
+    if (snowChance > 0) {
+      const k = Math.min(1, snowChance);
+      color = [
+        color[0] * (1 - k) + SNOW_COLOR[0] * k,
+        color[1] * (1 - k) + SNOW_COLOR[1] * k,
+        color[2] * (1 - k) + SNOW_COLOR[2] * k,
+      ];
+    }
+
+    const shade = hillshade[i];
     rgba[o] = Math.min(255, Math.round(color[0] * shade));
     rgba[o + 1] = Math.min(255, Math.round(color[1] * shade));
     rgba[o + 2] = Math.min(255, Math.round(color[2] * shade));
     rgba[o + 3] = 255;
   }
+}
+
+function baseTerrainColor(k: KoppenClass): [number, number, number] {
+  const c = KOPPEN_NATURAL[k];
+  // Defensive copy because the snow/rock blend mutates locally.
+  return [c[0], c[1], c[2]];
 }
 
 function colorFlowAccumulation(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {

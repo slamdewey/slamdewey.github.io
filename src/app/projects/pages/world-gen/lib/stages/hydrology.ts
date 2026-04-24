@@ -31,8 +31,14 @@ export interface HydrologyVariables {
   diffusionStrength: number;
   /** log2(1 + flowAcc) cutoff above which a cell is considered a river. */
   riverLogThreshold: number;
-  /** (filled - elevation) above this value classifies a cell as a lake. */
+  /** (filled - elevation) above this value qualifies a cell as a depression for lake consideration. */
   lakeDepthEpsilon: number;
+  /** log2(1 + flowAcc) cutoff above which a depression cell can become a lake.
+   *  Suppresses spurious tiny depressions that nothing actually drains into. */
+  lakeFlowLogThreshold: number;
+  /** Aridity index (MAP/PET) above which a depression cell can become a lake.
+   *  Suppresses dry-climate basins (Death Valley / Lake Eyre style salt flats). */
+  lakeAridityThreshold: number;
 }
 
 export const DEFAULT_HYDROLOGY: HydrologyVariables = {
@@ -43,6 +49,8 @@ export const DEFAULT_HYDROLOGY: HydrologyVariables = {
   diffusionStrength: 0.1,
   riverLogThreshold: 4.0,
   lakeDepthEpsilon: 0.003,
+  lakeFlowLogThreshold: 3.0,
+  lakeAridityThreshold: 0.4,
 };
 
 export interface HydrologyResult {
@@ -159,12 +167,52 @@ function priorityFloodFill(elevation: Float32Array, width: number, height: numbe
   return filled;
 }
 
+/**
+ * Pass-1 lake mask — purely topological. Used internally for the erosion
+ * pass; the visible lakes layer comes from `buildLakeMaskGated` in pass 2.
+ */
 function buildLakeMask(elevation: Float32Array, filled: Float32Array, seaLevel: number, epsilon: number): Uint8Array {
   const out = new Uint8Array(elevation.length);
   for (let i = 0; i < elevation.length; i++) {
     if (elevation[i] >= seaLevel && filled[i] - elevation[i] > epsilon) {
       out[i] = 1;
     }
+  }
+  return out;
+}
+
+/**
+ * Pass-2 lake mask. A depression becomes a lake only if it satisfies
+ * three conditions:
+ *
+ *  1. **Depression depth** — `filled - elevation > epsilon`. Without this,
+ *     every cell that priority-flood touched would qualify.
+ *  2. **Flow accumulation** — `log2(1 + flowAcc) > flowLogThreshold`. A real
+ *     lake has water flowing into it; spurious tiny depressions that nothing
+ *     drains into shouldn't qualify.
+ *  3. **Aridity gate** — `aridityIndex >= aridityThreshold`. Closed basins in
+ *     arid climates (Death Valley, Lake Eyre, Tarim Basin) are usually salt
+ *     flats / ephemeral washes, not standing water bodies. The aridity gate
+ *     converts them to dry depressions while keeping wet-climate rift lakes
+ *     (Tanganyika, Malawi, Baikal) intact.
+ */
+function buildLakeMaskGated(
+  elevation: Float32Array,
+  filled: Float32Array,
+  flowAccumulation: Float32Array,
+  aridityIndex: Float32Array,
+  seaLevel: number,
+  epsilon: number,
+  flowLogThreshold: number,
+  aridityThreshold: number
+): Uint8Array {
+  const out = new Uint8Array(elevation.length);
+  for (let i = 0; i < elevation.length; i++) {
+    if (elevation[i] < seaLevel) continue;
+    if (filled[i] - elevation[i] <= epsilon) continue;
+    if (Math.log2(1 + flowAccumulation[i]) <= flowLogThreshold) continue;
+    if (aridityIndex[i] < aridityThreshold) continue;
+    out[i] = 1;
   }
   return out;
 }
@@ -342,6 +390,10 @@ function buildRiverMask(
  * rather than the uniform rainfall assumption used during erosion.
  *
  * Erosion is intentionally skipped — topology is locked in by pass 1.
+ *
+ * Lake detection is gated on flow accumulation and aridity (see
+ * `buildLakeMaskGated`) so dry tectonic depressions like rift valleys
+ * become salt flats / ephemeral washes rather than persistent lakes.
  */
 export function computeFlowAndRivers(
   width: number,
@@ -349,12 +401,22 @@ export function computeFlowAndRivers(
   elevation: Float32Array,
   seaLevel: number,
   rainfall: Float32Array,
+  aridityIndex: Float32Array,
   config: HydrologyVariables
 ): HydrologyResult {
   const filled = priorityFloodFill(elevation, width, height, seaLevel);
-  const lakes = buildLakeMask(elevation, filled, seaLevel, config.lakeDepthEpsilon);
   const flowDir = computeD8FlowDir(filled, width, height, seaLevel);
   const flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel, rainfall);
+  const lakes = buildLakeMaskGated(
+    elevation,
+    filled,
+    flowAcc,
+    aridityIndex,
+    seaLevel,
+    config.lakeDepthEpsilon,
+    config.lakeFlowLogThreshold,
+    config.lakeAridityThreshold
+  );
   const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
   return { flowAccumulation: flowAcc, rivers, lakes };
 }

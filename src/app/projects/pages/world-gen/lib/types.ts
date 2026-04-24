@@ -8,11 +8,6 @@ export interface NoiseVariables {
 }
 
 export interface ClimateVariables {
-  initialMoisture: number;
-  evaporationFactor: number;
-  precipitationFactor: number;
-  runoffFactor: number;
-  climateCycles: number;
   /** Hemispheric tilt magnitude in normalized temperature units. Drives summer/winter ΔT. */
   seasonalTilt: number;
   /** ITCZ migration between summer and winter, as a fraction of map height. */
@@ -21,13 +16,9 @@ export interface ClimateVariables {
   orographicLiftStrength: number;
   /** Foehn-style descent drying factor on leeward slopes. */
   rainShadowStrength: number;
-  /** Fraction of advected cloud per cycle (semi-Lagrangian step length). */
-  cloudAdvectionRate: number;
-  /** Clausius-Clapeyron exponent for cloud carrying capacity (~0.07 ≈ 7% per °C). */
-  precipTemperatureScale: number;
-  /** Frost threshold in normalized temperature units; below this, no growing season. */
+  /** Frost threshold in normalized temperature units; below this, PET ≈ 0 and no growing season. */
   frostThreshold: number;
-  /** Aridity wilt point; aridity below this kills growing season regardless of temperature. */
+  /** Aridity wilt point; growing-season favorability falls below this. */
   aridityWiltPoint: number;
 }
 
@@ -152,17 +143,10 @@ export const DEFAULT_NOISE: NoiseVariables = {
 };
 
 export const DEFAULT_CLIMATE: ClimateVariables = {
-  initialMoisture: 0.5,
-  evaporationFactor: 0.3,
-  precipitationFactor: 0.5,
-  runoffFactor: 0.2,
-  climateCycles: 5,
   seasonalTilt: 0.18,
   itczShift: 0.05,
   orographicLiftStrength: 3.0,
   rainShadowStrength: 4.0,
-  cloudAdvectionRate: 1.0,
-  precipTemperatureScale: 1.5,
   frostThreshold: 0.35,
   aridityWiltPoint: 0.2,
 };

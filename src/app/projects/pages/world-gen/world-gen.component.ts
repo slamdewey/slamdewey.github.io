@@ -18,22 +18,26 @@ import {
 } from './lib/types';
 import { WorkerResponse } from './lib/worker-types';
 
-// Layer toggles follow pipeline execution order (Biomes first as the summary view).
+// Layer toggles follow pipeline execution order with the final synthesis
+// (Biomes) up front as the headline view.
 const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'biomes', label: 'Biomes' },
-  { value: 'koppen', label: 'Köppen' },
+  // Geology
   { value: 'plates', label: 'Plates' },
   { value: 'faultLines', label: 'Faults' },
   { value: 'elevation', label: 'Elevation' },
-  { value: 'flowAccumulation', label: 'Flow' },
-  { value: 'rivers', label: 'Rivers' },
-  { value: 'lakes', label: 'Lakes' },
+  // Climate stack
   { value: 'wind', label: 'Wind' },
   { value: 'temperature', label: 'Temperature' },
   { value: 'precipitation', label: 'Precipitation' },
   { value: 'aridity', label: 'Aridity' },
   { value: 'seasonality', label: 'Seasonality' },
   { value: 'growingSeason', label: 'Growing' },
+  { value: 'koppen', label: 'Köppen' },
+  // Hydrology (final, rain-weighted pass)
+  { value: 'flowAccumulation', label: 'Flow' },
+  { value: 'rivers', label: 'Rivers' },
+  { value: 'lakes', label: 'Lakes' },
 ];
 
 @Component({
@@ -63,6 +67,37 @@ export class WorldGenComponent implements OnDestroy {
   OceanicRidge,       // ocean-ocean divergent (Mid-Atlantic Ridge)
   Transform,          // any transform (San Andreas)
 }`;
+
+  readonly codeKoppenClassify = `// Köppen-Geiger classifier (excerpt) — runs per cell
+// against the seasonal temperature and precipitation fields.
+const tColdest  = Math.min(tSummer, tWinter);
+const tWarmest  = Math.max(tSummer, tWinter);
+const summerShare = pSummer / (pSummer + pWinter);
+const ai = aridityIndex[i]; // MAP / PET
+
+// E — polar (warmest "month" too cold)
+if (tWarmest < T_POLAR_WARMEST) {
+  return tWarmest < T_ICECAP_WARMEST ? KoppenClass.EF : KoppenClass.ET;
+}
+
+// B — arid (aridity index dominates)
+if (ai < AI_STEPPE) {
+  const isDesert = ai < AI_DESERT;
+  const isHot    = tWarmest >= T_HOT_SUMMER;
+  return isDesert
+    ? (isHot ? KoppenClass.BWh : KoppenClass.BWk)
+    : (isHot ? KoppenClass.BSh : KoppenClass.BSk);
+}
+
+// A — tropical (no cold winters)
+if (tColdest > T_TROPICAL_COLDEST) {
+  const driestPrecip = (pSummer + pWinter) * Math.min(summerShare, 1 - summerShare);
+  return driestPrecip > 0.25 ? KoppenClass.Af
+       : driestPrecip > 0.10 ? KoppenClass.Am
+       :                       KoppenClass.Aw;
+}
+// ... C and D groups follow the same shape, splitting on s/w/f sub-letter
+// (summer-dry, winter-dry, no-dry-season) and a/b/c warmth tiers.`;
 
   readonly codeInteractionElevation = `function interactionElevation(
   interaction: InteractionType,

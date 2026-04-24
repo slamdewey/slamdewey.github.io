@@ -148,31 +148,40 @@
       </div>
     </section>
 
-    <!-- Stage 2b: Hydrology & Erosion -->
+    <!-- Stage 2b: Hydrology Pass 1 — Erosion -->
     <section class="world-gen__section world-gen__section--stage">
-      <h2>Stage 2b: Hydrology &amp; Erosion</h2>
+      <h2>Stage 2b: Hydrology &mdash; Pass 1 (Erosion)</h2>
       <div class="world-gen__text">
         <p>
-          Before climate runs, a hydrology pass carves drainage into the raw elevation. A priority-flood fill
-          (Barnes&ndash;Lehman 2014) seeds every ocean cell and Y-edge cell as an outlet, then grows a depression-free
-          &ldquo;filled&rdquo; surface inward &mdash; cells where the filled surface sits above the raw elevation become
-          lake pixels, catching interior basins (the endorheic lakes you see in the middle of large continents).
+          Hydrology runs in two passes. Pass 1 carves drainage into the raw elevation using
+          <strong>uniform rainfall</strong>; pass 2 (after climate) reuses the same machinery weighted by real
+          precipitation to produce the final rivers and lakes. Splitting it this way lets erosion finish before climate
+          starts &mdash; deserts behind ranges end up more pronounced because the orographic sim sees sharpened mountain
+          spines.
         </p>
         <p>
-          On the filled surface, every land cell gets a D8 steepest-descent flow direction. Cells are then sorted by
+          The fill step is a
+          <a href="https://en.wikipedia.org/wiki/Priority_queue" target="_blank" rel="noopener">priority-flood</a>
+          (Barnes&ndash;Lehman 2014). It seeds every ocean cell and Y-edge cell as an outlet at its own elevation, then
+          grows a depression-free &ldquo;filled&rdquo; surface inward via a min-heap. Cells where the filled surface
+          sits above the raw elevation become lake pixels, catching the interior endorheic basins you see in the middle
+          of large continents.
+        </p>
+        <p>
+          On the filled surface, every land cell gets a D8 steepest-descent flow direction. Cells are sorted by
           descending elevation and walked in order, pushing one unit of flow into each downstream neighbor &mdash; this
           gives a dendritic flow accumulation field where trunk rivers light up near the coast and tributaries feather
-          out into the highlands. The flow field is rainfall-agnostic in this pass: terrain alone carries the drainage
-          pattern.
+          out into the highlands.
         </p>
         <p>
-          Erosion uses the classic stream-power law:
+          Erosion uses the classic
+          <a href="https://en.wikipedia.org/wiki/Stream_power" target="_blank" rel="noopener">stream-power law</a>:
           <code>dE = -K &middot; A<sup>m</sup> &middot; S<sup>n</sup></code
-          >, where A is flow accumulation and S is slope to the downstream neighbor. A few iterations of this,
-          interleaved with a mild hillslope diffusion pass, break the &ldquo;blobby&rdquo; noise terrain into sharper
-          ridges and carved valleys. Because erosion runs before wind, ocean currents, and precipitation, the sharper
-          mountain spines feed directly into the orographic and rain-shadow calculations downstream &mdash; deserts
-          behind ranges end up more pronounced for free.
+          >, where <code>A</code> is flow accumulation and <code>S</code> is slope to the downstream neighbor. A few
+          iterations of this, interleaved with a mild hillslope diffusion pass, break the &ldquo;blobby&rdquo; noise
+          terrain into sharper ridges and carved valleys. Because <code>m</code> &approx; 0.5, the erosion topology is
+          mostly insensitive to rainfall magnitude &mdash; that's what makes the uniform-rainfall assumption defensible
+          for pass 1.
         </p>
       </div>
       <div class="world-gen__demo">
@@ -181,29 +190,7 @@
             [imageData]="flowImage()"
             [loading]="isGenerating()"
             [(panOffset)]="sharedPanOffset"
-            caption="Flow accumulation (dark = dry, cyan = major river)" />
-        } @placeholder {
-          <div class="world-gen__placeholder"></div>
-        }
-      </div>
-      <div class="world-gen__demo">
-        @defer (on viewport) {
-          <x-stage-demo
-            [imageData]="riverImage()"
-            [loading]="isGenerating()"
-            [(panOffset)]="sharedPanOffset"
-            caption="River network (blue overlay on land)" />
-        } @placeholder {
-          <div class="world-gen__placeholder"></div>
-        }
-      </div>
-      <div class="world-gen__demo">
-        @defer (on viewport) {
-          <x-stage-demo
-            [imageData]="lakeImage()"
-            [loading]="isGenerating()"
-            [(panOffset)]="sharedPanOffset"
-            caption="Lakes (interior depressions detected during the fill pass)" />
+            caption="Flow accumulation after pass 2 (dark = dry, cyan = major river)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -260,23 +247,35 @@
       </div>
     </section>
 
-    <!-- Stage 4: Temperature -->
+    <!-- Stage 4: Temperature (seasonal) -->
     <section class="world-gen__section world-gen__section--stage">
-      <h2>Stage 4: Temperature</h2>
+      <h2>Stage 4: Temperature (Seasonal)</h2>
       <div class="world-gen__text">
         <p>
-          Temperature is primarily driven by latitude using an inverse parabola function
-          <code>T(y) = 1 - (2y - 1)^2</code>, which gives maximum warmth at the equator and minimum at the poles. A
-          small noise jitter adds local variation. Above sea level, an atmospheric lapse rate reduces temperature with
-          elevation (higher = colder).
+          Temperature is driven by latitude using an inverse parabola
+          <code>T(y) = 1 - (2y - 1)<sup>2</sup></code> &mdash; maximum warmth at the equator, minimum at the poles. A
+          small noise jitter adds local variation. Above sea level, an
+          <a href="https://en.wikipedia.org/wiki/Lapse_rate" target="_blank" rel="noopener">atmospheric lapse rate</a>
+          reduces temperature with elevation.
         </p>
         <p>
           Coastal moderation blends inland temperatures toward the local ocean baseline using a chamfer
           distance-to-ocean field, so coasts have smaller swings than continental interiors. The ocean baseline itself
           is offset by the wind-driven heat advection from Stage 3b &mdash; a current carrying water away from the
           equator warms the cells it passes through (Gulf Stream), while one carrying water toward the equator cools
-          them (California current). The chamfer pass also propagates that modifier into the nearest land cells, so
-          coastal climates inherit the asymmetry.
+          them (California current).
+        </p>
+        <p>
+          This stage runs <strong>twice</strong>: once for summer and once for winter. A hemispheric tilt term
+          <code>+t &middot; (-latNorm)</code> warms one hemisphere and cools the other, mirroring the
+          <a href="https://en.wikipedia.org/wiki/Axial_tilt" target="_blank" rel="noopener">axial tilt</a>
+          that drives Earth's seasons. The mean field used by the visualization here is just
+          <code>(T<sub>summer</sub> + T<sub>winter</sub>) / 2</code>; downstream climate stages use the seasonal pair
+          directly so the
+          <a href="https://en.wikipedia.org/wiki/K%C3%B6ppen_climate_classification" target="_blank" rel="noopener"
+            >Köppen classifier</a
+          >
+          can distinguish coldest-month from warmest-month conditions.
         </p>
       </div>
       <div class="world-gen__demo">
@@ -285,7 +284,7 @@
             [imageData]="temperatureImage()"
             [loading]="isGenerating()"
             [(panOffset)]="sharedPanOffset"
-            caption="Temperature (cyan = cold, red = hot)" />
+            caption="Annual mean temperature (cyan = cold, red = hot)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -297,17 +296,59 @@
       <h2>Stage 5: Precipitation</h2>
       <div class="world-gen__text">
         <p>
-          This is the most complex stage &mdash; a multi-cycle weather simulation. Each cycle: ocean cells evaporate
-          moisture into clouds; clouds are pushed by wind (advection); precipitation falls based on temperature (warmer
-          air holds more moisture); excess moisture runs off to lower-elevation neighbors. After several cycles,
-          realistic moisture patterns emerge &mdash; wet coastlines and dry interiors.
+          Precipitation is computed in a single pass per season as a
+          <strong>streamline back-trace</strong>: from each land cell, walk against the wind until the trace either
+          reaches an ocean (the moisture source) or runs out of steps. The cell's annual rainfall is then a closed-form
+          combination of the trace's properties &mdash; no cloud iteration, no diffusion, no per-cycle averaging.
+        </p>
+        <p>The full per-cell formula:</p>
+        <p>
+          <code>
+            precip = latitudeBaseline &times; oceanReach &times; orographic &times; rainShadow &times; tempBias
+          </code>
         </p>
         <p>
-          Mountains modify the cycle in two complementary ways. Where wind is blowing into rising terrain, an orographic
-          boost forces extra precipitation on the windward face. Where wind is descending from a higher upwind cell, an
-          explicit rain-shadow factor suppresses precipitation and re-absorbs a fraction of the remaining cloud water
-          back into vapor &mdash; the Foehn effect. Together they carve the asymmetric wet/dry bands seen behind real
-          mountain ranges (the Atacama, the Gobi, the Great Basin).
+          <strong>Latitude baseline.</strong> Encodes Earth's three wet/dry bands per hemisphere from atmospheric
+          circulation: the
+          <a href="https://en.wikipedia.org/wiki/Intertropical_Convergence_Zone" target="_blank" rel="noopener">ITCZ</a>
+          wet equator, the subtropical-high dry bands at &asymp;30°&nbsp;N/S, the mid-latitude
+          <a href="https://en.wikipedia.org/wiki/Westerlies" target="_blank" rel="noopener">westerly</a>
+          wet bands at &asymp;50°, and the dry polar caps. The ITCZ shifts toward the warm hemisphere each season
+          (controlled by the <em>ITCZ Shift</em> slider), which is what produces real seasonality in monsoon-prone
+          latitudes.
+        </p>
+        <p>
+          <strong>Ocean reach.</strong> Moisture flux through a cell decays exponentially with overland distance from
+          the source &mdash; <code>oceanReach = exp(-landDistance / decayLength)</code>. This is what makes coastlines
+          wet and continental interiors dry, with the right kind of smooth falloff. Cells that never reached an ocean
+          along their trace get a small residual.
+        </p>
+        <p>
+          <strong
+            ><a href="https://en.wikipedia.org/wiki/Orographic_lift" target="_blank" rel="noopener">Orographic lift</a>
+            and
+            <a href="https://en.wikipedia.org/wiki/Rain_shadow" target="_blank" rel="noopener">rain shadow</a>.</strong
+          >
+          The trace remembers the maximum elevation it crossed. If the cell is higher than its immediate upwind
+          neighbor, it gets an orographic boost (windward face of a mountain). If the trace had to climb over taller
+          terrain to reach the cell, it gets a rain shadow penalty (lee side &mdash; the
+          <a href="https://en.wikipedia.org/wiki/Foehn_wind" target="_blank" rel="noopener">Foehn effect</a>). Together
+          they carve the asymmetric wet/dry bands seen behind real ranges (the Atacama, the Gobi, the Great Basin).
+        </p>
+        <p>
+          <strong>Temperature bias.</strong> A mild factor &mdash; warm cells nudge precipitation up because warm oceans
+          evaporate more upstream and warm air carries more moisture (<a
+            href="https://en.wikipedia.org/wiki/Clausius%E2%80%93Clapeyron_relation"
+            target="_blank"
+            rel="noopener"
+            >Clausius&ndash;Clapeyron</a
+          >). The dominant temperature effect on the climate is structural: it lives in where the latitude baseline puts
+          the wet bands, not in a per-cell capacity model.
+        </p>
+        <p>
+          The streamline runs once for summer and once for winter (different temperature fields, different ITCZ offsets)
+          so the seasonality and aridity stages have a real seasonal pair to work with. The visualization below shows
+          the annual mean <code>(P<sub>summer</sub> + P<sub>winter</sub>) / 2</code>.
         </p>
       </div>
       <div class="world-gen__demo">
@@ -316,22 +357,217 @@
             [imageData]="precipitationImage()"
             [loading]="isGenerating()"
             [(panOffset)]="sharedPanOffset"
-            caption="Soil moisture (white = wet, black = dry)" />
+            caption="Annual mean precipitation per cycle (white = wet, black = dry)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
       </div>
     </section>
 
-    <!-- Stage 6: Biome Classification -->
+    <!-- Stage 5b: Climate Derivatives -->
     <section class="world-gen__section world-gen__section--stage">
-      <h2>Stage 6: Biome Classification</h2>
+      <h2>Stage 5b: Climate Derivatives</h2>
       <div class="world-gen__text">
         <p>
-          Finally, each cell is classified into a biome using a Whittaker-diagram-inspired 6&times;6 lookup table
-          indexed by moisture and temperature. Water cells are classified by depth (shallow vs. deep ocean), and cells
-          above a high elevation threshold become mountains. The remaining land is mapped to one of nine terrestrial
-          biomes: Arctic, Tundra, Desert, Grassland, Savanna, Boreal Forest, Temperate Forest, or Rainforest.
+          With seasonal temperature and precipitation in hand, four derived fields summarize the climate at each cell.
+          They're cheap to compute, but each one captures a distinction that flat moisture and temperature alone can't:
+        </p>
+        <p>
+          <strong
+            ><a href="https://en.wikipedia.org/wiki/Potential_evapotranspiration" target="_blank" rel="noopener"
+              >Potential evapotranspiration (PET)</a
+            >.</strong
+          >
+          The upper bound on water that <em>could</em> leave a cell as vapor given its temperature, regardless of
+          supply. A
+          <a href="https://en.wikipedia.org/wiki/Thornthwaite_climate_classification" target="_blank" rel="noopener"
+            >Thornthwaite-style</a
+          >
+          monotonic curve maps temperature above the frost threshold to PET; below freezing, PET is essentially zero.
+        </p>
+        <p>
+          <strong
+            ><a href="https://en.wikipedia.org/wiki/Aridity_index" target="_blank" rel="noopener">Aridity index</a>
+            (UNEP).</strong
+          >
+          <code>AI = MAP / PET</code>. Captures the interaction between rainfall and evaporative demand &mdash; a polar
+          cell with low rainfall isn't arid because PET is also low. Standard cutoffs:
+          <code>AI &lt; 0.05</code> hyper-arid, <code>&lt; 0.2</code> arid, <code>&lt; 0.5</code> semi-arid,
+          <code>&lt; 0.65</code> dry sub-humid, otherwise humid. The Köppen B (arid) classification is driven directly
+          off this index.
+        </p>
+        <p>
+          <strong>Seasonality.</strong>
+          <code>|P<sub>summer</sub> - P<sub>winter</sub>| / MAP</code>. 0 means precipitation is uniform across the
+          year, 1 means everything falls in one season &mdash; the difference between an oceanic climate (Cfb) and a
+          monsoon climate (Cwa) at the same total rainfall. The Köppen <code>s</code> / <code>w</code> /
+          <code>f</code> sub-letters key off this metric.
+        </p>
+        <p>
+          <strong
+            ><a href="https://en.wikipedia.org/wiki/Growing_season" target="_blank" rel="noopener">Growing season</a
+            >.</strong
+          >
+          Fraction of the year above both the frost threshold and the aridity wilt point. With two seasons it's discrete
+          (0, 0.5, or 1), but it's the right input for distinguishing biomes that hinge on growing-season length: tundra
+          (low growing season) vs. boreal forest, or grassland vs. true desert.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="aridityImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Aridity index (tan = arid, green = humid)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="seasonalityImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Precipitation seasonality (dark = uniform, gold = monsoonal)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="growingSeasonImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Growing-season fraction (brown = none, green = full year)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 5c: Köppen Classification -->
+    <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 5c: Köppen Classification</h2>
+      <div class="world-gen__text">
+        <p>
+          The
+          <a href="https://en.wikipedia.org/wiki/K%C3%B6ppen_climate_classification" target="_blank" rel="noopener"
+            >Köppen&ndash;Geiger climate classification</a
+          >
+          assigns each cell to one of ~25 climate classes (Af/Am/Aw, BWh/BWk/BSh/BSk, Cfa/Cfb/Csa/Csb/Cwa/Cwb,
+          Dfa/Dfb/Dfc/Dwa/Dwb/Dsa/Dsb, ET/EF) based on monthly temperature and precipitation thresholds. We adapt those
+          thresholds to our normalized [0, 1] fields so the classifier slots cleanly between aridity and biomes.
+        </p>
+        <p>
+          The five top-level groups follow a fixed precedence: polar (E) overrides arid (B) only if the warmest month is
+          too cold; otherwise arid wins; then tropical (A) for cells without cold winters; then continental (D) for
+          cells with cold winters; otherwise temperate (C). Sub-letters split each group by warmth tier
+          (<code>a</code>/<code>b</code>/<code>c</code>) and seasonality (<code>s</code> = summer-dry, <code>w</code> =
+          winter-dry, <code>f</code> = no dry season).
+        </p>
+        <x-code-block [code]="codeKoppenClassify" />
+        <p>
+          The Köppen layer below uses the standard high-saturation Köppen palette so individual classes are readable.
+          The Biomes layer at the bottom of the page renders the same data with a satellite-natural palette that
+          smoothly blends class boundaries with elevation, snow cover, and ocean depth.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="koppenImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Köppen-Geiger climate classes" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 5d: Hydrology Pass 2 -->
+    <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 5d: Hydrology &mdash; Pass 2 (Rain-Weighted Rivers)</h2>
+      <div class="world-gen__text">
+        <p>
+          Pass 1 (Stage 2b) carved the terrain with uniform rainfall to lock in topology. Pass 2 reuses the same
+          priority-flood + D8 + accumulation pipeline on the post-erosion surface, but seeds each land cell with the
+          actual <code>P<sub>annual</sub></code> from the climate stage instead of <code>1.0</code>. Erosion is
+          <em>not</em> rerun &mdash; topology stays put.
+        </p>
+        <p>
+          The result is a flow accumulation field that genuinely reflects rainfall: rivers that should be major
+          (Amazon-style monsoon belts) light up, while rivers that should thin out (deserts, leeward sides of ranges)
+          shrink to nothing. Lake masks come from the same fill step. Pass 2 costs roughly 1 / (erosionIterations + 1)
+          of pass 1 since the inner stream-power loop is skipped, so it adds &lt;10% to total generation time.
+        </p>
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="riverImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="River network, rain-weighted (blue overlay on land)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="lakeImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Lakes (interior depressions detected during the fill pass)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+    </section>
+
+    <!-- Stage 6: Biomes — Satellite View -->
+    <section class="world-gen__section world-gen__section--stage">
+      <h2>Stage 6: Biomes &mdash; Satellite View</h2>
+      <div class="world-gen__text">
+        <p>
+          The final layer is a global-scale rendering rather than a categorical map. Each cell starts from a
+          satellite-natural color keyed off its Köppen class &mdash; deep greens for tropical rainforest, paler greens
+          for oceanic and humid subtropical, olive for Mediterranean and savanna, tan for hot deserts, gray-tan for cold
+          deserts, drab khaki for steppe, and pale olive-gray for tundra. The palette is desaturated relative to the
+          high-contrast Köppen layer above so it reads more like Blue Marble than a political map.
+        </p>
+        <p>On top of the base color, several rendering passes layer in the planetary detail you'd see from orbit:</p>
+        <ul>
+          <li>
+            <strong>Ocean depth</strong> &mdash; shallow shelf cells lighten toward cyan, deep basins darken toward
+            navy, giving continental shelves visible relief.
+          </li>
+          <li>
+            <strong>Bare-rock blend</strong> on terrain above the mountain threshold &mdash; high elevations gradually
+            wash out the Köppen color toward stone gray, so the spine of a major range doesn't stay forest-green.
+          </li>
+          <li>
+            <strong>Snow caps</strong> driven by the seasonal mean temperature and elevation &mdash; cold cells get snow
+            regardless of altitude (polar ice), and high cells get snow regardless of latitude (alpine peaks).
+          </li>
+          <li>
+            <strong>Rivers and lakes</strong> from pass-2 hydrology &mdash; rivers blend over the underlying terrain
+            color rather than overwriting it, so they trace through the landscape instead of looking painted on.
+          </li>
+          <li>
+            <strong>Hillshading</strong> from a top-left light source darkens lee slopes and brightens windward faces,
+            picking up the topography carved by erosion.
+          </li>
+        </ul>
+        <p>
+          The Köppen layer remains the place to inspect raw climate classification; this layer is the synthesis of every
+          previous stage, and it's the one to compare against
+          <a href="https://en.wikipedia.org/wiki/The_Blue_Marble" target="_blank" rel="noopener">Blue Marble</a>
+          imagery to gut-check the simulation.
         </p>
       </div>
       <div class="world-gen__demo">
@@ -340,7 +576,7 @@
             [imageData]="biomeImage()"
             [loading]="isGenerating()"
             [(panOffset)]="sharedPanOffset"
-            caption="Biome classification (color-coded)" />
+            caption="Biomes — satellite-style global render" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
