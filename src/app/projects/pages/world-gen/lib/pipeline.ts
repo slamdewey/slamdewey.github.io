@@ -20,9 +20,9 @@ export class WorldGenerator {
     const { width, height, noise, climate, tectonic, hydrology } = this.config;
 
     const tectonicResult = generateTectonicPlates(width, height, noise, tectonic);
-    const { faults, mountainRanges, plateMap } = tectonicResult;
+    const { faults, mountainRanges, plateMap, continentalSubRelief, oceanAge } = tectonicResult;
 
-    const { elevation, seaLevel } = generateElevation(width, height, tectonicResult, noise);
+    const { elevation, seaLevel } = generateElevation(width, height, tectonicResult, noise, tectonic);
 
     // Finalize terrain before climate stages so wind, currents, and
     // precipitation all see the same mountain/shelf surface.
@@ -78,6 +78,8 @@ export class WorldGenerator {
         plateMap,
         faultLines: faults,
         mountainRanges,
+        continentalSubRelief,
+        oceanAge,
         elevation,
         seaLevel,
         temperatureSummer: temps.temperatureSummer,

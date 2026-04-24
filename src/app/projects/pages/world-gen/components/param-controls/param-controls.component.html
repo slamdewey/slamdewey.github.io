@@ -48,6 +48,73 @@
             (ngModelChange)="updateTectonic('boundaryFalloffScale', $event)" />
         </mat-slider>
       </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-warpamp">Coastline Warp Amp: {{ tectonic().coastlineWarpAmplitude.toFixed(2) }}</label>
+        <mat-slider min="0" max="1" step="0.05">
+          <input
+            id="slider-warpamp"
+            matSliderThumb
+            [ngModel]="tectonic().coastlineWarpAmplitude"
+            (ngModelChange)="updateTectonic('coastlineWarpAmplitude', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-warpfreq">Coastline Warp Freq: {{ tectonic().coastlineWarpFrequency.toFixed(1) }}</label>
+        <mat-slider min="0.5" max="15" step="0.5">
+          <input
+            id="slider-warpfreq"
+            matSliderThumb
+            [ngModel]="tectonic().coastlineWarpFrequency"
+            (ngModelChange)="updateTectonic('coastlineWarpFrequency', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-subrelief-amp"
+          >Sub-Relief Amp: {{ tectonic().continentalSubReliefAmplitude.toFixed(2) }}</label
+        >
+        <mat-slider min="0" max="1" step="0.05">
+          <input
+            id="slider-subrelief-amp"
+            matSliderThumb
+            [ngModel]="tectonic().continentalSubReliefAmplitude"
+            (ngModelChange)="updateTectonic('continentalSubReliefAmplitude', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-subrelief-freq"
+          >Sub-Relief Freq: {{ tectonic().continentalSubReliefFrequency.toFixed(2) }}</label
+        >
+        <mat-slider min="0.05" max="1.5" step="0.05">
+          <input
+            id="slider-subrelief-freq"
+            matSliderThumb
+            [ngModel]="tectonic().continentalSubReliefFrequency"
+            (ngModelChange)="updateTectonic('continentalSubReliefFrequency', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-ocean-age">Ocean Age Gradient: {{ tectonic().oceanicAgeGradientStrength.toFixed(2) }}</label>
+        <mat-slider min="0" max="2" step="0.1">
+          <input
+            id="slider-ocean-age"
+            matSliderThumb
+            [ngModel]="tectonic().oceanicAgeGradientStrength"
+            (ngModelChange)="updateTectonic('oceanicAgeGradientStrength', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__row">
+        <mat-checkbox
+          [checked]="tectonic().boundarySoftenPassive"
+          (change)="updateTectonic('boundarySoftenPassive', $event.checked)">
+          Soften passive boundaries
+        </mat-checkbox>
+      </div>
     </mat-expansion-panel>
 
     <mat-expansion-panel>

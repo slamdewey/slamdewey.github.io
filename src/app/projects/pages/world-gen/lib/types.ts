@@ -49,6 +49,24 @@ export interface ClimateVariables {
    *  California/Atacama/Namib cold west-coasts vs Gulf-Stream warm east-
    *  coasts on mid-latitude continents. */
   boundaryCurrentStrength: number;
+  /** Seasonal-amplitude boost for deep-continental interiors. Interior land
+   *  cells experience the seasonal tilt scaled by (1 + continentalityStrength
+   *  × inlandProximity); coastal cells are unchanged. 0.5 ≈ 50% extra
+   *  summer/winter swing inland — matches the Dfa/Cfb (Chicago vs Dublin)
+   *  contrast. Annual mean is preserved because the per-season extras cancel. */
+  continentalityStrength: number;
+  /** Iterations of wind-driven sea-surface-temperature advection. Transports
+   *  boundary-current anomalies downstream so e.g. Gulf-Stream warmth reaches
+   *  the far side of the basin. 40 is usually enough to cross a basin at
+   *  default wind magnitudes. */
+  sstIterations: number;
+  /** Per-iteration lateral diffusion coefficient on the SST anomaly field,
+   *  [0, 1]. Represents mesoscale ocean mixing. */
+  sstDiffusion: number;
+  /** Per-iteration radiative relaxation toward zero anomaly. Without this,
+   *  advected anomalies would accumulate indefinitely; with it, they decay
+   *  on a length scale ≈ windMagnitude / relaxation ≈ basin-scale. */
+  sstRelaxation: number;
 }
 
 export interface TectonicVariables {
@@ -57,6 +75,18 @@ export interface TectonicVariables {
   relaxationIterations: number;
   /** Global multiplier for all boundary falloff widths. Default 1.0. */
   boundaryFalloffScale: number;
+  /** Domain-warp amplitude for coastline sampling, as a fraction of plate radius. Fix A. */
+  coastlineWarpAmplitude: number;
+  /** Domain-warp frequency, as a multiplier of the elevation base frequency. Fix A. */
+  coastlineWarpFrequency: number;
+  /** Ridged-fBm amplitude added to continental plate interiors. Fix B. */
+  continentalSubReliefAmplitude: number;
+  /** Ridged-fBm frequency, as a multiplier of nv.frequency. Fix B. */
+  continentalSubReliefFrequency: number;
+  /** Multiplier on the oceanic age-from-ridge elevation gradient. Fix C. */
+  oceanicAgeGradientStrength: number;
+  /** If true, Jacobi smoothing blends passive boundaries instead of pinning them. Fix D. */
+  boundarySoftenPassive: boolean;
 }
 
 export const DEFAULT_TECTONIC: TectonicVariables = {
@@ -64,6 +94,12 @@ export const DEFAULT_TECTONIC: TectonicVariables = {
   cellCount: 750,
   relaxationIterations: 1,
   boundaryFalloffScale: 1.0,
+  coastlineWarpAmplitude: 0.25,
+  coastlineWarpFrequency: 4.0,
+  continentalSubReliefAmplitude: 0.35,
+  continentalSubReliefFrequency: 0.3,
+  oceanicAgeGradientStrength: 1.0,
+  boundarySoftenPassive: true,
 };
 
 import { DEFAULT_HYDROLOGY, type HydrologyVariables } from './stages/hydrology';
@@ -104,6 +140,10 @@ export interface WorldData {
   plateMap: Int32Array;
   faultLines: Float32Array;
   mountainRanges: Float32Array;
+  /** Signed intra-continental perturbation (red = swell, blue = basin). Fix B. */
+  continentalSubRelief: Float32Array;
+  /** Distance-to-ridge, normalized to [0, 1] where 0 is a ridge and 1 is the farthest abyssal plain. Fix C. */
+  oceanAge: Float32Array;
   elevation: Float32Array;
   seaLevel: number;
   temperatureSummer: Float32Array;
@@ -133,6 +173,8 @@ export interface WorldData {
 export type LayerName =
   | 'plates'
   | 'faultLines'
+  | 'continentalSubRelief'
+  | 'oceanAge'
   | 'elevation'
   | 'temperature'
   | 'wind'
@@ -191,4 +233,8 @@ export const DEFAULT_CLIMATE: ClimateVariables = {
   orographicCondensation: 2.5,
   convectiveRainRate: 0.025,
   boundaryCurrentStrength: 0.35,
+  continentalityStrength: 0.5,
+  sstIterations: 40,
+  sstDiffusion: 0.08,
+  sstRelaxation: 0.02,
 };

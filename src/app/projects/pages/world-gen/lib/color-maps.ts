@@ -23,6 +23,12 @@ export function layerToRGBA(
     case 'faultLines':
       colorFaultLines(data as Float32Array, rgba);
       break;
+    case 'continentalSubRelief':
+      colorDivergingRedBlue(data as Float32Array, rgba, 1 / 0.35);
+      break;
+    case 'oceanAge':
+      colorScalarRaw(data as Float32Array, rgba, [180, 220, 255], [5, 15, 40]);
+      break;
     case 'elevation':
       colorElevation(data as Float32Array, rgba, seaLevel);
       break;
@@ -182,6 +188,45 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
       break;
   }
   return [((r + m) * 255) | 0, ((g + m) * 255) | 0, ((b + m) * 255) | 0];
+}
+
+/** Diverging red-blue ramp centered on zero. `scale` maps input → [-1, 1]. */
+function colorDivergingRedBlue(data: Float32Array, rgba: Uint8Array, scale: number): void {
+  for (let i = 0; i < data.length; i++) {
+    const t = Math.max(-1, Math.min(1, data[i] * scale));
+    const o = i * 4;
+    if (t >= 0) {
+      // 0 → neutral gray (200, 200, 200); +1 → warm red (220, 60, 60).
+      rgba[o] = Math.round(200 + t * 20);
+      rgba[o + 1] = Math.round(200 + t * -140);
+      rgba[o + 2] = Math.round(200 + t * -140);
+    } else {
+      // 0 → neutral gray; -1 → cool blue (60, 90, 220).
+      const k = -t;
+      rgba[o] = Math.round(200 - k * 140);
+      rgba[o + 1] = Math.round(200 - k * 110);
+      rgba[o + 2] = Math.round(200 + k * 20);
+    }
+    rgba[o + 3] = 255;
+  }
+}
+
+/** Direct [0, 1] scalar colorizer that ignores elevation/seaLevel masking —
+ *  needed because the ocean-age field is defined globally, not just on water. */
+function colorScalarRaw(
+  data: Float32Array,
+  rgba: Uint8Array,
+  low: [number, number, number],
+  high: [number, number, number]
+): void {
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    const t = Math.max(0, Math.min(1, data[i]));
+    rgba[o] = Math.round(low[0] * (1 - t) + high[0] * t);
+    rgba[o + 1] = Math.round(low[1] * (1 - t) + high[1] * t);
+    rgba[o + 2] = Math.round(low[2] * (1 - t) + high[2] * t);
+    rgba[o + 3] = 255;
+  }
 }
 
 function colorFaultLines(data: Float32Array, rgba: Uint8Array): void {

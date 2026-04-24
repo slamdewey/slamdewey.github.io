@@ -110,6 +110,13 @@
           (continental = high, oceanic = low) plus the interaction-specific delta, producing trenches, mountain ranges,
           rift valleys, and ridges in physically correct locations.
         </p>
+        <p>
+          A short Jacobi smoothing pass then relaxes the interior of each plate toward its isostatic baseline. To keep
+          this from ringing passive margins as one-pixel cliffs, the smoothing step is
+          <strong>interaction-aware</strong>: orogenic boundaries (collision, subduction, oceanic convergence) stay
+          hard-pinned so mountain crests keep their height, while transforms and continental rifts are blended halfway
+          with their neighbors so the seam dissolves into the surrounding terrain.
+        </p>
       </div>
       <div class="world-gen__demo">
         @defer (on viewport) {
@@ -129,10 +136,35 @@
       <h2>Stage 2: Elevation</h2>
       <div class="world-gen__text">
         <p>
-          The tectonic stage produces a base elevation field that already encodes plate type and interaction profiles.
-          The elevation stage simply layers Fractal Brownian Motion (fBm) noise on top for terrain detail &mdash;
-          continental surfaces get rugged variation while ocean floors stay relatively smooth. The result is normalized
-          to [-1, 1] and sea level is set by the water percentage percentile cutoff.
+          Elevation is the tectonic base plus fBm detail, but the naive version of that pipeline produces
+          <strong>polygonal coastlines that trace Voronoi plate edges</strong> &mdash; because every pixel in a plate
+          inherits the same isostatic base, every percentile-driven sea-level cutoff lands exactly on the plate graph.
+          Three additional mechanisms fix that:
+        </p>
+        <ul>
+          <li>
+            <strong>Domain-warped sampling.</strong> Rather than reading its own pixel's tectonic base, each cell reads
+            the base field at a noise-offset position (amplitude &asymp; a quarter of a plate radius, independent seed).
+            Straight Voronoi edges become dendritic &mdash; peninsulas, estuaries, barrier islands.
+          </li>
+          <li>
+            <strong>Continental sub-relief.</strong> A ridged-fBm perturbation is added inside continental plates so
+            interiors aren't uniformly high. This produces cratons, intracontinental swells, and the Hudson-Bay-style
+            drowned basins you see after the percentile cutoff.
+          </li>
+          <li>
+            <strong>Ocean age-from-ridge gradient.</strong> Oceanic pixels add
+            <code>+0.15 &middot; exp(-d / scale) - 0.10</code>, where <code>d</code> is distance to the nearest
+            divergent boundary. Ridges lift toward the surface, abyssal plains sink, and the seafloor stops looking
+            uniformly flat.
+          </li>
+        </ul>
+        <p>
+          On top of all that, the elevation stage layers
+          <a href="https://en.wikipedia.org/wiki/Fractional_Brownian_motion" target="_blank" rel="noopener">fBm</a>
+          noise for terrain detail, normalizes to [-1, 1], and sets sea level via the water-percentage percentile.
+          Because the base is no longer uniform-by-plate, the cutoff now traces natural, irregular coastlines instead of
+          the plate graph.
         </p>
       </div>
       <div class="world-gen__demo">
@@ -142,6 +174,28 @@
             [loading]="isGenerating()"
             [(panOffset)]="sharedPanOffset"
             caption="Elevation map (blue = water, white = high)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="subReliefImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Continental sub-relief (red = swell, blue = basin, gray = neutral or oceanic)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="oceanAgeImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Ocean age &mdash; distance from nearest divergent boundary (light = young ridge, dark = old abyss)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }

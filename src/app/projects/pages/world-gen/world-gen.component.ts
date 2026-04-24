@@ -25,6 +25,8 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   // Geology
   { value: 'plates', label: 'Plates' },
   { value: 'faultLines', label: 'Faults' },
+  { value: 'continentalSubRelief', label: 'Sub-Relief' },
+  { value: 'oceanAge', label: 'Ocean Age' },
   { value: 'elevation', label: 'Elevation' },
   // Climate stack
   { value: 'wind', label: 'Wind' },
@@ -145,6 +147,8 @@ if (tColdest > T_TROPICAL_COLDEST) {
   // Static stage images (2D canvas, no animation loop)
   plateImage = signal<StageImage | null>(null);
   faultImage = signal<StageImage | null>(null);
+  subReliefImage = signal<StageImage | null>(null);
+  oceanAgeImage = signal<StageImage | null>(null);
   elevationImage = signal<StageImage | null>(null);
   temperatureImage = signal<StageImage | null>(null);
   windImage = signal<StageImage | null>(null);
@@ -173,6 +177,10 @@ if (tColdest > T_TROPICAL_COLDEST) {
         return this.plateImage();
       case 'faultLines':
         return this.faultImage();
+      case 'continentalSubRelief':
+        return this.subReliefImage();
+      case 'oceanAge':
+        return this.oceanAgeImage();
       case 'elevation':
         return this.elevationImage();
       case 'temperature':
@@ -249,6 +257,8 @@ if (tColdest > T_TROPICAL_COLDEST) {
 
     this.plateImage.set({ rgba: layerImages.plates, width: w, height: h });
     this.faultImage.set({ rgba: layerImages.faultLines, width: w, height: h });
+    this.subReliefImage.set({ rgba: layerImages.continentalSubRelief, width: w, height: h });
+    this.oceanAgeImage.set({ rgba: layerImages.oceanAge, width: w, height: h });
     this.elevationImage.set({ rgba: layerImages.elevation, width: w, height: h });
     this.temperatureImage.set({ rgba: layerImages.temperature, width: w, height: h });
     this.windImage.set({ rgba: layerImages.wind, width: w, height: h });

@@ -4,6 +4,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatExpansionModule } from '@angular/material/expansion';
 import {
   NoiseVariables,
@@ -18,7 +19,15 @@ import {
   selector: 'x-param-controls',
   templateUrl: './param-controls.component.html',
   styleUrls: ['./param-controls.component.scss'],
-  imports: [FormsModule, MatSliderModule, MatInputModule, MatFormFieldModule, MatButtonModule, MatExpansionModule],
+  imports: [
+    FormsModule,
+    MatSliderModule,
+    MatInputModule,
+    MatFormFieldModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatExpansionModule,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ParamControlsComponent {
@@ -42,7 +51,7 @@ export class ParamControlsComponent {
     this.climate.update((c) => ({ ...c, [key]: value }));
   }
 
-  updateTectonic(key: keyof TectonicVariables, value: number): void {
+  updateTectonic(key: keyof TectonicVariables, value: number | boolean): void {
     this.tectonic.update((t) => ({ ...t, [key]: value }));
   }
 

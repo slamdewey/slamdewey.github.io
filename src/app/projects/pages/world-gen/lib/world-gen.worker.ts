@@ -6,6 +6,8 @@ import { WorkerRequest, WorkerResponse } from './worker-types';
 const ALL_LAYERS: LayerName[] = [
   'plates',
   'faultLines',
+  'continentalSubRelief',
+  'oceanAge',
   'elevation',
   'temperature',
   'wind',
@@ -45,6 +47,8 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
     worldData.plateMap.buffer,
     worldData.faultLines.buffer,
     worldData.mountainRanges.buffer,
+    worldData.continentalSubRelief.buffer,
+    worldData.oceanAge.buffer,
     worldData.elevation.buffer,
     worldData.temperatureSummer.buffer,
     worldData.temperatureWinter.buffer,
@@ -89,6 +93,10 @@ function selectLayerSource(worldData: WorldData, layer: LayerName): Float32Array
       return worldData.lakes;
     case 'faultLines':
       return worldData.faultLines;
+    case 'continentalSubRelief':
+      return worldData.continentalSubRelief;
+    case 'oceanAge':
+      return worldData.oceanAge;
     case 'elevation':
       return worldData.elevation;
     case 'temperature':

@@ -58,6 +58,12 @@ export interface TectonicResult {
   plateMap: Int32Array;
   plates: PlateProperties[];
   boundaries: BoundaryInfo[];
+  /** Signed intra-continental perturbation (positive = swell, negative = basin). Fix B. */
+  continentalSubRelief: Float32Array;
+  /** Pixel distance to nearest ridge/rift seed (Chamfer). Feeds the ocean age gradient. Fix C. */
+  distToRidge: Float32Array;
+  /** distToRidge normalized to [0, 1] (1 = farthest abyssal plain from any ridge). Fix C. */
+  oceanAge: Float32Array;
 }
 
 /** Simple seeded PRNG (xorshift32). */
@@ -654,8 +660,17 @@ function rasterizePlateInteractions(
   plates: PlateProperties[],
   width: number,
   height: number,
-  falloffScale: number
-): { baseElevation: Float32Array; faults: Float32Array; mountainRanges: Float32Array } {
+  nv: NoiseVariables,
+  tv: TectonicVariables
+): {
+  baseElevation: Float32Array;
+  faults: Float32Array;
+  mountainRanges: Float32Array;
+  continentalSubRelief: Float32Array;
+  distToRidge: Float32Array;
+  oceanAge: Float32Array;
+} {
+  const falloffScale = tv.boundaryFalloffScale;
   const size = width * height;
   const baseElevation = new Float32Array(size);
   const faults = new Float32Array(size);
@@ -776,17 +791,30 @@ function rasterizePlateInteractions(
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
-        if (isBoundary[idx]) {
-          temp[idx] = baseElevation[idx]; // pinned
-          continue;
-        }
 
-        // Average of 4 neighbors (wrap x, clamp y)
+        // Average of 4 neighbors (wrap x, clamp y) — needed for both pinned
+        // (soft-blend) and interior branches under Fix D.
         const left = baseElevation[y * width + mod(x - 1, width)];
         const right = baseElevation[y * width + mod(x + 1, width)];
         const up = y > 0 ? baseElevation[(y - 1) * width + x] : baseElevation[idx];
         const down = y < height - 1 ? baseElevation[(y + 1) * width + x] : baseElevation[idx];
         const avg = (left + right + up + down) / 4;
+
+        if (isBoundary[idx]) {
+          // Fix D: passive seams (transforms, continental rifts) blend halfway
+          // with neighbors so they don't survive smoothing as one-pixel cliffs.
+          // Orogenic boundaries stay hard-pinned so mountain belts keep their crest.
+          if (tv.boundarySoftenPassive) {
+            const bi = nearestBoundary[idx];
+            const type = bi >= 0 ? boundaries[bi].interactionType : null;
+            if (type === InteractionType.Transform || type === InteractionType.ContinentalRift) {
+              temp[idx] = 0.5 * baseElevation[idx] + 0.5 * avg;
+              continue;
+            }
+          }
+          temp[idx] = baseElevation[idx]; // pinned
+          continue;
+        }
 
         temp[idx] = (1 - GRAVITY_ALPHA) * avg + GRAVITY_ALPHA * effectiveBase(idx);
       }
@@ -795,9 +823,102 @@ function rasterizePlateInteractions(
     baseElevation.set(temp);
   }
 
+  // Pass 4.5: Intra-plate relief so coastlines aren't uniform-by-plate.
+  //   - Continental pixels get a signed ridged-fBm perturbation — cratons,
+  //     swells, intracratonic basins (Hudson-Bay-style embayments).
+  //   - Oceanic pixels get an age-from-ridge exponential gradient —
+  //     mid-ocean ridges rise, abyssal plains sink.
+  // Applied *after* Jacobi (so smoothing doesn't erase it) but *before* the
+  // interaction-delta overlay (so orogenic belts still sit on top).
+  const continentalSubRelief = new Float32Array(size);
+
+  // Seed the ridge-distance field from divergent-boundary pixels only.
+  const ridgeSeedMask = new Uint8Array(size);
+  let hasRidgeSeeds = false;
+  for (let i = 0; i < size; i++) {
+    if (!isBoundary[i]) continue;
+    const bi = nearestBoundary[i];
+    if (bi < 0) continue;
+    const type = boundaries[bi].interactionType;
+    if (type === InteractionType.OceanicRidge || type === InteractionType.ContinentalRift) {
+      ridgeSeedMask[i] = 1;
+      hasRidgeSeeds = true;
+    }
+  }
+  const distToRidge = chamferDistance(ridgeSeedMask, width, height);
+  const oceanAge = new Float32Array(size);
+  const oceanAgeScale = width / 6;
+
+  // Find the max *finite* ridge distance for oceanAge layer normalization.
+  // chamferDistance fills unreachable cells with INF = width+height; when
+  // no ridge seeds exist, every cell stays at INF and the normalized field
+  // is left at 0.
+  if (hasRidgeSeeds) {
+    const INF_SENTINEL = width + height - 1;
+    let maxRidgeDist = 0;
+    for (let i = 0; i < size; i++) {
+      const d = distToRidge[i];
+      if (d > maxRidgeDist && d <= INF_SENTINEL) maxRidgeDist = d;
+    }
+    const invMax = maxRidgeDist > 0 ? 1 / maxRidgeDist : 0;
+    for (let i = 0; i < size; i++) {
+      oceanAge[i] = Math.min(1, distToRidge[i] * invMax);
+    }
+  }
+
+  const subReliefNoise = new OpenSimplexNoise((nv.seed ^ 0xbee5ca7e) | 0);
+  const subReliefFreq = nv.frequency * tv.continentalSubReliefFrequency;
+  const subReliefAmp = tv.continentalSubReliefAmplitude;
+  const yScaleSub = (2 * Math.PI) / width;
+  const ageStrength = tv.oceanicAgeGradientStrength;
+
+  for (let y = 0; y < height; y++) {
+    const ny = y * yScaleSub;
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const plate = plates[plateMap[idx]];
+      if (plate.type === PlateType.Continental) {
+        const sx = cylindricalSx(x, width);
+        const cx = cylindricalCx(x, width);
+        // Local ridged fBm: per-octave ridge = 1 - |n|, recentered to [-1, 1].
+        let sum = 0;
+        let range = 0;
+        let f = subReliefFreq;
+        let a = 1;
+        for (let o = 0; o < 4; o++) {
+          const n = subReliefNoise.eval3D(sx * f, ny * f, cx * f);
+          sum += (1 - Math.abs(n)) * a;
+          range += a;
+          f *= 2.0;
+          a *= 0.5;
+        }
+        const ridged01 = sum / Math.max(range, 1);
+        const signed = ridged01 * 2 - 1;
+        const delta = signed * subReliefAmp;
+        continentalSubRelief[idx] = delta;
+        baseElevation[idx] += delta;
+      } else if (hasRidgeSeeds) {
+        // Oceanic age-from-ridge gradient: ridges lift, abyssal plains sink.
+        const d = distToRidge[idx];
+        const rawDelta = 0.15 * Math.exp(-d / oceanAgeScale) - 0.1;
+        baseElevation[idx] += rawDelta * ageStrength;
+      }
+    }
+  }
+
   // Pass 5: Add interaction falloff for faults and mountainRanges,
   // and overlay interaction elevation delta on top of the gradient base.
   // Each interaction type has its own falloff width; subduction is asymmetric.
+  //
+  // `dist[i]` is warped by a low-amplitude noise before the falloff curve is
+  // evaluated, so the interaction band (especially the subduction mountain
+  // belt) does not trace the Voronoi polygon 1:1 — without this, coastlines
+  // on active margins are forced straight by the uniform +0.35 elevation
+  // band stamped along the plate edge.
+  const pass5Warp = new OpenSimplexNoise((nv.seed ^ 0xfa5170c5) | 0);
+  const warpFreqPass5 = nv.frequency * tv.coastlineWarpFrequency;
+  const yScalePass5 = (2 * Math.PI) / width;
+
   for (let i = 0; i < size; i++) {
     const bi = nearestBoundary[i];
     if (bi < 0) continue;
@@ -815,9 +936,23 @@ function rasterizePlateInteractions(
     }
     const effectiveFalloff = baseFalloff * multiplier * falloffScale;
 
-    if (dist[i] >= effectiveFalloff) continue;
+    // Noise-warp the distance so the interaction band zigzags instead of
+    // tracing the plate polygon. Amplitude is capped at 0.8·effectiveFalloff
+    // so the band can jitter but cannot stamp phantom mountains far inland.
+    const px = i % width;
+    const py = (i - px) / width;
+    const sx = cylindricalSx(px, width);
+    const cx = cylindricalCx(px, width);
+    const ny = py * yScalePass5;
+    const warpSample = pass5Warp.eval3D(sx * warpFreqPass5, ny * warpFreqPass5, cx * warpFreqPass5);
+    const warpLim = 0.8 * effectiveFalloff;
+    const rawOffset = warpSample * effectiveFalloff * tv.coastlineWarpAmplitude * 3;
+    const distOffset = rawOffset > warpLim ? warpLim : rawOffset < -warpLim ? -warpLim : rawOffset;
+    const warpedDist = Math.max(0, dist[i] + distOffset);
 
-    const t = 1 - dist[i] / effectiveFalloff;
+    if (warpedDist >= effectiveFalloff) continue;
+
+    const t = 1 - warpedDist / effectiveFalloff;
     const falloff = t * t; // quadratic for smoother edges
 
     const plateType = plates[pixelPlate].type;
@@ -836,7 +971,7 @@ function rasterizePlateInteractions(
     faults[i] = b.intensity * falloff;
   }
 
-  return { baseElevation, faults, mountainRanges };
+  return { baseElevation, faults, mountainRanges, continentalSubRelief, distToRidge, oceanAge };
 }
 
 /**
@@ -980,15 +1115,20 @@ export function generateTectonicPlates(
   const rawBoundaries = aggregatePlateBoundaries(graph.edges, cellToPlate, plateCount);
   const boundaries = classifyBoundaries(rawBoundaries, plates, centroids, width);
 
-  // Step 7: Rasterize interactions into baseElevation, faults, and mountainRanges
-  const { baseElevation, faults, mountainRanges } = rasterizePlateInteractions(
-    plateMap,
-    boundaries,
-    plates,
-    width,
-    height,
-    tv.boundaryFalloffScale
-  );
+  // Step 7: Rasterize interactions into baseElevation, faults, mountainRanges,
+  // continentalSubRelief, distToRidge, and oceanAge.
+  const { baseElevation, faults, mountainRanges, continentalSubRelief, distToRidge, oceanAge } =
+    rasterizePlateInteractions(plateMap, boundaries, plates, width, height, nv, tv);
 
-  return { baseElevation, faults, mountainRanges, plateMap, plates, boundaries };
+  return {
+    baseElevation,
+    faults,
+    mountainRanges,
+    plateMap,
+    plates,
+    boundaries,
+    continentalSubRelief,
+    distToRidge,
+    oceanAge,
+  };
 }
