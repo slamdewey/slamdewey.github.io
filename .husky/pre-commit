@@ -1,3 +1,1 @@
-npm run format
-npm run lint
-git diff --name-only | xargs -r git add
+npx lint-staged
