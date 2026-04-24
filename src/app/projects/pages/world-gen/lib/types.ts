@@ -42,6 +42,13 @@ export interface ClimateVariables {
    *  iteration regardless of saturation. Models the bulk vertical mixing
    *  that the 2D grid can't represent directly. Boosted under the ITCZ. */
   convectiveRainRate: number;
+  /** Peak temperature modifier from wind-driven boundary currents, as a
+   *  fraction of [0,1] temperature units. Applied at continental boundaries
+   *  (cold eastern / warm western ocean margins), falls off exponentially
+   *  into open ocean. Produces realistic east/west coastal asymmetry —
+   *  California/Atacama/Namib cold west-coasts vs Gulf-Stream warm east-
+   *  coasts on mid-latitude continents. */
+  boundaryCurrentStrength: number;
 }
 
 export interface TectonicVariables {
@@ -183,4 +190,5 @@ export const DEFAULT_CLIMATE: ClimateVariables = {
   rainoutRate: 0.12,
   orographicCondensation: 2.5,
   convectiveRainRate: 0.025,
+  boundaryCurrentStrength: 0.35,
 };

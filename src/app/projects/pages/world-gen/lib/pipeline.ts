@@ -37,7 +37,7 @@ export class WorldGenerator {
     const windPass1 = generateWind(width, height, noise, climate, null, 0);
     applyTerrainDeflection(width, height, windPass1, elevation, seaLevel);
 
-    const { tempModifier, distToOcean } = generateOceanCurrents(width, height, windPass1, elevation, seaLevel);
+    const { tempModifier, distToOcean } = generateOceanCurrents(width, height, windPass1, elevation, seaLevel, climate);
 
     // Seasonal temperatures and PET — no wind dependence beyond the current
     // advection already baked into tempModifier.
