@@ -11,7 +11,7 @@
     "start:prod": "ng serve --configuration=production",
     "format": "prettier --write .",
     "lint": "eslint . --fix",
-    "prepare": "husky"
+    "prepare": ""
   },
   "private": true,
   "dependencies": {

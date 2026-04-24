@@ -1,11 +1,11 @@
 import { WorldConfig, WorldData } from './types';
 import { generateTectonicPlates, type TectonicResult } from './stages/tectonic-plates';
 import { generateElevation } from './stages/elevation';
-import { generateWind, applyTerrainDeflection } from './stages/wind';
+import { generateWind, applyTerrainDeflection, meanWind } from './stages/wind';
 import { generateOceanCurrents } from './stages/ocean-currents';
 import { applyMountainRangesAndContinentalShelves } from './stages/post-processing';
 import { runHydrology, computeFlowAndRivers } from './stages/hydrology';
-import { runClimate } from './stages/climate';
+import { runClimateTemperature, runClimateHumidity } from './stages/climate';
 import { classifyBiomes } from './stages/biomes';
 
 export interface GeneratorResult {
@@ -32,24 +32,29 @@ export class WorldGenerator {
     // insensitive to rainfall magnitude (stream-power scales A^m, m≈0.5).
     runHydrology(width, height, elevation, seaLevel, hydrology);
 
-    const wind = generateWind(width, height, noise);
-    applyTerrainDeflection(width, height, wind, elevation, seaLevel);
+    // Wind pass 1: latitude-only pressure field (no thermal contrast yet —
+    // that needs temperatures, which need ocean currents, which need wind).
+    const windPass1 = generateWind(width, height, noise, climate, null, 0);
+    applyTerrainDeflection(width, height, windPass1, elevation, seaLevel);
 
-    const { tempModifier, distToOcean } = generateOceanCurrents(width, height, wind, elevation, seaLevel);
+    const { tempModifier, distToOcean } = generateOceanCurrents(width, height, windPass1, elevation, seaLevel);
 
-    // Climate sub-pipeline: seasonal temps, PET, two-pass humidity sim,
-    // aridity/seasonality/continentality/growing-season, Köppen classes.
-    const climateResult = runClimate(
-      width,
-      height,
-      elevation,
-      seaLevel,
-      wind,
-      tempModifier,
-      distToOcean,
-      noise,
-      climate
-    );
+    // Seasonal temperatures and PET — no wind dependence beyond the current
+    // advection already baked into tempModifier.
+    const temps = runClimateTemperature(width, height, elevation, seaLevel, tempModifier, distToOcean, noise, climate);
+
+    // Wind pass 2: one field per season, pressure now includes land–sea
+    // thermal contrast. Summer continents warm above the zonal mean → local
+    // low → onshore inflow; winter reverses it. This is the mechanism behind
+    // real monsoon seasonality.
+    const windSummer = generateWind(width, height, noise, climate, temps.temperatureSummer, -climate.itczShift);
+    applyTerrainDeflection(width, height, windSummer, elevation, seaLevel);
+    const windWinter = generateWind(width, height, noise, climate, temps.temperatureWinter, +climate.itczShift);
+    applyTerrainDeflection(width, height, windWinter, elevation, seaLevel);
+    const wind = meanWind(windSummer, windWinter);
+
+    // Humidity simulation uses the matching seasonal wind per pass.
+    const humidity = runClimateHumidity(width, height, elevation, seaLevel, temps, windSummer, windWinter, climate);
 
     // Pass 2: rerun flow/rivers/lakes weighted by real annual precipitation.
     // No erosion — topology is locked in from pass 1. Aridity gates lake
@@ -59,12 +64,12 @@ export class WorldGenerator {
       height,
       elevation,
       seaLevel,
-      climateResult.precipAnnual,
-      climateResult.aridityIndex,
+      humidity.precipAnnual,
+      humidity.aridityIndex,
       hydrology
     );
 
-    const biomes = classifyBiomes(width, height, elevation, climateResult.koppenClass, seaLevel, rivers, lakes);
+    const biomes = classifyBiomes(width, height, elevation, humidity.koppenClass, seaLevel, rivers, lakes);
 
     return {
       worldData: {
@@ -75,21 +80,23 @@ export class WorldGenerator {
         mountainRanges,
         elevation,
         seaLevel,
-        temperatureSummer: climateResult.temperatureSummer,
-        temperatureWinter: climateResult.temperatureWinter,
-        temperatureMean: climateResult.temperatureMean,
+        temperatureSummer: temps.temperatureSummer,
+        temperatureWinter: temps.temperatureWinter,
+        temperatureMean: temps.temperatureMean,
         wind,
-        petSummer: climateResult.petSummer,
-        petWinter: climateResult.petWinter,
-        petAnnual: climateResult.petAnnual,
-        precipSummer: climateResult.precipSummer,
-        precipWinter: climateResult.precipWinter,
-        precipAnnual: climateResult.precipAnnual,
-        aridityIndex: climateResult.aridityIndex,
-        seasonality: climateResult.seasonality,
-        continentality: climateResult.continentality,
-        growingSeason: climateResult.growingSeason,
-        koppenClass: climateResult.koppenClass,
+        windSummer,
+        windWinter,
+        petSummer: temps.petSummer,
+        petWinter: temps.petWinter,
+        petAnnual: temps.petAnnual,
+        precipSummer: humidity.precipSummer,
+        precipWinter: humidity.precipWinter,
+        precipAnnual: humidity.precipAnnual,
+        aridityIndex: humidity.aridityIndex,
+        seasonality: humidity.seasonality,
+        continentality: humidity.continentality,
+        growingSeason: humidity.growingSeason,
+        koppenClass: humidity.koppenClass,
         biomes,
         flowAccumulation,
         rivers,

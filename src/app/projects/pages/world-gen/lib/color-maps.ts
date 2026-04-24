@@ -30,6 +30,8 @@ export function layerToRGBA(
       colorTemperature(data as Float32Array, rgba);
       break;
     case 'wind':
+    case 'windSummer':
+    case 'windWinter':
       colorWind(data as Float32Array, rgba, width, height);
       break;
     case 'precipitation':
@@ -227,11 +229,13 @@ function colorTemperature(data: Float32Array, rgba: Uint8Array): void {
 }
 
 function colorWind(data: Float32Array, rgba: Uint8Array, width: number, height: number): void {
-  // Wind is interleaved [dx, dy, ...], so data.length = width*height*2
+  // Wind is interleaved [dx, dy, ...] and non-unit (magnitude up to ~1.5).
+  // Clamp components to [-1, 1] for the display mapping so strong winds
+  // saturate predictably rather than wrap.
   const cellCount = width * height;
   for (let i = 0; i < cellCount; i++) {
-    const dx = data[i * 2];
-    const dy = data[i * 2 + 1];
+    const dx = Math.max(-1, Math.min(1, data[i * 2]));
+    const dy = Math.max(-1, Math.min(1, data[i * 2 + 1]));
     const o = i * 4;
     rgba[o] = Math.round(mapToUnsignedRange(dx) * 255);
     rgba[o + 1] = Math.round(mapToUnsignedRange(dy) * 255);

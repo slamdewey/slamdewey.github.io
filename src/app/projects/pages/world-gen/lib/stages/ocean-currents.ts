@@ -41,8 +41,9 @@ export function generateOceanCurrents(
       if (elevation[idx] <= seaLevel) {
         // wind y > 0 means southward → in NH advects cold-from-north (cooling),
         // in SH advects warm-from-equator (warming). Sign math unifies both.
+        // Wind is non-unit now, so clamp to keep modifier in its original range.
         const currentY = wind[idx * 2 + 1];
-        tempModifier[idx] = -currentY * polewardness * STRENGTH;
+        tempModifier[idx] = clamp(-currentY * polewardness * STRENGTH, -STRENGTH, STRENGTH);
         distToOcean[idx] = 0;
       } else {
         tempModifier[idx] = 0;

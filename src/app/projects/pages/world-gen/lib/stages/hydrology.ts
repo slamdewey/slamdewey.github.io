@@ -33,12 +33,15 @@ export interface HydrologyVariables {
   riverLogThreshold: number;
   /** (filled - elevation) above this value qualifies a cell as a depression for lake consideration. */
   lakeDepthEpsilon: number;
-  /** log2(1 + flowAcc) cutoff above which a depression cell can become a lake.
+  /** log2(1 + flowAcc) cutoff above which a depression basin can become a lake.
    *  Suppresses spurious tiny depressions that nothing actually drains into. */
   lakeFlowLogThreshold: number;
-  /** Aridity index (MAP/PET) above which a depression cell can become a lake.
+  /** Aridity index (MAP/PET) above which a depression basin can become a lake.
    *  Suppresses dry-climate basins (Death Valley / Lake Eyre style salt flats). */
   lakeAridityThreshold: number;
+  /** Minimum connected-component size (cells) for a basin to be rendered as
+   *  a lake. Filters out 1-cell slivers and numerical noise. */
+  lakeMinCells: number;
 }
 
 export const DEFAULT_HYDROLOGY: HydrologyVariables = {
@@ -48,9 +51,10 @@ export const DEFAULT_HYDROLOGY: HydrologyVariables = {
   slopeExponent: 1.0,
   diffusionStrength: 0.1,
   riverLogThreshold: 4.0,
-  lakeDepthEpsilon: 0.003,
+  lakeDepthEpsilon: 0.008,
   lakeFlowLogThreshold: 3.0,
   lakeAridityThreshold: 0.4,
+  lakeMinCells: 6,
 };
 
 export interface HydrologyResult {
@@ -77,9 +81,11 @@ export function runHydrology(
   seaLevel: number,
   config: HydrologyVariables
 ): HydrologyResult {
-  // 1. Depression fill.
+  // 1. Depression fill. Pass-1 lake detection is skipped — the visible lake
+  // mask comes from pass 2 (buildLakeMaskGated) which has the climate data
+  // it needs to decide which basins are real lakes.
   const filled = priorityFloodFill(elevation, width, height, seaLevel);
-  const lakes = buildLakeMask(elevation, filled, seaLevel, config.lakeDepthEpsilon);
+  const lakes = new Uint8Array(elevation.length);
 
   // 2. Flow direction on the filled surface so every land cell has a downhill.
   const flowDir = computeD8FlowDir(filled, width, height, seaLevel);
@@ -119,11 +125,16 @@ export function runHydrology(
 // --- Priority flood (Barnes-Lehman 2014) -----------------------------------
 
 /**
- * Min-heap flood fill. Seeds every ocean cell and every Y-edge land cell
- * as an outlet at its own elevation, then grows the filled surface inward.
- * Each popped cell enforces `filled[neighbor] = max(elevation[neighbor],
- * filled[cell] + eps)`, guaranteeing a monotonically descending path from
- * every land cell back to an outlet.
+ * Min-heap flood fill. Seeds every ocean cell as an outlet at its own
+ * elevation, then grows the filled surface inward. Each popped cell enforces
+ * `filled[neighbor] = max(elevation[neighbor], filled[cell] + eps)`,
+ * guaranteeing a monotonically descending path from every land cell back
+ * to the ocean.
+ *
+ * The map wraps cylindrically in X but is closed at the Y edges. Land cells
+ * at y=0 / y=height-1 are NOT seeded — they must drain to the ocean through
+ * neighbors, or become endorheic basins filled to an internal outlet level.
+ * This prevents rivers from leaking off the top/bottom of the map.
  */
 function priorityFloodFill(elevation: Float32Array, width: number, height: number, seaLevel: number): Float32Array {
   const size = width * height;
@@ -131,16 +142,11 @@ function priorityFloodFill(elevation: Float32Array, width: number, height: numbe
   const closed = new Uint8Array(size);
   const heap = new MinHeap(size);
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      const isOcean = elevation[idx] < seaLevel;
-      const isYEdge = y === 0 || y === height - 1;
-      if (isOcean || isYEdge) {
-        filled[idx] = elevation[idx];
-        closed[idx] = 1;
-        heap.push(elevation[idx], idx);
-      }
+  for (let i = 0; i < size; i++) {
+    if (elevation[i] < seaLevel) {
+      filled[i] = elevation[i];
+      closed[i] = 1;
+      heap.push(elevation[i], i);
     }
   }
 
@@ -168,56 +174,127 @@ function priorityFloodFill(elevation: Float32Array, width: number, height: numbe
 }
 
 /**
- * Pass-1 lake mask — purely topological. Used internally for the erosion
- * pass; the visible lakes layer comes from `buildLakeMaskGated` in pass 2.
- */
-function buildLakeMask(elevation: Float32Array, filled: Float32Array, seaLevel: number, epsilon: number): Uint8Array {
-  const out = new Uint8Array(elevation.length);
-  for (let i = 0; i < elevation.length; i++) {
-    if (elevation[i] >= seaLevel && filled[i] - elevation[i] > epsilon) {
-      out[i] = 1;
-    }
-  }
-  return out;
-}
-
-/**
- * Pass-2 lake mask. A depression becomes a lake only if it satisfies
- * three conditions:
+ * Pass-2 lake mask — basin-fill formulation.
  *
- *  1. **Depression depth** — `filled - elevation > epsilon`. Without this,
- *     every cell that priority-flood touched would qualify.
- *  2. **Flow accumulation** — `log2(1 + flowAcc) > flowLogThreshold`. A real
- *     lake has water flowing into it; spurious tiny depressions that nothing
- *     drains into shouldn't qualify.
- *  3. **Aridity gate** — `aridityIndex >= aridityThreshold`. Closed basins in
- *     arid climates (Death Valley, Lake Eyre, Tarim Basin) are usually salt
- *     flats / ephemeral washes, not standing water bodies. The aridity gate
- *     converts them to dry depressions while keeping wet-climate rift lakes
- *     (Tanganyika, Malawi, Baikal) intact.
+ * Priority-flood has already identified every depression cell (where
+ * `filled > elevation`). Per-cell testing produces 1-cell slivers and
+ * jagged shapes; instead we flood-fill connected components of depression
+ * cells (4-connected, X wraps) and gate each **basin** as a whole:
+ *
+ *  1. **Minimum area** — `area >= minCells`. Rejects 1-cell numerical noise.
+ *  2. **Inflow** — `max log2(1 + flowAcc) > flowLogThreshold` over the basin.
+ *     Real lakes have water flowing in; the outlet-adjacent cell carries
+ *     the full catchment. Using the max (not the mean) captures this.
+ *  3. **Aridity** — `mean aridityIndex >= aridityThreshold`. Dry closed
+ *     basins (Death Valley, Lake Eyre) are salt flats, not standing water.
+ *
+ * Accepted basins render every member cell as lake, yielding contiguous
+ * rounded shapes aligned with the filled-surface water level.
  */
 function buildLakeMaskGated(
   elevation: Float32Array,
   filled: Float32Array,
   flowAccumulation: Float32Array,
   aridityIndex: Float32Array,
+  width: number,
+  height: number,
   seaLevel: number,
   epsilon: number,
   flowLogThreshold: number,
-  aridityThreshold: number
+  aridityThreshold: number,
+  minCells: number
 ): Uint8Array {
-  const out = new Uint8Array(elevation.length);
-  for (let i = 0; i < elevation.length; i++) {
-    if (elevation[i] < seaLevel) continue;
-    if (filled[i] - elevation[i] <= epsilon) continue;
-    if (Math.log2(1 + flowAccumulation[i]) <= flowLogThreshold) continue;
-    if (aridityIndex[i] < aridityThreshold) continue;
-    out[i] = 1;
+  const size = elevation.length;
+  const out = new Uint8Array(size);
+
+  const isDepression = new Uint8Array(size);
+  for (let i = 0; i < size; i++) {
+    if (elevation[i] >= seaLevel && filled[i] - elevation[i] > epsilon) {
+      isDepression[i] = 1;
+    }
   }
+
+  const visited = new Uint8Array(size);
+  const stack: number[] = [];
+  const component: number[] = [];
+
+  for (let start = 0; start < size; start++) {
+    if (!isDepression[start] || visited[start]) continue;
+
+    component.length = 0;
+    stack.length = 0;
+    stack.push(start);
+    visited[start] = 1;
+
+    let maxLogFlow = 0;
+    let aridSum = 0;
+
+    while (stack.length > 0) {
+      const idx = stack.pop()!;
+      component.push(idx);
+
+      const lf = Math.log2(1 + flowAccumulation[idx]);
+      if (lf > maxLogFlow) maxLogFlow = lf;
+      aridSum += aridityIndex[idx];
+
+      const y = (idx / width) | 0;
+      const x = idx - y * width;
+
+      // 4-connected neighbors (X wraps cylindrically, Y closed at poles).
+      const east = y * width + mod(x + 1, width);
+      const west = y * width + mod(x - 1, width);
+      if (!visited[east] && isDepression[east]) {
+        visited[east] = 1;
+        stack.push(east);
+      }
+      if (!visited[west] && isDepression[west]) {
+        visited[west] = 1;
+        stack.push(west);
+      }
+      if (y > 0) {
+        const north = (y - 1) * width + x;
+        if (!visited[north] && isDepression[north]) {
+          visited[north] = 1;
+          stack.push(north);
+        }
+      }
+      if (y < height - 1) {
+        const south = (y + 1) * width + x;
+        if (!visited[south] && isDepression[south]) {
+          visited[south] = 1;
+          stack.push(south);
+        }
+      }
+    }
+
+    const area = component.length;
+    if (area < minCells) continue;
+    if (maxLogFlow <= flowLogThreshold) continue;
+    if (aridSum / area < aridityThreshold) continue;
+
+    for (let i = 0; i < area; i++) out[component[i]] = 1;
+  }
+
   return out;
 }
 
 // --- D8 flow direction ------------------------------------------------------
+
+/**
+ * Deterministic per-cell/per-direction jitter. Priority-flood on a plateau
+ * raises neighbors by just FILL_EPSILON, so many cells have 8 nearly-tied
+ * drops and "first one wins" picks the same direction cell after cell —
+ * producing perfectly straight 1-cell canyons under stream-power erosion.
+ * A tiny stable jitter breaks ties so drainage fans out naturally.
+ */
+function d8TieJitter(nx: number, ny: number, d: number): number {
+  let h = (nx * 374761393) ^ (ny * 668265263) ^ (d * 1274126177);
+  h = (h ^ (h >>> 13)) >>> 0;
+  // Scale so max jitter is ~6e-5 — larger than FILL_EPSILON (1e-6) so it
+  // breaks priority-flood ties, but well below natural elevation gradients
+  // so it doesn't misroute real drainage.
+  return (h & 0xffff) * 1e-9;
+}
 
 function computeD8FlowDir(filled: Float32Array, width: number, height: number, seaLevel: number): Int8Array {
   const flowDir = new Int8Array(filled.length).fill(-1);
@@ -234,7 +311,7 @@ function computeD8FlowDir(filled: Float32Array, width: number, height: number, s
         const ny = y + D8_DY[d];
         if (ny < 0 || ny >= height) continue;
         const nIdx = ny * width + nx;
-        const drop = (filled[idx] - filled[nIdx]) / D8_DIST[d];
+        const drop = (filled[idx] - filled[nIdx]) / D8_DIST[d] + d8TieJitter(nx, ny, d);
         if (drop > bestDrop) {
           bestDrop = drop;
           bestDir = d;
@@ -412,10 +489,13 @@ export function computeFlowAndRivers(
     filled,
     flowAcc,
     aridityIndex,
+    width,
+    height,
     seaLevel,
     config.lakeDepthEpsilon,
     config.lakeFlowLogThreshold,
-    config.lakeAridityThreshold
+    config.lakeAridityThreshold,
+    config.lakeMinCells
   );
   const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
   return { flowAccumulation: flowAcc, rivers, lakes };

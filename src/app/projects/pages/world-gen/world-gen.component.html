@@ -202,16 +202,58 @@
       <h2>Stage 3: Wind</h2>
       <div class="world-gen__text">
         <p>
-          Global wind patterns are modeled after Earth's atmospheric circulation cells. Six latitudinal zones (three per
-          hemisphere) represent the Hadley, Ferrel, and Polar cells. Each zone has alternating vertical and horizontal
-          dominant wind directions, with smooth interpolation between zones and noise-based jitter for natural
-          variation.
+          Wind isn't assigned per-latitude from a lookup table &mdash; it falls out of a
+          <strong>pressure field</strong> built from Earth's zonal-mean
+          <a href="https://en.wikipedia.org/wiki/Atmospheric_circulation" target="_blank" rel="noopener"
+            >atmospheric circulation</a
+          >. Lows sit at the
+          <a href="https://en.wikipedia.org/wiki/Intertropical_Convergence_Zone" target="_blank" rel="noopener">ITCZ</a>
+          along the equator and along the subpolar fronts at &asymp;60°, while highs sit at the
+          <a href="https://en.wikipedia.org/wiki/Horse_latitudes" target="_blank" rel="noopener">horse latitudes</a>
+          near &asymp;30° and at the polar caps. This arrangement is what creates the three circulation cells per
+          hemisphere: the
+          <a href="https://en.wikipedia.org/wiki/Hadley_cell" target="_blank" rel="noopener">Hadley</a>,
+          <a href="https://en.wikipedia.org/wiki/Ferrel_cell" target="_blank" rel="noopener">Ferrel</a>, and
+          <a href="https://en.wikipedia.org/wiki/Polar_cell" target="_blank" rel="noopener">polar</a> cells.
         </p>
         <p>
-          A second pass deflects wind around terrain. The elevation gradient at each land cell tells us the uphill
-          direction; if the wind has a component pointing uphill, that component is dampened proportional to the slope
-          and the vector is renormalized. The tangential (along-contour) component is preserved, so flow routes around
-          ridges instead of charging straight into them.
+          <strong>Geostrophic balance.</strong> Away from the equator, surface air flows along pressure contours rather
+          than straight down the gradient: the
+          <a href="https://en.wikipedia.org/wiki/Coriolis_force" target="_blank" rel="noopener">Coriolis force</a>
+          deflects moving air to the right in the northern hemisphere and to the left in the southern hemisphere, and
+          <a href="https://en.wikipedia.org/wiki/Geostrophic_wind" target="_blank" rel="noopener">geostrophic wind</a>
+          is what you get when those two forces balance. The strength of the deflection is set by the
+          <a href="https://en.wikipedia.org/wiki/Coriolis_frequency" target="_blank" rel="noopener"
+            >Coriolis parameter</a
+          ><code>&nbsp;f</code>, which vanishes at the equator. Near the equator our model smoothly blends toward pure
+          down-gradient flow, which is exactly why the ITCZ shows up as a convergence zone rather than a zonal jet.
+        </p>
+        <p>
+          <strong>Surface friction.</strong> Real surface winds don't blow perfectly along isobars &mdash; friction
+          slows them and a bit of the pressure-gradient force wins, pushing them across the isobars toward the low at
+          roughly 25°. This is the
+          <a href="https://en.wikipedia.org/wiki/Ekman_spiral" target="_blank" rel="noopener">Ekman spiral</a> effect,
+          and it's what turns pure zonal westerlies into the familiar mid-latitude southwesterlies, and what tilts the
+          <a href="https://en.wikipedia.org/wiki/Trade_winds" target="_blank" rel="noopener">trade winds</a> into their
+          ENE&rarr;WSW orientation rather than a pure easterly.
+        </p>
+        <p>
+          <strong>Seasonal contrast.</strong> Continents heat faster than oceans in summer and cool faster in winter, so
+          the pressure field responds: summer continents develop a relative low (air rushes onshore from the warm
+          ocean), while winter continents develop a relative high (air spills offshore from the cold interior). Running
+          the pressure model twice with the correct seasonal temperature field produces a full
+          <a href="https://en.wikipedia.org/wiki/Monsoon" target="_blank" rel="noopener">monsoon</a> reversal between
+          summer and winter winds &mdash; the mechanism behind the seasonal precipitation patterns in Stage&nbsp;5. The
+          named surface bands of each cell emerge directly: trade winds, mid-latitude
+          <a href="https://en.wikipedia.org/wiki/Westerlies" target="_blank" rel="noopener">westerlies</a>, and
+          <a href="https://en.wikipedia.org/wiki/Polar_easterlies" target="_blank" rel="noopener">polar easterlies</a>.
+        </p>
+        <p>
+          <strong>Terrain deflection.</strong> A final pass deflects wind around steep terrain. The elevation gradient
+          at each land cell tells us the uphill direction; if the wind has a component pointing uphill, that component
+          is dampened proportional to the slope. The tangential (along-contour) component is preserved and magnitude
+          slows into a range rather than snapping back to unit length, so flow routes around ridges and weakens on
+          windward faces &mdash; both behaviors feed Stage&nbsp;5's orographic lift and rain-shadow terms.
         </p>
       </div>
       <div class="world-gen__demo">
@@ -220,7 +262,29 @@
             [imageData]="windImage()"
             [loading]="isGenerating()"
             [(panOffset)]="sharedPanOffset"
-            caption="Wind direction (R = X component, G = Y component)" />
+            caption="Annual mean wind (R = eastward, G = southward)" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="windSummerImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Summer wind &mdash; NH June&ndash;August" />
+        } @placeholder {
+          <div class="world-gen__placeholder"></div>
+        }
+      </div>
+      <div class="world-gen__demo">
+        @defer (on viewport) {
+          <x-stage-demo
+            [imageData]="windWinterImage()"
+            [loading]="isGenerating()"
+            [(panOffset)]="sharedPanOffset"
+            caption="Winter wind &mdash; NH December&ndash;February" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -243,6 +307,11 @@
           same hemisphere advects warm equatorial water and warms the cells it passes through. The southern hemisphere
           flips the sign automatically. A chamfer pass then carries the modifier into the nearest land cells with a
           linear falloff, so the temperature stage can use it for both ocean and coastal land.
+        </p>
+        <p>
+          Because the Stage&nbsp;3 wind field now carries real magnitude (not unit vectors), the current modifier scales
+          naturally with wind strength &mdash; weak doldrum winds drive weaker currents, strong trades drive stronger
+          ones. The modifier is clamped to its original range so the downstream temperature math stays well-conditioned.
         </p>
       </div>
     </section>
@@ -314,8 +383,10 @@
           wet equator, the subtropical-high dry bands at &asymp;30°&nbsp;N/S, the mid-latitude
           <a href="https://en.wikipedia.org/wiki/Westerlies" target="_blank" rel="noopener">westerly</a>
           wet bands at &asymp;50°, and the dry polar caps. The ITCZ shifts toward the warm hemisphere each season
-          (controlled by the <em>ITCZ Shift</em> slider), which is what produces real seasonality in monsoon-prone
-          latitudes.
+          (controlled by the <em>ITCZ Shift</em> slider). In monsoon-prone latitudes the dominant seasonal signal
+          actually comes from Stage&nbsp;3's seasonal wind reversal &mdash; onshore flow from a warm summer ocean vs.
+          offshore flow from a cold winter continent &mdash; which this streamline trace picks up through the
+          season-specific wind field it walks.
         </p>
         <p>
           <strong>Ocean reach.</strong> Moisture flux through a cell decays exponentially with overland distance from

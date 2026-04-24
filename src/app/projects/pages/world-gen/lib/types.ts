@@ -10,16 +10,38 @@ export interface NoiseVariables {
 export interface ClimateVariables {
   /** Hemispheric tilt magnitude in normalized temperature units. Drives summer/winter ΔT. */
   seasonalTilt: number;
-  /** ITCZ migration between summer and winter, as a fraction of map height. */
+  /** Magnitude of seasonal thermal-equator migration as a fraction of map
+   *  height. Tropical bands (ITCZ + subtropical highs) shift by ±itczShift
+   *  between summer and winter; extratropical bands stay put, so the Ferrel
+   *  cells widen/compress asymmetrically per season. Default 0.05 ≈ 9° on
+   *  an Earth-scale map, matching real ITCZ migration. */
   itczShift: number;
   /** Orographic lift multiplier on windward slopes. */
   orographicLiftStrength: number;
-  /** Foehn-style descent drying factor on leeward slopes. */
+  /** Foehn-style descent drying factor on leeward slopes (legacy; unused by Eulerian model). */
   rainShadowStrength: number;
   /** Frost threshold in normalized temperature units; below this, PET ≈ 0 and no growing season. */
   frostThreshold: number;
   /** Aridity wilt point; growing-season favorability falls below this. */
   aridityWiltPoint: number;
+  /** Global multiplier on pressure-gradient wind magnitude. */
+  windStrength: number;
+  /** Strength of land-sea thermal contrast in the pressure field, driving monsoon flips. */
+  thermalContrastStrength: number;
+  /** Number of advection–diffusion–precipitation iterations per seasonal humidity pass. */
+  moistureIterations: number;
+  /** Lateral diffusion coefficient per iteration, [0, 1]. Larger = smoother precip field. */
+  moistureDiffusion: number;
+  /** Ocean evaporation rate per iteration (fraction of saturation deficit filled per step). */
+  evaporationRate: number;
+  /** Saturation rainout rate — fraction of (q − qSat) that precipitates per iteration. */
+  rainoutRate: number;
+  /** Fraction of q forced to precipitate per unit of along-wind elevation rise. */
+  orographicCondensation: number;
+  /** Background convective rainout — fraction of q that precipitates each
+   *  iteration regardless of saturation. Models the bulk vertical mixing
+   *  that the 2D grid can't represent directly. Boosted under the ITCZ. */
+  convectiveRainRate: number;
 }
 
 export interface TectonicVariables {
@@ -80,7 +102,9 @@ export interface WorldData {
   temperatureSummer: Float32Array;
   temperatureWinter: Float32Array;
   temperatureMean: Float32Array;
-  wind: Float32Array; // interleaved [dx, dy, dx, dy, ...] length = width*height*2
+  wind: Float32Array; // interleaved [dx, dy, dx, dy, ...] length = width*height*2 — annual mean
+  windSummer: Float32Array; // interleaved [dx, dy], NH summer season
+  windWinter: Float32Array; // interleaved [dx, dy], NH winter season
   petSummer: Float32Array;
   petWinter: Float32Array;
   petAnnual: Float32Array;
@@ -105,6 +129,8 @@ export type LayerName =
   | 'elevation'
   | 'temperature'
   | 'wind'
+  | 'windSummer'
+  | 'windWinter'
   | 'precipitation'
   | 'biomes'
   | 'flowAccumulation'
@@ -149,4 +175,12 @@ export const DEFAULT_CLIMATE: ClimateVariables = {
   rainShadowStrength: 4.0,
   frostThreshold: 0.35,
   aridityWiltPoint: 0.2,
+  windStrength: 1.0,
+  thermalContrastStrength: 0.6,
+  moistureIterations: 80,
+  moistureDiffusion: 0.12,
+  evaporationRate: 0.2,
+  rainoutRate: 0.12,
+  orographicCondensation: 2.5,
+  convectiveRainRate: 0.025,
 };

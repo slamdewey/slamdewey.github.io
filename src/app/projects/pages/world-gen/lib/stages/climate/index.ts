@@ -5,13 +5,16 @@ import { simulateHumidity } from './humidity-sim';
 import { deriveClimate } from './aridity';
 import { classifyKoppen } from './koppen';
 
-export interface ClimateResult {
+export interface ClimateTemperatureResult {
   temperatureSummer: Float32Array;
   temperatureWinter: Float32Array;
   temperatureMean: Float32Array;
   petSummer: Float32Array;
   petWinter: Float32Array;
   petAnnual: Float32Array;
+}
+
+export interface ClimateHumidityResult {
   precipSummer: Float32Array;
   precipWinter: Float32Array;
   precipAnnual: Float32Array;
@@ -22,25 +25,24 @@ export interface ClimateResult {
   koppenClass: Uint8Array;
 }
 
+export type ClimateResult = ClimateTemperatureResult & ClimateHumidityResult;
+
 /**
- * Run the full climate sub-pipeline: two seasonal temperature passes, two
- * seasonal precipitation passes, then derived metrics and Köppen
- * classification. Hydrology pass-2 reads `precipAnnual` from the result.
+ * Temperature + PET only. Runs before wind pass 2 because the pressure field
+ * in pass 2 needs the temperature field to compute land–sea thermal contrast.
  */
-export function runClimate(
+export function runClimateTemperature(
   width: number,
   height: number,
   elevation: Float32Array,
   seaLevel: number,
-  wind: Float32Array,
   oceanTempModifier: Float32Array,
   distToOcean: Float32Array,
   noise: NoiseVariables,
   cv: ClimateVariables
-): ClimateResult {
+): ClimateTemperatureResult {
   const size = width * height;
 
-  // 1. Seasonal temperatures with hemispheric tilt.
   const temperatureSummer = generateTemperature(
     width,
     height,
@@ -68,7 +70,6 @@ export function runClimate(
     temperatureMean[i] = (temperatureSummer[i] + temperatureWinter[i]) * 0.5;
   }
 
-  // 2. Seasonal PET from seasonal temperature.
   const petSummer = computePET(temperatureSummer, cv.frostThreshold);
   const petWinter = computePET(temperatureWinter, cv.frostThreshold);
   const petAnnual = new Float32Array(size);
@@ -76,42 +77,63 @@ export function runClimate(
     petAnnual[i] = petSummer[i] + petWinter[i];
   }
 
-  // 3. Seasonal precipitation via one-pass streamline trace. ITCZ shifts
-  // toward the warm hemisphere each season — north in NH summer, south in
-  // SH summer (which is "winter" from the NH-centric perspective). The
-  // shift amount comes from cv.itczShift; the sign flips between passes.
+  return { temperatureSummer, temperatureWinter, temperatureMean, petSummer, petWinter, petAnnual };
+}
+
+/**
+ * Humidity + derived climate + Köppen. Each seasonal humidity pass is traced
+ * against its own wind field, so the summer-vs-winter wind reversal over
+ * continents (monsoons) shows up directly in seasonal precipitation.
+ */
+export function runClimateHumidity(
+  width: number,
+  height: number,
+  elevation: Float32Array,
+  seaLevel: number,
+  temps: ClimateTemperatureResult,
+  windSummer: Float32Array,
+  windWinter: Float32Array,
+  cv: ClimateVariables
+): ClimateHumidityResult {
+  const size = width * height;
+
   const precipSummer = simulateHumidity(
     width,
     height,
-    wind,
+    windSummer,
     elevation,
-    temperatureSummer,
+    temps.temperatureSummer,
     seaLevel,
     cv,
-    -cv.itczShift // ITCZ shifts toward NH in NH summer
+    -cv.itczShift
   );
   const precipWinter = simulateHumidity(
     width,
     height,
-    wind,
+    windWinter,
     elevation,
-    temperatureWinter,
+    temps.temperatureWinter,
     seaLevel,
     cv,
-    +cv.itczShift // ITCZ shifts toward SH in NH winter
+    +cv.itczShift
   );
   const precipAnnual = new Float32Array(size);
   for (let i = 0; i < size; i++) {
     precipAnnual[i] = (precipSummer[i] + precipWinter[i]) * 0.5;
   }
 
-  // 4. Derived metrics.
-  const derived = deriveClimate(temperatureSummer, temperatureWinter, precipSummer, precipWinter, petAnnual, cv);
+  const derived = deriveClimate(
+    temps.temperatureSummer,
+    temps.temperatureWinter,
+    precipSummer,
+    precipWinter,
+    temps.petAnnual,
+    cv
+  );
 
-  // 5. Köppen classification.
   const koppenClass = classifyKoppen({
-    temperatureSummer,
-    temperatureWinter,
+    temperatureSummer: temps.temperatureSummer,
+    temperatureWinter: temps.temperatureWinter,
     precipSummer,
     precipWinter,
     aridityIndex: derived.aridityIndex,
@@ -120,12 +142,6 @@ export function runClimate(
   });
 
   return {
-    temperatureSummer,
-    temperatureWinter,
-    temperatureMean,
-    petSummer,
-    petWinter,
-    petAnnual,
     precipSummer,
     precipWinter,
     precipAnnual,

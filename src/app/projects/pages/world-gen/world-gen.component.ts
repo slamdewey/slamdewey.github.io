@@ -28,6 +28,8 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'elevation', label: 'Elevation' },
   // Climate stack
   { value: 'wind', label: 'Wind' },
+  { value: 'windSummer', label: 'Wind (Sum)' },
+  { value: 'windWinter', label: 'Wind (Win)' },
   { value: 'temperature', label: 'Temperature' },
   { value: 'precipitation', label: 'Precipitation' },
   { value: 'aridity', label: 'Aridity' },
@@ -146,6 +148,8 @@ if (tColdest > T_TROPICAL_COLDEST) {
   elevationImage = signal<StageImage | null>(null);
   temperatureImage = signal<StageImage | null>(null);
   windImage = signal<StageImage | null>(null);
+  windSummerImage = signal<StageImage | null>(null);
+  windWinterImage = signal<StageImage | null>(null);
   precipitationImage = signal<StageImage | null>(null);
   biomeImage = signal<StageImage | null>(null);
   flowImage = signal<StageImage | null>(null);
@@ -175,6 +179,10 @@ if (tColdest > T_TROPICAL_COLDEST) {
         return this.temperatureImage();
       case 'wind':
         return this.windImage();
+      case 'windSummer':
+        return this.windSummerImage();
+      case 'windWinter':
+        return this.windWinterImage();
       case 'precipitation':
         return this.precipitationImage();
       case 'biomes':
@@ -244,6 +252,8 @@ if (tColdest > T_TROPICAL_COLDEST) {
     this.elevationImage.set({ rgba: layerImages.elevation, width: w, height: h });
     this.temperatureImage.set({ rgba: layerImages.temperature, width: w, height: h });
     this.windImage.set({ rgba: layerImages.wind, width: w, height: h });
+    this.windSummerImage.set({ rgba: layerImages.windSummer, width: w, height: h });
+    this.windWinterImage.set({ rgba: layerImages.windWinter, width: w, height: h });
     this.precipitationImage.set({ rgba: layerImages.precipitation, width: w, height: h });
     this.biomeImage.set({ rgba: layerImages.biomes, width: w, height: h });
     this.flowImage.set({ rgba: layerImages.flowAccumulation, width: w, height: h });
