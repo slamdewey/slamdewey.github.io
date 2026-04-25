@@ -118,8 +118,139 @@ export function generateOceanCurrents(
     }
   }
 
+  // Spread the local boundary-current anomaly downstream with the wind so
+  // far-field continents inherit the warmth/cool of a remote gyre — e.g.
+  // Gulf-Stream warmth reaching a "European" west coast 5000 km away.
+  if (cv.sstIterations > 0) {
+    advectSstAnomaly(
+      width,
+      height,
+      wind,
+      elevation,
+      seaLevel,
+      tempModifier,
+      cv.sstIterations,
+      cv.sstDiffusion,
+      cv.sstRelaxation
+    );
+  }
+
   propagateNearestOcean(width, height, distToOcean, tempModifier);
   return { tempModifier, distToOcean };
+}
+
+/**
+ * Semi-Lagrangian SST-anomaly transport. Operates in-place on the ocean
+ * temperature modifier field. Architecture mirrors the humidity simulation
+ * (advect → diffuse → relax) but on a single scalar tied to a persistent
+ * source: the boundary-current anomaly is snapshotted on entry and re-added
+ * each iteration to model continuous emission at the current's source coast.
+ *
+ * Known omissions:
+ *  - No explicit return flow — this is wind-driven advection, not a mass-
+ *    conserving gyre. Only the temperature anomaly advects, not water.
+ *  - Uses the annual-mean wind. Seasonal SST differences would need two
+ *    passes; downstream code currently uses one modifier for both seasons.
+ */
+function advectSstAnomaly(
+  width: number,
+  height: number,
+  wind: Float32Array,
+  elevation: Float32Array,
+  seaLevel: number,
+  tempModifier: Float32Array,
+  iterations: number,
+  diffusion: number,
+  relaxation: number
+): void {
+  const size = width * height;
+  const source = new Float32Array(tempModifier);
+  const next = new Float32Array(size);
+  const diff = clamp(diffusion, 0, 1);
+  const relax = clamp(relaxation, 0, 1);
+  const relaxKeep = 1 - relax;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    // --- 1. Advect (semi-Lagrangian upwind, bilinear interp) ---
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        if (elevation[idx] > seaLevel) {
+          next[idx] = 0;
+          continue;
+        }
+        const wIdx = idx * 2;
+        const wx = wind[wIdx];
+        const wy = wind[wIdx + 1];
+        next[idx] = bilinearSample(tempModifier, x - wx, y - wy, width, height);
+      }
+    }
+    for (let i = 0; i < size; i++) tempModifier[i] = next[i];
+
+    // --- 2. Diffuse — 3×3 box blur restricted to ocean neighbors ---
+    // Treat land cells as no-flux boundary so warm/cold anomalies don't
+    // leak into land (which is 0 in this field); averaging only over ocean
+    // neighbors is equivalent to a mirror condition against the coast.
+    if (diff > 0) {
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          if (elevation[idx] > seaLevel) {
+            next[idx] = 0;
+            continue;
+          }
+          let sum = 0;
+          let count = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= height) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const nIdx = yy * width + mod(x + dx, width);
+              if (elevation[nIdx] > seaLevel) continue;
+              sum += tempModifier[nIdx];
+              count++;
+            }
+          }
+          const avg = count > 0 ? sum / count : tempModifier[idx];
+          next[idx] = tempModifier[idx] * (1 - diff) + avg * diff;
+        }
+      }
+      for (let i = 0; i < size; i++) tempModifier[i] = next[i];
+    }
+
+    // --- 3. Relax + 4. Reinject boundary source as a *rate*, not a reset ---
+    // Balanced source term: with no advection, steady state is value = source
+    // (v·(1-r) + src·r = v ⇒ v = src). With advection, the signal spreads
+    // downstream and decays with e-fold length ≈ |wind| / relaxation.
+    // Reinjecting at 100% per iteration would pile up to source/relaxation
+    // (≈17× at defaults), which saturates the palette and looks non-physical.
+    for (let i = 0; i < size; i++) {
+      if (elevation[i] > seaLevel) {
+        tempModifier[i] = 0;
+        continue;
+      }
+      tempModifier[i] = tempModifier[i] * relaxKeep + source[i] * relax;
+    }
+  }
+}
+
+/** Bilinear sample with cylindrical X wrap and clamped Y. */
+function bilinearSample(field: Float32Array, x: number, y: number, width: number, height: number): number {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const x0w = mod(x0, width);
+  const x1w = mod(x0 + 1, width);
+  const y0c = y0 < 0 ? 0 : y0 >= height ? height - 1 : y0;
+  const y1c = y0 + 1 < 0 ? 0 : y0 + 1 >= height ? height - 1 : y0 + 1;
+  const v00 = field[y0c * width + x0w];
+  const v10 = field[y0c * width + x1w];
+  const v01 = field[y1c * width + x0w];
+  const v11 = field[y1c * width + x1w];
+  const top = v00 * (1 - fx) + v10 * fx;
+  const bot = v01 * (1 - fx) + v11 * fx;
+  return top * (1 - fy) + bot * fy;
 }
 
 /**

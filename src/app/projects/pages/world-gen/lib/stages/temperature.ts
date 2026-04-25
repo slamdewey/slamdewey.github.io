@@ -13,7 +13,8 @@ export function generateTemperature(
   oceanTempModifier: Float32Array,
   distToOcean: Float32Array,
   season: Season = 'mean',
-  seasonalTilt = 0
+  seasonalTilt = 0,
+  continentalityStrength = 0
 ): Float32Array {
   const noise = new OpenSimplexNoise((nv.seed ^ 0xf88f88f8) | 0);
   const temperature = new Float32Array(width * height);
@@ -53,13 +54,22 @@ export function generateTemperature(
       temp *= map(n, -1, 1, 0.75, 1);
 
       if (elevation[idx] > seaLevel) {
+        const proximity = Math.min(distToOcean[idx] / maxOceanInfluence, 1);
+
+        // Continentality: amplify the seasonal tilt for inland cells. The
+        // extra tilt is equal-and-opposite between summer and winter, so the
+        // annual mean is preserved while the seasonal amplitude grows inland.
+        // Drives Dfa/Cfb contrasts (Chicago vs Dublin at the same latitude).
+        if (continentalityStrength > 0 && tiltAmount !== 0) {
+          temp += tiltAmount * -latNorm * continentalityStrength * proximity;
+        }
+
         // Lapse rate: temperature decreases with elevation
         temp *= 1 - elevation[idx] * 0.3;
 
         // Coastal moderation: blend toward the (current-adjusted) ocean
         // temperature of the nearest ocean cell. The modifier is already
         // scaled by proximity in the propagation pass.
-        const proximity = Math.min(distToOcean[idx] / maxOceanInfluence, 1);
         const moderationStrength = (1 - proximity) * 0.3;
         const localOceanTemp = baseOceanTemp + oceanTempModifier[idx];
         temp = temp * (1 - moderationStrength) + localOceanTemp * moderationStrength;

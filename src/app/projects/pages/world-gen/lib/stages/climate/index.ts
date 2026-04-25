@@ -52,7 +52,8 @@ export function runClimateTemperature(
     oceanTempModifier,
     distToOcean,
     'summer',
-    cv.seasonalTilt
+    cv.seasonalTilt,
+    cv.continentalityStrength
   );
   const temperatureWinter = generateTemperature(
     width,
@@ -63,7 +64,8 @@ export function runClimateTemperature(
     oceanTempModifier,
     distToOcean,
     'winter',
-    cv.seasonalTilt
+    cv.seasonalTilt,
+    cv.continentalityStrength
   );
   const temperatureMean = new Float32Array(size);
   for (let i = 0; i < size; i++) {

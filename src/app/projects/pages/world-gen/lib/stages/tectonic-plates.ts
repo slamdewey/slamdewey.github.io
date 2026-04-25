@@ -880,20 +880,22 @@ function rasterizePlateInteractions(
       if (plate.type === PlateType.Continental) {
         const sx = cylindricalSx(x, width);
         const cx = cylindricalCx(x, width);
-        // Local ridged fBm: per-octave ridge = 1 - |n|, recentered to [-1, 1].
+        // Plain fBm in [-1, 1], symmetric around 0 → roughly half swells
+        // (positive) and half basins (negative). The earlier ridged-fBm form
+        // (1 − |n|) only produced positive deltas, so the diverging red/blue
+        // sub-relief layer never showed blue.
         let sum = 0;
         let range = 0;
         let f = subReliefFreq;
         let a = 1;
         for (let o = 0; o < 4; o++) {
           const n = subReliefNoise.eval3D(sx * f, ny * f, cx * f);
-          sum += (1 - Math.abs(n)) * a;
+          sum += n * a;
           range += a;
           f *= 2.0;
           a *= 0.5;
         }
-        const ridged01 = sum / Math.max(range, 1);
-        const signed = ridged01 * 2 - 1;
+        const signed = sum / Math.max(range, 1);
         const delta = signed * subReliefAmp;
         continentalSubRelief[idx] = delta;
         baseElevation[idx] += delta;

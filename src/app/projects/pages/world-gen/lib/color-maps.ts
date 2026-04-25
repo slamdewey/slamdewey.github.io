@@ -261,14 +261,32 @@ function colorElevation(data: Float32Array, rgba: Uint8Array, seaLevel: number):
   }
 }
 
+// Stops placed (not evenly spaced) so hue variation concentrates where most
+// land sits (~0.6–0.95). Aligns with biome temperature regimes: polar →
+// cold-temperate → cool → mild → warm → hot → extreme.
+const TEMP_STOPS: { t: number; rgb: [number, number, number] }[] = [
+  { t: 0.0, rgb: [40, 40, 120] },
+  { t: 0.25, rgb: [70, 150, 220] },
+  { t: 0.45, rgb: [140, 210, 220] },
+  { t: 0.6, rgb: [200, 230, 150] },
+  { t: 0.75, rgb: [230, 180, 80] },
+  { t: 0.9, rgb: [220, 90, 50] },
+  { t: 1.0, rgb: [140, 20, 20] },
+];
+
 function colorTemperature(data: Float32Array, rgba: Uint8Array): void {
   for (let i = 0; i < data.length; i++) {
     const t = Math.max(0, Math.min(1, data[i]));
     const o = i * 4;
-    // Cyan (0, 255, 255) to Red (255, 0, 0)
-    rgba[o] = Math.round(t * 255);
-    rgba[o + 1] = Math.round((1 - t) * 255);
-    rgba[o + 2] = Math.round((1 - t) * 255);
+    let hi = 1;
+    while (hi < TEMP_STOPS.length - 1 && TEMP_STOPS[hi].t < t) hi++;
+    const a = TEMP_STOPS[hi - 1];
+    const b = TEMP_STOPS[hi];
+    const span = b.t - a.t;
+    const k = span > 0 ? (t - a.t) / span : 0;
+    rgba[o] = Math.round(a.rgb[0] * (1 - k) + b.rgb[0] * k);
+    rgba[o + 1] = Math.round(a.rgb[1] * (1 - k) + b.rgb[1] * k);
+    rgba[o + 2] = Math.round(a.rgb[2] * (1 - k) + b.rgb[2] * k);
     rgba[o + 3] = 255;
   }
 }
