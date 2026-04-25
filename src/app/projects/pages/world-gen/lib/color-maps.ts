@@ -400,9 +400,12 @@ function colorBiomes(
 
     // --- Inland water: lakes & rivers -------------------------------------
     if (lakes[i] === 1) {
-      rgba[o] = LAKE_COLOR[0];
-      rgba[o + 1] = LAKE_COLOR[1];
-      rgba[o + 2] = LAKE_COLOR[2];
+      // Cold lakes ice over. Blend toward snow as the mean temp drops past
+      // the same threshold land uses for snow cover.
+      const iceK = Math.min(1, Math.max(0, (SNOW_TEMPERATURE - temperatureMean[i]) / SNOW_TEMPERATURE));
+      rgba[o] = Math.round(LAKE_COLOR[0] * (1 - iceK) + SNOW_COLOR[0] * iceK);
+      rgba[o + 1] = Math.round(LAKE_COLOR[1] * (1 - iceK) + SNOW_COLOR[1] * iceK);
+      rgba[o + 2] = Math.round(LAKE_COLOR[2] * (1 - iceK) + SNOW_COLOR[2] * iceK);
       rgba[o + 3] = 255;
       continue;
     }

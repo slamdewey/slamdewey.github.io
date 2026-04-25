@@ -57,15 +57,16 @@ export class WorldGenerator {
     const humidity = runClimateHumidity(width, height, elevation, seaLevel, temps, windSummer, windWinter, climate);
 
     // Pass 2: rerun flow/rivers/lakes weighted by real annual precipitation.
-    // No erosion — topology is locked in from pass 1. Aridity gates lake
-    // formation so dry rift valleys don't become spurious lakes.
+    // No erosion — topology is locked in from pass 1. Lake formation is gated
+    // on a water-budget check (catchment inflow vs. basin PET demand) so dry
+    // basins don't become spurious lakes.
     const { flowAccumulation, rivers, lakes } = computeFlowAndRivers(
       width,
       height,
       elevation,
       seaLevel,
       humidity.precipAnnual,
-      humidity.aridityIndex,
+      temps.petAnnual,
       hydrology
     );
 

@@ -33,12 +33,15 @@ export interface HydrologyVariables {
   riverLogThreshold: number;
   /** (filled - elevation) above this value qualifies a cell as a depression for lake consideration. */
   lakeDepthEpsilon: number;
-  /** log2(1 + flowAcc) cutoff above which a depression basin can become a lake.
-   *  Suppresses spurious tiny depressions that nothing actually drains into. */
-  lakeFlowLogThreshold: number;
-  /** Aridity index (MAP/PET) above which a depression basin can become a lake.
-   *  Suppresses dry-climate basins (Death Valley / Lake Eyre style salt flats). */
-  lakeAridityThreshold: number;
+  /** Minimum (catchment inflow) / (basin PET demand) for a depression to hold a
+   *  persistent lake. Inflow comes from the rain-weighted flow accumulation at
+   *  the basin's wettest cell; demand is the sum of PET over depression cells.
+   *  Real endorheic lakes (Caspian, Great Salt) have ratios well above 1; we
+   *  accept anything where inflow covers a meaningful fraction of evaporation. */
+  lakeBudgetRatio: number;
+  /** Maximum basin size as a fraction of total grid cells. Caps fill artifacts
+   *  — large eroded depressions that aren't real geologic basins. */
+  lakeMaxAreaFraction: number;
   /** Minimum connected-component size (cells) for a basin to be rendered as
    *  a lake. Filters out 1-cell slivers and numerical noise. */
   lakeMinCells: number;
@@ -52,8 +55,8 @@ export const DEFAULT_HYDROLOGY: HydrologyVariables = {
   diffusionStrength: 0.1,
   riverLogThreshold: 4.0,
   lakeDepthEpsilon: 0.008,
-  lakeFlowLogThreshold: 3.0,
-  lakeAridityThreshold: 0.4,
+  lakeBudgetRatio: 0.5,
+  lakeMaxAreaFraction: 0.03,
   lakeMinCells: 6,
 };
 
@@ -174,38 +177,42 @@ function priorityFloodFill(elevation: Float32Array, width: number, height: numbe
 }
 
 /**
- * Pass-2 lake mask — basin-fill formulation.
+ * Pass-2 lake mask — basin-fill formulation with a water-budget gate.
  *
  * Priority-flood has already identified every depression cell (where
- * `filled > elevation`). Per-cell testing produces 1-cell slivers and
- * jagged shapes; instead we flood-fill connected components of depression
- * cells (4-connected, X wraps) and gate each **basin** as a whole:
+ * `filled > elevation`). We flood-fill connected components of depression
+ * cells (4-connected, X wraps) and gate each **basin** as a whole on whether
+ * its water budget closes at a positive depth:
  *
- *  1. **Minimum area** — `area >= minCells`. Rejects 1-cell numerical noise.
- *  2. **Inflow** — `max log2(1 + flowAcc) > flowLogThreshold` over the basin.
- *     Real lakes have water flowing in; the outlet-adjacent cell carries
- *     the full catchment. Using the max (not the mean) captures this.
- *  3. **Aridity** — `mean aridityIndex >= aridityThreshold`. Dry closed
- *     basins (Death Valley, Lake Eyre) are salt flats, not standing water.
+ *   1. **Minimum area** — rejects 1-cell numerical noise.
+ *   2. **Maximum area** — rejects fill artifacts (large eroded depressions
+ *      that aren't real geologic basins).
+ *   3. **Water budget** — `max(flowAcc) >= ratio * Σ PET`. The peak rain-
+ *      weighted flow over basin cells is the inflow delivered by the
+ *      catchment; ΣPET is the basin's evaporation demand. A persistent
+ *      lake needs inflow to cover a meaningful fraction of that demand.
  *
- * Accepted basins render every member cell as lake, yielding contiguous
- * rounded shapes aligned with the filled-surface water level.
+ * This replaces the older per-gate (flow + aridity) check, which let large
+ * cool-floor basins pass even when there was no real water moving through —
+ * inflow was incidentally high because the catchment was large, and aridity
+ * was incidentally high because PET was small.
  */
 function buildLakeMaskGated(
   elevation: Float32Array,
   filled: Float32Array,
   flowAccumulation: Float32Array,
-  aridityIndex: Float32Array,
+  petAnnual: Float32Array,
   width: number,
   height: number,
   seaLevel: number,
   epsilon: number,
-  flowLogThreshold: number,
-  aridityThreshold: number,
+  budgetRatio: number,
+  maxAreaFraction: number,
   minCells: number
 ): Uint8Array {
   const size = elevation.length;
   const out = new Uint8Array(size);
+  const maxArea = Math.floor(size * maxAreaFraction);
 
   const isDepression = new Uint8Array(size);
   for (let i = 0; i < size; i++) {
@@ -226,16 +233,16 @@ function buildLakeMaskGated(
     stack.push(start);
     visited[start] = 1;
 
-    let maxLogFlow = 0;
-    let aridSum = 0;
+    let maxFlow = 0;
+    let petSum = 0;
 
     while (stack.length > 0) {
       const idx = stack.pop()!;
       component.push(idx);
 
-      const lf = Math.log2(1 + flowAccumulation[idx]);
-      if (lf > maxLogFlow) maxLogFlow = lf;
-      aridSum += aridityIndex[idx];
+      const f = flowAccumulation[idx];
+      if (f > maxFlow) maxFlow = f;
+      petSum += petAnnual[idx];
 
       const y = (idx / width) | 0;
       const x = idx - y * width;
@@ -269,8 +276,8 @@ function buildLakeMaskGated(
 
     const area = component.length;
     if (area < minCells) continue;
-    if (maxLogFlow <= flowLogThreshold) continue;
-    if (aridSum / area < aridityThreshold) continue;
+    if (area > maxArea) continue;
+    if (maxFlow < budgetRatio * petSum) continue;
 
     for (let i = 0; i < area; i++) out[component[i]] = 1;
   }
@@ -468,9 +475,9 @@ function buildRiverMask(
  *
  * Erosion is intentionally skipped — topology is locked in by pass 1.
  *
- * Lake detection is gated on flow accumulation and aridity (see
- * `buildLakeMaskGated`) so dry tectonic depressions like rift valleys
- * become salt flats / ephemeral washes rather than persistent lakes.
+ * Lake detection compares catchment-delivered inflow against basin PET demand
+ * (see `buildLakeMaskGated`) so dry basins — even large cool-floored ones —
+ * remain salt flats rather than spurious lakes.
  */
 export function computeFlowAndRivers(
   width: number,
@@ -478,7 +485,7 @@ export function computeFlowAndRivers(
   elevation: Float32Array,
   seaLevel: number,
   rainfall: Float32Array,
-  aridityIndex: Float32Array,
+  petAnnual: Float32Array,
   config: HydrologyVariables
 ): HydrologyResult {
   const filled = priorityFloodFill(elevation, width, height, seaLevel);
@@ -488,13 +495,13 @@ export function computeFlowAndRivers(
     elevation,
     filled,
     flowAcc,
-    aridityIndex,
+    petAnnual,
     width,
     height,
     seaLevel,
     config.lakeDepthEpsilon,
-    config.lakeFlowLogThreshold,
-    config.lakeAridityThreshold,
+    config.lakeBudgetRatio,
+    config.lakeMaxAreaFraction,
     config.lakeMinCells
   );
   const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
