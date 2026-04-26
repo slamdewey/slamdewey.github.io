@@ -64,10 +64,12 @@ export interface ClimateVariables {
    *  land-surface model: stored soil moisture S evaporates at rate S/τ, replenished
    *  by P. ~45 days is climatologically typical for vegetated land. */
   soilMoistureTimescaleDays: number;
-  /** Fraction of land ET that re-enters the atmosphere as q (vs being consumed by
-   *  plants/runoff). Earth-scale recycling ratio is ~0.1 globally, ~0.3 over the
-   *  Amazon. 0.6 is a generous default that delivers visibly wetter interiors
-   *  without making the model unstable. */
+  /** Maximum land-surface recycling efficiency, applied at warm-temperate and
+   *  tropical temperatures. Cold cells receive less via a smoothstep ramp from
+   *  `frostThreshold + 0.05` (zero) up to T = 0.65 (ceiling). This separates
+   *  hot-desert recycling (BWh) from cold-desert recycling (BWk) — a single
+   *  global scalar conflates them and forces a tuning tradeoff. Earth-scale
+   *  recycling ratio is ~0.30 over the Amazon, ~0.05 over Siberia. */
   landEvapEfficiency: number;
   /** Mid-latitude storm-track precipitation boost — Gaussian peak at ±50° lat,
    *  multiplier on convective rate. Approximates baroclinic-eddy precipitation
@@ -274,7 +276,7 @@ export const DEFAULT_CLIMATE: ClimateVariables = {
   saturationRainoutPerDay: 1.0,
   orographicCondensation: 2.5,
   convectivePrecipPerDay: 0.3,
-  subsidenceDecayPerDay: 0.3,
+  subsidenceDecayPerDay: 0.4,
   soilMoistureTimescaleDays: 45,
   landEvapEfficiency: 0.5,
   stormTrackBoost: 0.5,

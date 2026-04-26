@@ -50,7 +50,11 @@ const T_TROPICAL_COLDEST = 0.68;
 // of land (Earth: 22 %), starving C-class. 0.52 splits the difference and
 // gives roughly the right C/D balance against the rest of the calibration.
 const T_NO_FROST = 0.52;
-const T_POLAR_WARMEST = 0.3; // ~10°C warmest-month for E class
+// Bumped from 0.30 → 0.40 so more cool cells qualify as polar (ET/EF) before
+// they fall through to D-class. Was under-filling tundra (8.9 % vs Earth 13 %)
+// while D was over-filling (37 % vs Earth 22 %); with our generated worlds
+// having ~36 % polar landmass this redistribution is what actually balances.
+const T_POLAR_WARMEST = 0.4;
 const T_ICECAP_WARMEST = 0.18; // ~0°C warmest-month for EF (widened from 0.15 — was producing essentially no ice caps)
 const T_HOT_SUMMER = 0.75; // ~22°C warmest-month for a (vs b/c)
 // Widened from 0.55 → 0.60 so the boreal/subarctic forest belt (Dfc) actually
@@ -66,13 +70,17 @@ const T_COOL_SUMMER = 0.6;
 const AI_DESERT = 0.2;
 const AI_STEPPE = 0.3;
 
-// Seasonality cutoff for w/s/f sub-letters. Set to match real Köppen's
-// 1/10 rule (driest month < 10 % of wettest): w fires when summerShare > 0.90,
-// s when summerShare < 0.10. With only two "months" (summer/winter), that's
-// genuinely-monsoonal cells only. Anything looser produced massive Dwb/Dsb
-// overflow because precip-display clipping inflates summerShare on cells where
-// summer hits the saturation cap but winter doesn't.
-const SEASONAL_RATIO_DRY = 0.1;
+// Seasonality detection for w/s/f sub-letters. Real Köppen's 1/10 rule alone
+// is insufficient because cold cells trivially satisfy it (winter has near-zero
+// precip everywhere — moisture-limited, not pattern-limited). True monsoon
+// classification requires BOTH a 10:1 seasonal ratio AND an absolutely-wet wet
+// season. WET_SEASON_FLOOR is the absolute precip the wet season must clear
+// in display units; lowered from 0.25 → 0.12 so temperate cells with moderate
+// seasonality (Mediterranean Csa/Csb, monsoon-influenced Cwa/Cwb) actually
+// qualify — at PRECIP_DISPLAY_REF=2.0, display 0.12 ≈ 360 mm wet season ≈
+// real Köppen's monthly threshold scaled to a 6-month season.
+const SEASONAL_RATIO = 0.1;
+const WET_SEASON_FLOOR = 0.12;
 
 export interface KoppenInputs {
   temperatureSummer: Float32Array;
@@ -127,6 +135,14 @@ export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
     const summerShare = totalP > 0 ? pSummer / totalP : 0.5;
     const ai = aridityIndex[i];
 
+    // True monsoonal seasonality: BOTH the wet season is meaningfully wet AND
+    // the dry season is < 1/10 of it. Cold cells where winter precip is
+    // moisture-limited (not pattern-limited) fail the wet-season floor and
+    // correctly fall to the f sub-letter (no dry season).
+    const wetSeason = Math.max(pSummer, pWinter);
+    const isDryWinter = wetSeason >= WET_SEASON_FLOOR && pWinter < SEASONAL_RATIO * pSummer;
+    const isDrySummer = wetSeason >= WET_SEASON_FLOOR && pSummer < SEASONAL_RATIO * pWinter;
+
     // E — Polar (warmest "month" too cold)
     if (tWarmest < T_POLAR_WARMEST) {
       out[i] = tWarmest < T_ICECAP_WARMEST ? KoppenClass.EF : KoppenClass.ET;
@@ -177,15 +193,11 @@ export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
     if (tColdest <= T_NO_FROST) {
       const isHotSummer = tWarmest >= T_HOT_SUMMER;
       const isCoolSummer = tWarmest < T_COOL_SUMMER;
-      // Sub-letter for seasonality
-      if (summerShare < SEASONAL_RATIO_DRY) {
-        // Dry summer (s): rare in continental but possible
+      if (isDrySummer) {
         out[i] = isHotSummer ? KoppenClass.Dsa : KoppenClass.Dsb;
-      } else if (summerShare > 1 - SEASONAL_RATIO_DRY) {
-        // Dry winter (w)
+      } else if (isDryWinter) {
         out[i] = isHotSummer ? KoppenClass.Dwa : KoppenClass.Dwb;
       } else {
-        // No dry season (f)
         if (isCoolSummer) out[i] = KoppenClass.Dfc;
         else if (isHotSummer) out[i] = KoppenClass.Dfa;
         else out[i] = KoppenClass.Dfb;
@@ -195,14 +207,11 @@ export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
 
     // C — Temperate (mild winters)
     const isHotSummer = tWarmest >= T_HOT_SUMMER;
-    if (summerShare < SEASONAL_RATIO_DRY) {
-      // Mediterranean — dry summer
+    if (isDrySummer) {
       out[i] = isHotSummer ? KoppenClass.Csa : KoppenClass.Csb;
-    } else if (summerShare > 1 - SEASONAL_RATIO_DRY) {
-      // Dry winter (w) — subtropical monsoon influenced
+    } else if (isDryWinter) {
       out[i] = isHotSummer ? KoppenClass.Cwa : KoppenClass.Cwb;
     } else {
-      // No dry season — humid subtropical / oceanic
       out[i] = isHotSummer ? KoppenClass.Cfa : KoppenClass.Cfb;
     }
   }

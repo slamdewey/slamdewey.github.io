@@ -4,6 +4,30 @@ import { ClimateVariables } from '../../types';
 const SECONDS_PER_DAY = 86400;
 const M_PER_KM = 1000;
 
+/** Temperature offset above frostThreshold below which recycling is fully suppressed. */
+const RECYCLING_T_COLD_CUTOFF_OFFSET = 0.05;
+/** Temperature at and above which recycling reaches its ceiling (warm-temperate / tropical). */
+const RECYCLING_T_WARM_SATURATE = 0.65;
+
+/**
+ * Per-cell land recycling efficiency as a function of temperature.
+ *
+ * Smoothstep ramp from `frostThreshold + 0.05` (zero recycling) to
+ * `RECYCLING_T_WARM_SATURATE = 0.65` (ceiling). Approximates the real-Earth
+ * gradient where Amazon-style tropics recycle ~30% of precipitation, temperate
+ * interiors ~10–20%, and subarctic/tundra ~2–5%. The ceiling parameter is the
+ * user-facing `landEvapEfficiency` — i.e. the maximum recycling, achieved in
+ * tropical cells; cooler cells receive proportionally less.
+ */
+function landEvapAt(t: number, ceiling: number, frostT: number): number {
+  const cold = frostT + RECYCLING_T_COLD_CUTOFF_OFFSET;
+  if (t <= cold) return 0;
+  if (t >= RECYCLING_T_WARM_SATURATE) return ceiling;
+  const u = (t - cold) / (RECYCLING_T_WARM_SATURATE - cold);
+  const s = u * u * (3 - 2 * u);
+  return ceiling * s;
+}
+
 export interface HumidityResult {
   /** Accumulated precipitation, raw (mm-equivalent units — caller normalizes for display). */
   precip: Float32Array;
@@ -148,18 +172,19 @@ export function simulateHumidity(
       }
     }
 
-    // --- 2. Land ET (one-bucket recycling) ---
+    // --- 2. Land ET (one-bucket recycling, temperature-scaled) ---
     if (cv.landEvapEfficiency > 0) {
       for (let i = 0; i < size; i++) {
         if (elevation[i] < seaLevel) continue;
-        if (temperature[i] <= cv.frostThreshold) continue; // frozen ground
+        if (temperature[i] <= cv.frostThreshold) continue; // frozen ground (early-exit)
         const supply = soilMoisture[i] / soilTimescale; // mm/day
         const demand = petAnnual[i] / cycleDays; // PET expressed per cycle → per day
         const et = Math.min(supply, demand);
         const etStep = et * dtDays;
         soilMoisture[i] -= etStep;
         if (soilMoisture[i] < 0) soilMoisture[i] = 0;
-        q[i] += cv.landEvapEfficiency * etStep;
+        const eff = landEvapAt(temperature[i], cv.landEvapEfficiency, cv.frostThreshold);
+        q[i] += eff * etStep;
       }
     }
 

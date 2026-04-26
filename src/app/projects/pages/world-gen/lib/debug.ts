@@ -72,7 +72,7 @@ interface BandStats {
   topClasses: { code: string; pct: number }[];
 }
 
-interface WorldStats {
+export interface WorldStats {
   map: { width: number; height: number; totalCells: number; landCells: number; landPct: number };
   koppen: Record<string, { sim: number; earth: number; delta: number }>;
   groups: Record<string, { sim: number; earth: number; delta: number }>;
@@ -99,7 +99,7 @@ export function printWorldStats(worldData: WorldData): void {
   (globalThis as unknown as { __worldStats?: WorldStats }).__worldStats = stats;
 }
 
-function computeWorldStats(worldData: WorldData): WorldStats {
+export function computeWorldStats(worldData: WorldData): WorldStats {
   const {
     width,
     height,
@@ -236,6 +236,66 @@ function computeWorldStats(worldData: WorldData): WorldStats {
     fields,
     latitudeBands,
   };
+}
+
+/**
+ * Aggregate Köppen-class & group statistics across multiple seeds. For each
+ * class we report mean, stddev, min, max across the seeds, plus the Earth
+ * reference and the (mean - earth) delta. Variance is the diagnostic that
+ * tells us whether a tuning result is robust (low stddev → repeatable across
+ * seeds) or seed-dependent (high stddev → an artifact of one map's geography).
+ */
+export interface MultiSeedStats {
+  seedCount: number;
+  perSeed: { seed: number; landPct: number }[];
+  koppen: Record<string, { mean: number; stddev: number; min: number; max: number; earth: number; delta: number }>;
+  groups: Record<string, { mean: number; stddev: number; min: number; max: number; earth: number; delta: number }>;
+}
+
+export function aggregateMultiSeed(seeds: number[], stats: WorldStats[]): MultiSeedStats {
+  const koppen: MultiSeedStats['koppen'] = {};
+  const groups: MultiSeedStats['groups'] = {};
+  if (stats.length === 0) return { seedCount: 0, perSeed: [], koppen, groups };
+
+  const koppenKeys = Object.keys(stats[0].koppen);
+  for (const k of koppenKeys) {
+    const vals = stats.map((s) => s.koppen[k].sim);
+    koppen[k] = {
+      ...summarize(vals),
+      earth: stats[0].koppen[k].earth,
+      delta: round2(mean(vals) - stats[0].koppen[k].earth),
+    };
+  }
+  const groupKeys = Object.keys(stats[0].groups);
+  for (const g of groupKeys) {
+    const vals = stats.map((s) => s.groups[g].sim);
+    groups[g] = {
+      ...summarize(vals),
+      earth: stats[0].groups[g].earth,
+      delta: round2(mean(vals) - stats[0].groups[g].earth),
+    };
+  }
+  return {
+    seedCount: stats.length,
+    perSeed: stats.map((s, i) => ({ seed: seeds[i], landPct: s.map.landPct })),
+    koppen,
+    groups,
+  };
+}
+
+function summarize(vals: number[]): { mean: number; stddev: number; min: number; max: number } {
+  const m = mean(vals);
+  const variance = vals.reduce((s, v) => s + (v - m) ** 2, 0) / vals.length;
+  return {
+    mean: round2(m),
+    stddev: round2(Math.sqrt(variance)),
+    min: round2(Math.min(...vals)),
+    max: round2(Math.max(...vals)),
+  };
+}
+
+function mean(vals: number[]): number {
+  return vals.reduce((s, v) => s + v, 0) / vals.length;
 }
 
 function fieldStats(field: Float32Array, indices: number[]): FieldStats {

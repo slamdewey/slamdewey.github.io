@@ -39,6 +39,7 @@ export class ParamControlsComponent {
   circumferenceKm = model<number>(40000);
 
   regenerate = output<void>();
+  multiSeedSweep = output<void>();
 
   randomizeSeed(): void {
     this.noise.update((n) => ({ ...n, seed: Math.floor(Math.random() * 2147483647) }));
@@ -58,5 +59,9 @@ export class ParamControlsComponent {
 
   onRegenerate(): void {
     this.regenerate.emit();
+  }
+
+  onMultiSeedSweep(): void {
+    this.multiSeedSweep.emit();
   }
 }

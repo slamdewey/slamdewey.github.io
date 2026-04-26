@@ -15,9 +15,11 @@ import {
   DEFAULT_TECTONIC,
   DEFAULT_HYDROLOGY,
   LayerName,
+  WorldConfig,
+  WorldData,
 } from './lib/types';
 import { WorkerResponse } from './lib/worker-types';
-import { printWorldStats } from './lib/debug';
+import { aggregateMultiSeed, computeWorldStats, printWorldStats } from './lib/debug';
 
 // Layer toggles follow pipeline execution order with the final synthesis
 // (Biomes) up front as the headline view.
@@ -246,16 +248,67 @@ if (tColdest > T_TROPICAL_COLDEST) {
       this.worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => this.onWorkerResult(data);
     }
 
-    this.worker.postMessage({
-      config: {
-        width: this.mapWidth(),
-        height: this.mapHeight(),
-        circumferenceKm: this.circumferenceKm(),
-        noise: this.noiseConfig(),
-        climate: this.climateConfig(),
-        tectonic: this.tectonicConfig(),
-        hydrology: this.hydrologyConfig(),
-      },
+    this.worker.postMessage({ config: this.buildConfig() });
+  }
+
+  private buildConfig(seedOverride?: number): WorldConfig {
+    const noise = { ...this.noiseConfig() };
+    if (seedOverride !== undefined) noise.seed = seedOverride;
+    return {
+      width: this.mapWidth(),
+      height: this.mapHeight(),
+      circumferenceKm: this.circumferenceKm(),
+      noise,
+      climate: this.climateConfig(),
+      tectonic: this.tectonicConfig(),
+      hydrology: this.hydrologyConfig(),
+    };
+  }
+
+  /**
+   * Run N parallel workers with random seeds and the current params; aggregate
+   * Köppen / group stats across them. The aggregate exposes mean ± stddev per
+   * class, which is how we tell whether a tuning result is robust (low stddev)
+   * or specific to one map's geography (high stddev).
+   *
+   * Each generation runs in its own dedicated Worker so they execute concurrently
+   * on multiple CPU cores. Workers are terminated on completion (no buffer reuse
+   * since the underlying Float32Arrays are transferred and detached).
+   */
+  async runMultiSeedSweep(seedCount = 5): Promise<void> {
+    this.isGenerating.set(true);
+    const config = this.buildConfig();
+    const seeds: number[] = [];
+    const promises: Promise<WorldData>[] = [];
+    for (let i = 0; i < seedCount; i++) {
+      const seed = Math.floor(Math.random() * 2147483647);
+      seeds.push(seed);
+      promises.push(this.runOneInDedicatedWorker({ ...config, noise: { ...config.noise, seed } }));
+    }
+
+    console.log(`%c🌍 Multi-seed sweep — running ${seedCount} workers in parallel`, 'font-weight: bold; color: #3a8');
+    const start = performance.now();
+    const worldDatas = await Promise.all(promises);
+    const elapsed = (performance.now() - start) / 1000;
+    console.log(`Done in ${elapsed.toFixed(1)}s`);
+
+    const allStats = worldDatas.map((wd) => computeWorldStats(wd));
+    const agg = aggregateMultiSeed(seeds, allStats);
+    console.log('%cAggregate (JSON below):', 'font-weight: bold; color: #3a8');
+    console.log(JSON.stringify(agg, null, 2));
+    (globalThis as unknown as { __sweepStats?: typeof agg }).__sweepStats = agg;
+
+    this.isGenerating.set(false);
+  }
+
+  private runOneInDedicatedWorker(config: WorldConfig): Promise<WorldData> {
+    return new Promise((resolve) => {
+      const w = new Worker(new URL('./lib/world-gen.worker', import.meta.url), { type: 'module' });
+      w.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
+        w.terminate();
+        resolve(data.worldData);
+      };
+      w.postMessage({ config });
     });
   }
 
