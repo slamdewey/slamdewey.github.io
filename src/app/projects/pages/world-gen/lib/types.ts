@@ -18,7 +18,9 @@ export interface ClimateVariables {
   itczShift: number;
   /** Orographic lift multiplier on windward slopes. */
   orographicLiftStrength: number;
-  /** Foehn-style descent drying factor on leeward slopes (legacy; unused by Eulerian model). */
+  /** Föhn descent drying factor on leeward slopes. Each per-step descent
+   *  removes `rainShadowStrength · |rise| · 0.4` of the parcel's q without
+   *  precipitating it (dry adiabatic warming dries the air). */
   rainShadowStrength: number;
   /** Frost threshold in normalized temperature units; below this, PET ≈ 0 and no growing season. */
   frostThreshold: number;
@@ -28,20 +30,49 @@ export interface ClimateVariables {
   windStrength: number;
   /** Strength of land-sea thermal contrast in the pressure field, driving monsoon flips. */
   thermalContrastStrength: number;
-  /** Number of advection–diffusion–precipitation iterations per seasonal humidity pass. */
+  /** Number of advection–diffusion–precipitation iterations per seasonal humidity pass.
+   *  Pure quality knob — increasing this should *not* change climate (within ~2 %),
+   *  only refine it. The physics is rate-based so dt = cycleDays/iter is what changes. */
   moistureIterations: number;
-  /** Lateral diffusion coefficient per iteration, [0, 1]. Larger = smoother precip field. */
-  moistureDiffusion: number;
-  /** Ocean evaporation rate per iteration (fraction of saturation deficit filled per step). */
-  evaporationRate: number;
-  /** Saturation rainout rate — fraction of (q − qSat) that precipitates per iteration. */
-  rainoutRate: number;
-  /** Fraction of q forced to precipitate per unit of along-wind elevation rise. */
+  /** Simulation duration per seasonal pass, in days. ~30 days is plenty for the moisture
+   *  field to reach steady state (mean atmospheric residence time is ~9 days on Earth). */
+  cycleDays: number;
+  /** What real-world wind speed (m/s) corresponds to a wind-field magnitude of 1.0.
+   *  Together with cellSizeKm = circumferenceKm/width, this converts the dimensionless
+   *  wind into per-step cell displacements: cells/step = wind · windReferenceMs · dt[d] · 86.4 / cellSizeKm. */
+  windReferenceMs: number;
+  /** Eddy diffusivity for atmospheric moisture, km²/day. ~8000 km²/day ≈ 10⁵ m²/s,
+   *  the standard rough order for tropospheric horizontal eddy mixing. Per-step
+   *  blend factor = D · dt / dx². Larger values smooth the precip field across axes. */
+  moistureDiffusivityKm2PerDay: number;
+  /** Ocean evaporation rate per day (fraction of saturation deficit filled per day, scaled by T). */
+  oceanEvapPerDay: number;
+  /** Saturation rainout rate per day — fraction of (q − qSat) that precipitates per day.
+   *  Should be fast (~1/day) — supersaturated air condenses on a sub-daily timescale. */
+  saturationRainoutPerDay: number;
+  /** Fraction of q forced to precipitate per unit of along-wind elevation rise (one-shot per step). */
   orographicCondensation: number;
-  /** Background convective rainout — fraction of q that precipitates each
-   *  iteration regardless of saturation. Models the bulk vertical mixing
-   *  that the 2D grid can't represent directly. Boosted under the ITCZ. */
-  convectiveRainRate: number;
+  /** Convective rainout rate per day — fraction of q that precipitates each day
+   *  regardless of saturation. Sets the moisture-transport e-folding distance:
+   *  reachKm ≈ windReferenceMs · 86.4 / convectivePrecipPerDay. With defaults
+   *  (10 m/s, 0.3/day) reach ≈ 3000 km, matching Earth's ocean-to-interior
+   *  attenuation distance. Boosted under the ITCZ and storm tracks. */
+  convectivePrecipPerDay: number;
+  /** Subtropical-high subsidence decay rate per day (drying under ~±30° latitude). */
+  subsidenceDecayPerDay: number;
+  /** Soil-moisture bucket time constant in days. The Manabe (1969) one-bucket
+   *  land-surface model: stored soil moisture S evaporates at rate S/τ, replenished
+   *  by P. ~45 days is climatologically typical for vegetated land. */
+  soilMoistureTimescaleDays: number;
+  /** Fraction of land ET that re-enters the atmosphere as q (vs being consumed by
+   *  plants/runoff). Earth-scale recycling ratio is ~0.1 globally, ~0.3 over the
+   *  Amazon. 0.6 is a generous default that delivers visibly wetter interiors
+   *  without making the model unstable. */
+  landEvapEfficiency: number;
+  /** Mid-latitude storm-track precipitation boost — Gaussian peak at ±50° lat,
+   *  multiplier on convective rate. Approximates baroclinic-eddy precipitation
+   *  that a quasi-static 2D sim cannot model directly. 0 disables the boost. */
+  stormTrackBoost: number;
   /** Peak temperature modifier from wind-driven boundary currents, as a
    *  fraction of [0,1] temperature units. Applied at continental boundaries
    *  (cold eastern / warm western ocean margins), falls off exponentially
@@ -110,6 +141,10 @@ export { KoppenClass } from './stages/climate/koppen';
 export interface WorldConfig {
   width: number;
   height: number;
+  /** Equatorial circumference of the simulated world, in km. Default 40000 (Earth-like).
+   *  Combined with width, this fixes cellSizeKm = circumferenceKm/width and makes
+   *  the climate physics resolution-independent. */
+  circumferenceKm: number;
   noise: NoiseVariables;
   climate: ClimateVariables;
   tectonic: TectonicVariables;
@@ -159,6 +194,10 @@ export interface WorldData {
   precipWinter: Float32Array;
   /** Mean per-cycle precipitation (avg of summer and winter sims), [0, 1]. */
   precipAnnual: Float32Array;
+  /** Steady-state soil-moisture from the recycling bucket model. mm-equivalent
+   *  scaled to [0, 1] for visualization; physical-units value lives inside the
+   *  humidity sim. Wet-coast → dry-interior gradient when recycling is active. */
+  soilMoisture: Float32Array;
   aridityIndex: Float32Array;
   seasonality: Float32Array;
   continentality: Float32Array;
@@ -181,6 +220,7 @@ export type LayerName =
   | 'windSummer'
   | 'windWinter'
   | 'precipitation'
+  | 'soilMoisture'
   | 'biomes'
   | 'flowAccumulation'
   | 'rivers'
@@ -221,17 +261,23 @@ export const DEFAULT_CLIMATE: ClimateVariables = {
   seasonalTilt: 0.18,
   itczShift: 0.05,
   orographicLiftStrength: 3.0,
-  rainShadowStrength: 4.0,
+  rainShadowStrength: 1.0,
   frostThreshold: 0.35,
   aridityWiltPoint: 0.2,
   windStrength: 1.0,
   thermalContrastStrength: 0.6,
-  moistureIterations: 80,
-  moistureDiffusion: 0.12,
-  evaporationRate: 0.2,
-  rainoutRate: 0.12,
+  moistureIterations: 100,
+  cycleDays: 30,
+  windReferenceMs: 10,
+  moistureDiffusivityKm2PerDay: 8000,
+  oceanEvapPerDay: 1.0,
+  saturationRainoutPerDay: 1.0,
   orographicCondensation: 2.5,
-  convectiveRainRate: 0.025,
+  convectivePrecipPerDay: 0.3,
+  subsidenceDecayPerDay: 0.3,
+  soilMoistureTimescaleDays: 45,
+  landEvapEfficiency: 0.5,
+  stormTrackBoost: 0.5,
   boundaryCurrentStrength: 0.35,
   continentalityStrength: 0.5,
   sstIterations: 40,

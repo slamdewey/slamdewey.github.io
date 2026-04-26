@@ -36,6 +36,7 @@ export class ParamControlsComponent {
   tectonic = model<TectonicVariables>({ ...DEFAULT_TECTONIC });
   mapWidth = model<number>(512);
   mapHeight = model<number>(256);
+  circumferenceKm = model<number>(40000);
 
   regenerate = output<void>();
 

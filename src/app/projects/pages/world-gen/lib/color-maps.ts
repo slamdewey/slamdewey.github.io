@@ -43,6 +43,9 @@ export function layerToRGBA(
     case 'precipitation':
       colorPrecipitation(data as Float32Array, rgba);
       break;
+    case 'soilMoisture':
+      colorSoilMoisture(data as Float32Array, rgba, seaLevel, worldData);
+      break;
     case 'biomes':
       colorBiomes(data as Float32Array, rgba, width, height, worldData);
       break;
@@ -314,6 +317,27 @@ function colorPrecipitation(data: Float32Array, rgba: Uint8Array): void {
     rgba[o] = v;
     rgba[o + 1] = v;
     rgba[o + 2] = v;
+    rgba[o + 3] = 255;
+  }
+}
+
+/** Soil moisture: dry tan → wet teal ramp on land, ocean masked. */
+function colorSoilMoisture(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
+  const elevation = worldData?.elevation;
+  for (let i = 0; i < data.length; i++) {
+    const o = i * 4;
+    if (elevation && elevation[i] < seaLevel) {
+      rgba[o] = 0;
+      rgba[o + 1] = 30;
+      rgba[o + 2] = 80;
+      rgba[o + 3] = 255;
+      continue;
+    }
+    const t = Math.max(0, Math.min(1, data[i]));
+    // dry: tan (190, 165, 110); wet: deep teal (30, 110, 130)
+    rgba[o] = Math.round(190 * (1 - t) + 30 * t);
+    rgba[o + 1] = Math.round(165 * (1 - t) + 110 * t);
+    rgba[o + 2] = Math.round(110 * (1 - t) + 130 * t);
     rgba[o + 3] = 255;
   }
 }

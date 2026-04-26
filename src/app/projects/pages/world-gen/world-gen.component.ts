@@ -17,6 +17,7 @@ import {
   LayerName,
 } from './lib/types';
 import { WorkerResponse } from './lib/worker-types';
+import { printWorldStats } from './lib/debug';
 
 // Layer toggles follow pipeline execution order with the final synthesis
 // (Biomes) up front as the headline view.
@@ -34,6 +35,7 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'windWinter', label: 'Wind (Win)' },
   { value: 'temperature', label: 'Temperature' },
   { value: 'precipitation', label: 'Precipitation' },
+  { value: 'soilMoisture', label: 'Soil Moisture' },
   { value: 'aridity', label: 'Aridity' },
   { value: 'seasonality', label: 'Seasonality' },
   { value: 'growingSeason', label: 'Growing' },
@@ -143,6 +145,10 @@ if (tColdest > T_TROPICAL_COLDEST) {
   hydrologyConfig = signal<HydrologyVariables>({ ...DEFAULT_HYDROLOGY });
   mapWidth = signal(1024);
   mapHeight = signal(512);
+  // Equatorial circumference of the simulated world. Earth-default 40000 km
+  // makes the climate physics resolution-independent — changing mapWidth
+  // alone won't change the climate, only the spatial detail.
+  circumferenceKm = signal(40000);
 
   // Static stage images (2D canvas, no animation loop)
   plateImage = signal<StageImage | null>(null);
@@ -155,6 +161,7 @@ if (tColdest > T_TROPICAL_COLDEST) {
   windSummerImage = signal<StageImage | null>(null);
   windWinterImage = signal<StageImage | null>(null);
   precipitationImage = signal<StageImage | null>(null);
+  soilMoistureImage = signal<StageImage | null>(null);
   biomeImage = signal<StageImage | null>(null);
   flowImage = signal<StageImage | null>(null);
   riverImage = signal<StageImage | null>(null);
@@ -193,6 +200,8 @@ if (tColdest > T_TROPICAL_COLDEST) {
         return this.windWinterImage();
       case 'precipitation':
         return this.precipitationImage();
+      case 'soilMoisture':
+        return this.soilMoistureImage();
       case 'biomes':
         return this.biomeImage();
       case 'flowAccumulation':
@@ -241,6 +250,7 @@ if (tColdest > T_TROPICAL_COLDEST) {
       config: {
         width: this.mapWidth(),
         height: this.mapHeight(),
+        circumferenceKm: this.circumferenceKm(),
         noise: this.noiseConfig(),
         climate: this.climateConfig(),
         tectonic: this.tectonicConfig(),
@@ -265,6 +275,7 @@ if (tColdest > T_TROPICAL_COLDEST) {
     this.windSummerImage.set({ rgba: layerImages.windSummer, width: w, height: h });
     this.windWinterImage.set({ rgba: layerImages.windWinter, width: w, height: h });
     this.precipitationImage.set({ rgba: layerImages.precipitation, width: w, height: h });
+    this.soilMoistureImage.set({ rgba: layerImages.soilMoisture, width: w, height: h });
     this.biomeImage.set({ rgba: layerImages.biomes, width: w, height: h });
     this.flowImage.set({ rgba: layerImages.flowAccumulation, width: w, height: h });
     this.riverImage.set({ rgba: layerImages.rivers, width: w, height: h });
@@ -273,6 +284,8 @@ if (tColdest > T_TROPICAL_COLDEST) {
     this.seasonalityImage.set({ rgba: layerImages.seasonality, width: w, height: h });
     this.growingSeasonImage.set({ rgba: layerImages.growingSeason, width: w, height: h });
     this.koppenImage.set({ rgba: layerImages.koppen, width: w, height: h });
+
+    printWorldStats(worldData);
 
     this.isGenerating.set(false);
   }

@@ -17,7 +17,8 @@ export class WorldGenerator {
   constructor(private config: WorldConfig) {}
 
   generate(): GeneratorResult {
-    const { width, height, noise, climate, tectonic, hydrology } = this.config;
+    const { width, height, circumferenceKm, noise, climate, tectonic, hydrology } = this.config;
+    const cellSizeKm = circumferenceKm / width;
 
     const tectonicResult = generateTectonicPlates(width, height, noise, tectonic);
     const { faults, mountainRanges, plateMap, continentalSubRelief, oceanAge } = tectonicResult;
@@ -53,8 +54,19 @@ export class WorldGenerator {
     applyTerrainDeflection(width, height, windWinter, elevation, seaLevel);
     const wind = meanWind(windSummer, windWinter);
 
-    // Humidity simulation uses the matching seasonal wind per pass.
-    const humidity = runClimateHumidity(width, height, elevation, seaLevel, temps, windSummer, windWinter, climate);
+    // Humidity simulation uses the matching seasonal wind per pass. Passing
+    // cellSizeKm makes the moisture transport resolution-independent.
+    const humidity = runClimateHumidity(
+      width,
+      height,
+      elevation,
+      seaLevel,
+      cellSizeKm,
+      temps,
+      windSummer,
+      windWinter,
+      climate
+    );
 
     // Pass 2: rerun flow/rivers/lakes weighted by real annual precipitation.
     // No erosion — topology is locked in from pass 1. Lake formation is gated
@@ -95,6 +107,7 @@ export class WorldGenerator {
         precipSummer: humidity.precipSummer,
         precipWinter: humidity.precipWinter,
         precipAnnual: humidity.precipAnnual,
+        soilMoisture: humidity.soilMoisture,
         aridityIndex: humidity.aridityIndex,
         seasonality: humidity.seasonality,
         continentality: humidity.continentality,

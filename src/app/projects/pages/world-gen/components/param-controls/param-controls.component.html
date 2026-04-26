@@ -256,6 +256,61 @@
             (ngModelChange)="updateClimate('aridityWiltPoint', $event)" />
         </mat-slider>
       </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-conv">Convective Rain (/day): {{ climate().convectivePrecipPerDay.toFixed(2) }}</label>
+        <mat-slider min="0.05" max="1.0" step="0.05">
+          <input
+            id="slider-conv"
+            matSliderThumb
+            [ngModel]="climate().convectivePrecipPerDay"
+            (ngModelChange)="updateClimate('convectivePrecipPerDay', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-recycle">Land Evap Efficiency: {{ climate().landEvapEfficiency.toFixed(2) }}</label>
+        <mat-slider min="0" max="1.0" step="0.05">
+          <input
+            id="slider-recycle"
+            matSliderThumb
+            [ngModel]="climate().landEvapEfficiency"
+            (ngModelChange)="updateClimate('landEvapEfficiency', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-soiltau">Soil Bucket τ (days): {{ climate().soilMoistureTimescaleDays.toFixed(0) }}</label>
+        <mat-slider min="5" max="120" step="5">
+          <input
+            id="slider-soiltau"
+            matSliderThumb
+            [ngModel]="climate().soilMoistureTimescaleDays"
+            (ngModelChange)="updateClimate('soilMoistureTimescaleDays', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-storm">Storm-Track Boost: {{ climate().stormTrackBoost.toFixed(2) }}</label>
+        <mat-slider min="0" max="2" step="0.1">
+          <input
+            id="slider-storm"
+            matSliderThumb
+            [ngModel]="climate().stormTrackBoost"
+            (ngModelChange)="updateClimate('stormTrackBoost', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-iter">Moisture Iterations: {{ climate().moistureIterations }}</label>
+        <mat-slider min="40" max="300" step="10" discrete>
+          <input
+            id="slider-iter"
+            matSliderThumb
+            [ngModel]="climate().moistureIterations"
+            (ngModelChange)="updateClimate('moistureIterations', $event)" />
+        </mat-slider>
+      </div>
     </mat-expansion-panel>
 
     <mat-expansion-panel>
@@ -271,6 +326,13 @@
         <mat-form-field appearance="outline" class="param-controls__field--small">
           <mat-label>Height</mat-label>
           <input matInput type="number" [ngModel]="mapHeight()" (ngModelChange)="mapHeight.set($event)" />
+        </mat-form-field>
+      </div>
+
+      <div class="param-controls__row">
+        <mat-form-field appearance="outline" class="param-controls__field">
+          <mat-label>World Circumference (km)</mat-label>
+          <input matInput type="number" [ngModel]="circumferenceKm()" (ngModelChange)="circumferenceKm.set($event)" />
         </mat-form-field>
       </div>
     </mat-expansion-panel>

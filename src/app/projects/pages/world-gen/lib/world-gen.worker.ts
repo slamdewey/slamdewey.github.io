@@ -14,6 +14,7 @@ const ALL_LAYERS: LayerName[] = [
   'windSummer',
   'windWinter',
   'precipitation',
+  'soilMoisture',
   'biomes',
   'flowAccumulation',
   'rivers',
@@ -62,6 +63,7 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
     worldData.precipSummer.buffer,
     worldData.precipWinter.buffer,
     worldData.precipAnnual.buffer,
+    worldData.soilMoisture.buffer,
     worldData.aridityIndex.buffer,
     worldData.seasonality.buffer,
     worldData.continentality.buffer,
@@ -103,6 +105,8 @@ function selectLayerSource(worldData: WorldData, layer: LayerName): Float32Array
       return worldData.temperatureMean;
     case 'precipitation':
       return worldData.precipAnnual;
+    case 'soilMoisture':
+      return worldData.soilMoisture;
     case 'biomes':
       return worldData.biomes;
     case 'aridity':
