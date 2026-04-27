@@ -57,25 +57,35 @@
     }
   }
 
-  &__columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    align-items: start;
-  }
-
   &__divider {
     border: none;
     border-top: 1px solid #333;
     margin: 3rem 0;
   }
 
-  &__text {
-    min-width: 0;
-  }
+  &__showcase {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 
-  &__demo {
-    min-width: 0;
+    h2,
+    p {
+      align-self: stretch;
+    }
+
+    .voronoi-demo__slider-label {
+      align-self: stretch;
+      max-width: 600px;
+      margin: 0.25rem 0 0.75rem;
+    }
+
+    .voronoi-demo__canvas-wrap {
+      max-width: 600px;
+
+      & + & {
+        margin-top: 1rem;
+      }
+    }
   }
 
   // --- Full playground ---
@@ -129,6 +139,15 @@
       min-height: 200px;
     }
 
+    &--square {
+      aspect-ratio: 1 / 1;
+      max-width: 400px;
+    }
+
+    &--mercator {
+      aspect-ratio: 2 / 1;
+    }
+
     &--pannable {
       cursor: grab;
       user-select: none;
@@ -139,24 +158,12 @@
     }
   }
 
-  // --- Inline controls + captions ---
-
-  &__inline-controls {
-    margin-bottom: 0.75rem;
-  }
-
   &__caption {
     margin-top: 0.4rem;
     font-size: 0.85rem !important;
     color: #888 !important;
     text-align: center;
     font-style: italic;
-  }
-
-  // --- Code block spacing ---
-  x-code-block {
-    display: block;
-    margin: 1rem 0;
   }
 }
 
@@ -167,10 +174,6 @@
     margin-right: 1rem;
 
     &__playground {
-      grid-template-columns: 1fr;
-    }
-
-    &__columns {
       grid-template-columns: 1fr;
     }
   }

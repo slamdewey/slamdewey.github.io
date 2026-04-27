@@ -67,7 +67,7 @@ function dist(ax: number, ay: number, bx: number, by: number, width: number, wra
 /**
  * Generate initial seed points with deterministic random placement.
  */
-function generateSeeds(config: VoronoiConfig): VoronoiSeed[] {
+export function generateSeeds(config: VoronoiConfig): VoronoiSeed[] {
   const rng = { s: config.seed | 1 }; // ensure non-zero
   const seeds: VoronoiSeed[] = [];
   for (let i = 0; i < config.seedCount; i++) {
