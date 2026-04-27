@@ -1,4 +1,5 @@
 import { ClimateVariables, NoiseVariables } from '../../types';
+import { WorldGeometry } from '../../world-geometry';
 import { generateTemperature } from '../temperature';
 import { computePET } from './pet';
 import { simulateHumidity } from './humidity-sim';
@@ -93,7 +94,7 @@ export function runClimateHumidity(
   height: number,
   elevation: Float32Array,
   seaLevel: number,
-  cellSizeKm: number,
+  geom: WorldGeometry,
   temps: ClimateTemperatureResult,
   windSummer: Float32Array,
   windWinter: Float32Array,
@@ -109,7 +110,7 @@ export function runClimateHumidity(
     temps.temperatureSummer,
     temps.petAnnual,
     seaLevel,
-    cellSizeKm,
+    geom,
     cv,
     -cv.itczShift
   );
@@ -121,7 +122,7 @@ export function runClimateHumidity(
     temps.temperatureWinter,
     temps.petAnnual,
     seaLevel,
-    cellSizeKm,
+    geom,
     cv,
     +cv.itczShift
   );

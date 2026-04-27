@@ -1,4 +1,5 @@
-import { generateVoronoi, buildVoronoiGraph, type VoronoiEdge } from '@lib/voronoi';
+import { buildVoronoiGraph, type VoronoiEdge } from '@lib/voronoi';
+import { generateSphereVoronoi, type Vec3 } from '@lib/voronoi-sphere';
 import { OpenSimplexNoise } from '@lib/noise';
 import { mod, cylindricalSx, cylindricalCx } from '@lib/math';
 import { NoiseVariables, TectonicVariables } from '../types';
@@ -334,42 +335,76 @@ interface PlateCentroid {
 }
 
 /**
- * Compute plate centroids by averaging the seed positions of all cells in each plate.
- * Uses circular averaging for the wrapped x-axis.
+ * Project unit-sphere seed positions to equirectangular pixel coords:
+ * lon = atan2(y, x), lat = asin(z); pxX = (lon+π)/(2π)·W, pxY = (π/2−lat)/π·H.
  */
-function computePlateCentroids(
-  seeds: { x: number; y: number }[],
+function sphereSeedsToPixels(sphereSeeds: Vec3[], width: number, height: number): { x: number; y: number }[] {
+  const TWO_PI = Math.PI * 2;
+  const out: { x: number; y: number }[] = new Array(sphereSeeds.length);
+  for (let i = 0; i < sphereSeeds.length; i++) {
+    const s = sphereSeeds[i];
+    const lat = Math.asin(s.z < -1 ? -1 : s.z > 1 ? 1 : s.z);
+    const lon = Math.atan2(s.y, s.x);
+    out[i] = {
+      x: ((lon + Math.PI) / TWO_PI) * width,
+      y: ((Math.PI / 2 - lat) / Math.PI) * height,
+    };
+  }
+  return out;
+}
+
+/**
+ * Compute plate centroids on the sphere: sum the unit-vector positions of all
+ * member-cell seeds, renormalize to the unit sphere, then project to pixel
+ * coords. This is the natural sphere centroid (no pole-bias from cylindrical
+ * y-averaging) and is well-defined even for plates that span the antimeridian.
+ */
+function computePlateCentroidsSphere(
+  sphereSeeds: Vec3[],
   cellToPlate: Int32Array,
   cellCount: number,
   plateCount: number,
-  width: number
+  width: number,
+  height: number
 ): PlateCentroid[] {
-  const TWO_PI = Math.PI * 2;
-  const sinSum = new Float64Array(plateCount);
-  const cosSum = new Float64Array(plateCount);
+  const sumX = new Float64Array(plateCount);
   const sumY = new Float64Array(plateCount);
+  const sumZ = new Float64Array(plateCount);
   const counts = new Int32Array(plateCount);
 
   for (let i = 0; i < cellCount; i++) {
     const p = cellToPlate[i];
     if (p < 0) continue;
     counts[p]++;
-    sumY[p] += seeds[i].y;
-    const angle = (seeds[i].x / width) * TWO_PI;
-    sinSum[p] += Math.sin(angle);
-    cosSum[p] += Math.cos(angle);
+    const s = sphereSeeds[i];
+    sumX[p] += s.x;
+    sumY[p] += s.y;
+    sumZ[p] += s.z;
   }
 
+  const TWO_PI = Math.PI * 2;
   const centroids: PlateCentroid[] = [];
   for (let p = 0; p < plateCount; p++) {
     if (counts[p] === 0) {
       centroids.push({ x: 0, y: 0 });
       continue;
     }
-    const avgAngle = Math.atan2(sinSum[p], cosSum[p]);
+    const cx = sumX[p];
+    const cy = sumY[p];
+    const cz = sumZ[p];
+    const len = Math.sqrt(cx * cx + cy * cy + cz * cz);
+    if (len === 0) {
+      centroids.push({ x: 0, y: 0 });
+      continue;
+    }
+    const nx = cx / len;
+    const ny = cy / len;
+    const nz = cz / len;
+    const lat = Math.asin(nz < -1 ? -1 : nz > 1 ? 1 : nz);
+    const lon = Math.atan2(ny, nx);
     centroids.push({
-      x: mod((avgAngle / TWO_PI) * width, width),
-      y: sumY[p] / counts[p],
+      x: mod(((lon + Math.PI) / TWO_PI) * width, width),
+      y: ((Math.PI / 2 - lat) / Math.PI) * height,
     });
   }
 
@@ -500,7 +535,8 @@ function classifyBoundaries(
   rawBoundaries: { plateA: number; plateB: number; length: number }[],
   plates: PlateProperties[],
   centroids: PlateCentroid[],
-  width: number
+  width: number,
+  height: number
 ): BoundaryInfo[] {
   const classified: { boundary: (typeof rawBoundaries)[0]; type: BoundaryType; rawIntensity: number }[] = [];
   let maxIntensity = 0;
@@ -511,18 +547,25 @@ function classifyBoundaries(
     const cA = centroids[boundary.plateA];
     const cB = centroids[boundary.plateB];
 
-    // Wrap-aware vector from A to B
-    let nx = cB.x - cA.x;
-    if (nx > width / 2) nx -= width;
-    else if (nx < -width / 2) nx += width;
+    // Wrap-aware A→B vector. Scale x components by cos(lat) at the boundary
+    // midpoint so geometry is in km-equivalent units rather than pixels — at
+    // high latitudes one pixel of x covers far less ground than one pixel of y.
+    const midY = (cA.y + cB.y) * 0.5;
+    const midLat = Math.PI / 2 - ((midY + 0.5) / height) * Math.PI;
+    const cosMid = Math.cos(midLat);
+
+    let nxPx = cB.x - cA.x;
+    if (nxPx > width / 2) nxPx -= width;
+    else if (nxPx < -width / 2) nxPx += width;
+    const nx = nxPx * cosMid;
     const ny = cB.y - cA.y;
     const nLen = Math.sqrt(nx * nx + ny * ny);
     if (nLen === 0) continue;
     const ux = nx / nLen;
     const uy = ny / nLen;
 
-    // Relative drift of A toward B
-    const relDx = pA.dx - pB.dx;
+    // Relative drift of A toward B (same cos(lat) scaling on x).
+    const relDx = (pA.dx - pB.dx) * cosMid;
     const relDy = pA.dy - pB.dy;
 
     // Project onto normal (positive = convergent)
@@ -1084,16 +1127,25 @@ export function generateTectonicPlates(
   const { plateCount, cellCount, relaxationIterations } = tv;
   const rng = { s: (nv.seed ^ 0xabcdef01) | 1 };
 
-  // Step 1: Fine-grained Voronoi tessellation
-  const voronoi = generateVoronoi({
+  // Step 1: Spherical Voronoi tessellation. The cell grid is equirectangular
+  // (row 0 = north pole, lat = π/2 − (row+0.5)/H · π) and wraps in longitude
+  // exactly like the cylindrical case, so downstream raster consumers are
+  // unchanged. Seed positions are unit vectors on the sphere.
+  const sphereVoronoi = generateSphereVoronoi({
     width,
     height,
     seedCount: cellCount,
     seed: nv.seed,
     relaxationIterations,
-    wrapX: true,
   });
-  const { cells: cellMap, seeds } = voronoi;
+  const { cells: cellMap, seeds: sphereSeeds } = sphereVoronoi;
+
+  // Project sphere seeds → pixel coords for the cylindrical seed-placement and
+  // boundary-vector helpers below. These helpers compare adjacent or near-by
+  // cells where tangent-plane (pixel) distance is a fine approximation; the
+  // sphere-correct work happens in centroid math (Step 5) and the cos(lat)
+  // scaling in classifyBoundaries (Step 6).
+  const seeds = sphereSeedsToPixels(sphereSeeds, width, height);
 
   // Step 2: Build cell adjacency graph
   const graph = buildVoronoiGraph(cellMap, width, height, cellCount, true);
@@ -1109,13 +1161,14 @@ export function generateTectonicPlates(
     plateMap[i] = cellToPlate[cellMap[i]];
   }
 
-  // Step 5: Compute plate centroids and assign properties
-  const centroids = computePlateCentroids(seeds, cellToPlate, cellCount, plateCount, width);
+  // Step 5: Compute plate centroids (averaging Vec3 unit vectors → renormalize
+  // → project to pixel) and assign properties.
+  const centroids = computePlateCentroidsSphere(sphereSeeds, cellToPlate, cellCount, plateCount, width, height);
   const plates = assignPlateProperties(centroids, plateCount, width, nv.seed);
 
   // Step 6: Aggregate and classify plate-level boundaries
   const rawBoundaries = aggregatePlateBoundaries(graph.edges, cellToPlate, plateCount);
-  const boundaries = classifyBoundaries(rawBoundaries, plates, centroids, width);
+  const boundaries = classifyBoundaries(rawBoundaries, plates, centroids, width, height);
 
   // Step 7: Rasterize interactions into baseElevation, faults, mountainRanges,
   // continentalSubRelief, distToRidge, and oceanAge.

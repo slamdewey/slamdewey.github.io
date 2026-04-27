@@ -117,35 +117,54 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
     petAnnual,
   } = worldData;
 
+  // Per-row cos(lat): the area weight of each cell. Köppen / group / band
+  // percentages are reported as fractions of *land surface area*, not cell count,
+  // so a polar row's land cells contribute ~10× less than an equatorial row's.
+  // This is what reconciles our equirect grid with Earth's spherical reality.
+  const cosLatRow = new Float32Array(height);
+  for (let y = 0; y < height; y++) {
+    cosLatRow[y] = Math.cos(Math.PI / 2 - ((y + 0.5) / height) * Math.PI);
+  }
+  // Total area weight per cell, summed over the whole grid (land + ocean).
+  let totalAreaWeight = 0;
+  for (let y = 0; y < height; y++) totalAreaWeight += cosLatRow[y] * width;
+
   const totalCells = elevation.length;
   const landIndices: number[] = [];
   const landRows: number[] = [];
+  let landCount = 0;
+  let landAreaWeight = 0;
   for (let y = 0; y < height; y++) {
+    const w = cosLatRow[y];
     for (let x = 0; x < width; x++) {
       const i = y * width + x;
       if (elevation[i] >= seaLevel) {
         landIndices.push(i);
         landRows.push(y);
+        landCount++;
+        landAreaWeight += w;
       }
     }
   }
-  const landCount = landIndices.length;
 
-  // --- Köppen distribution ---
-  const koppenCounts = new Array(Object.keys(KoppenClass).length / 2).fill(0);
-  for (const i of landIndices) koppenCounts[koppenClass[i]]++;
+  // --- Köppen distribution (area-weighted) ---
+  const koppenWeight = new Float64Array(Object.keys(KoppenClass).length / 2);
+  for (let n = 0; n < landIndices.length; n++) {
+    koppenWeight[koppenClass[landIndices[n]]] += cosLatRow[landRows[n]];
+  }
   const koppen: Record<string, { sim: number; earth: number; delta: number }> = {};
-  for (let k = 0; k < koppenCounts.length; k++) {
-    const sim = round2((100 * koppenCounts[k]) / landCount);
+  const invLandWeight = landAreaWeight > 0 ? 1 / landAreaWeight : 0;
+  for (let k = 0; k < koppenWeight.length; k++) {
+    const sim = round2(100 * koppenWeight[k] * invLandWeight);
     const earth = EARTH_KOPPEN_PCT[k as KoppenClass] ?? 0;
     koppen[KOPPEN_CODE[k as KoppenClass]] = { sim, earth, delta: round2(sim - earth) };
   }
 
-  // --- Group totals A/B/C/D/E ---
+  // --- Group totals A/B/C/D/E (area-weighted) ---
   const groupSim = { A: 0, B: 0, C: 0, D: 0, E: 0 };
   const earthGroups = { A: 19, B: 33, C: 13, D: 22, E: 13 };
-  for (let k = 0; k < koppenCounts.length; k++) {
-    const pct = (100 * koppenCounts[k]) / landCount;
+  for (let k = 0; k < koppenWeight.length; k++) {
+    const pct = 100 * koppenWeight[k] * invLandWeight;
     if (k <= KoppenClass.Aw) groupSim.A += pct;
     else if (k <= KoppenClass.BSk) groupSim.B += pct;
     else if (k <= KoppenClass.Cwb) groupSim.C += pct;
@@ -186,7 +205,7 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
     petAnnual: fieldStats(petAnnual, landIndices),
   };
 
-  // --- Köppen by latitude band ---
+  // --- Köppen by latitude band (area-weighted) ---
   const bandDefs = [
     { name: '0-15deg (tropical)', from: 0, to: 15 / 90 },
     { name: '15-30deg (subtropical)', from: 15 / 90, to: 30 / 90 },
@@ -196,28 +215,32 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
   ];
   const latitudeBands: Record<string, BandStats> = {};
   for (const band of bandDefs) {
-    const counts = new Array(koppenCounts.length).fill(0);
-    let bandLand = 0;
+    const weights = new Float64Array(koppenWeight.length);
+    let bandLandWeight = 0;
+    let bandLandCells = 0;
     for (let n = 0; n < landIndices.length; n++) {
       const y = landRows[n];
       const distEq = Math.abs(y / height - 0.5) * 2;
       if (distEq >= band.from && distEq < band.to) {
-        counts[koppenClass[landIndices[n]]]++;
-        bandLand++;
+        const w = cosLatRow[y];
+        weights[koppenClass[landIndices[n]]] += w;
+        bandLandWeight += w;
+        bandLandCells++;
       }
     }
-    if (bandLand === 0) {
+    if (bandLandWeight === 0) {
       latitudeBands[band.name] = { landCells: 0, pctOfLand: 0, topClasses: [] };
       continue;
     }
-    const topClasses = counts
-      .map((c, k) => ({ code: KOPPEN_CODE[k as KoppenClass], pct: round2((100 * c) / bandLand) }))
+    const invBand = 1 / bandLandWeight;
+    const topClasses = Array.from(weights)
+      .map((w, k) => ({ code: KOPPEN_CODE[k as KoppenClass], pct: round2(100 * w * invBand) }))
       .filter((e) => e.pct > 0)
       .sort((a, b) => b.pct - a.pct)
       .slice(0, 6);
     latitudeBands[band.name] = {
-      landCells: bandLand,
-      pctOfLand: round2((100 * bandLand) / landCount),
+      landCells: bandLandCells,
+      pctOfLand: round2(100 * bandLandWeight * invLandWeight),
       topClasses,
     };
   }
@@ -228,7 +251,7 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
       height,
       totalCells,
       landCells: landCount,
-      landPct: round2((100 * landCount) / totalCells),
+      landPct: round2((100 * landAreaWeight) / totalAreaWeight),
     },
     koppen,
     groups,

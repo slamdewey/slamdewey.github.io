@@ -82,6 +82,67 @@
     background: #111;
     border-radius: 4px;
   }
+
+  &__preview-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+    margin: 1.5rem 0;
+  }
+
+  &__preview-equirect {
+    min-width: 0;
+
+    x-stage-demo {
+      display: block;
+      margin: 0;
+    }
+
+    // The stage-demo's inner figure ships with its own vertical margin for
+    // standalone use; pierce encapsulation so the canvas sits flush with the
+    // top of the column and aligns 1:1 with the sphere beside it.
+    ::ng-deep .stage-demo {
+      margin: 0;
+    }
+  }
+
+  &__preview-sphere {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    background: radial-gradient(circle at center, #0b1220 60%, #04070d 100%);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    overflow: hidden;
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  }
+
+  &__preview-sphere-skeleton {
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+}
+
+@media only screen and (max-width: 900px) {
+  .world-gen__preview-pair {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media only screen and (max-width: 1200px) {

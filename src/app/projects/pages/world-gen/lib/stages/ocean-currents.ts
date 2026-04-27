@@ -1,5 +1,6 @@
 import { clamp, mod } from '@lib/math';
 import { ClimateVariables } from '../types';
+import { WorldGeometry } from '../world-geometry';
 
 /**
  * Wind-driven ocean boundary currents transport heat along continental
@@ -32,10 +33,10 @@ export interface OceanCurrentResult {
   distToOcean: Float32Array;
 }
 
-/** Boundary-current e-folding length as a fraction of map width. 1/10 gives
- *  ~51 cells on a 512-wide map, roughly the fraction of an ocean basin
- *  within which real boundary currents dominate surface heat transport. */
-const BOUNDARY_EFOLD_FRAC = 1 / 10;
+/** Boundary-current e-folding length in km. ~4000 km is the fraction of an
+ *  ocean basin within which real boundary currents dominate surface heat
+ *  transport (Earth's circumference is 40,000 km, so 1/10 of a basin). */
+const BOUNDARY_EFOLD_KM = 4000;
 
 export function generateOceanCurrents(
   width: number,
@@ -43,12 +44,15 @@ export function generateOceanCurrents(
   wind: Float32Array,
   elevation: Float32Array,
   seaLevel: number,
-  cv: ClimateVariables
+  cv: ClimateVariables,
+  geom: WorldGeometry
 ): OceanCurrentResult {
   const size = width * height;
   const tempModifier = new Float32Array(size);
   const distToOcean = new Float32Array(size);
   const INF = width + height;
+  const cellSizeKmEq = geom.cellSizeKmEquator;
+  const cosLatRow = geom.cosLatRow;
 
   // --- 1. Per-row east/west distance-to-land scans --------------------------
   // Two passes per direction handle cylindrical X-wrap cleanly: the first
@@ -85,12 +89,13 @@ export function generateOceanCurrents(
 
   // --- 2. Build boundary-weighted temperature modifier ---------------------
   const strength = cv.boundaryCurrentStrength;
-  const efold = width * BOUNDARY_EFOLD_FRAC;
 
   for (let y = 0; y < height; y++) {
     const lat = y / height;
     // +1 at north pole, -1 at south pole, 0 at equator.
     const polewardness = (0.5 - lat) * 2;
+    // Convert pixel-distance to km using this row's actual E-W cell size.
+    const kmPerPxX = cellSizeKmEq * cosLatRow[y];
 
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
@@ -112,7 +117,8 @@ export function generateOceanCurrents(
       //     of the ocean basin = land close to the WEST of this cell.
       //   Cooling (California-like) → strong near EASTERN boundary
       //     = land close to the EAST of this cell.
-      const prox = signedBase > 0 ? Math.exp(-distLandW[idx] / efold) : Math.exp(-distLandE[idx] / efold);
+      const distPx = signedBase > 0 ? distLandW[idx] : distLandE[idx];
+      const prox = Math.exp(-(distPx * kmPerPxX) / BOUNDARY_EFOLD_KM);
 
       tempModifier[idx] = clamp(signedBase * strength * prox, -strength, strength);
     }

@@ -12,7 +12,24 @@
         world wraps seamlessly.
       </p>
 
-      <x-stage-demo [imageData]="fullDemoImage()" [loading]="isGenerating()" [(panOffset)]="sharedPanOffset" />
+      <div class="world-gen__preview-pair">
+        <div class="world-gen__preview-equirect">
+          <x-stage-demo [imageData]="fullDemoImage()" [loading]="isGenerating()" [(panOffset)]="sharedPanOffset" />
+        </div>
+        <div
+          class="world-gen__preview-sphere"
+          (pointerdown)="onLayerSphereRotateStart($event)"
+          (pointermove)="onLayerSphereRotateMove($event)"
+          (pointerup)="onLayerSphereRotateEnd($event)"
+          (pointercancel)="onLayerSphereRotateEnd($event)">
+          <canvas #layerSphereCanvas></canvas>
+          @if (isGenerating() || !fullDemoImage()) {
+            <div class="world-gen__preview-sphere-skeleton">
+              <x-skeleton-loader loadingMessage="Generating..." />
+            </div>
+          }
+        </div>
+      </div>
 
       <mat-button-toggle-group
         [value]="selectedLayer()"
@@ -703,7 +720,7 @@
             [imageData]="biomeImage()"
             [loading]="isGenerating()"
             [(panOffset)]="sharedPanOffset"
-            caption="Biomes — satellite-style global render" />
+            caption="Biomes — satellite-style global render (also viewable on the globe at the top of the page)" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }

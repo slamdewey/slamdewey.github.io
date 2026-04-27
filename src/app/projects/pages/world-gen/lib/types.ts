@@ -124,7 +124,7 @@ export interface TectonicVariables {
 
 export const DEFAULT_TECTONIC: TectonicVariables = {
   plateCount: 32,
-  cellCount: 750,
+  cellCount: 1500,
   relaxationIterations: 1,
   boundaryFalloffScale: 1.0,
   coastlineWarpAmplitude: 0.25,

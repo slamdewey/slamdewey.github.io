@@ -7,6 +7,7 @@ import { applyMountainRangesAndContinentalShelves } from './stages/post-processi
 import { runHydrology, computeFlowAndRivers } from './stages/hydrology';
 import { runClimateTemperature, runClimateHumidity } from './stages/climate';
 import { classifyBiomes } from './stages/biomes';
+import { buildWorldGeometry } from './world-geometry';
 
 export interface GeneratorResult {
   worldData: WorldData;
@@ -18,7 +19,7 @@ export class WorldGenerator {
 
   generate(): GeneratorResult {
     const { width, height, circumferenceKm, noise, climate, tectonic, hydrology } = this.config;
-    const cellSizeKm = circumferenceKm / width;
+    const geom = buildWorldGeometry(width, height, circumferenceKm);
 
     const tectonicResult = generateTectonicPlates(width, height, noise, tectonic);
     const { faults, mountainRanges, plateMap, continentalSubRelief, oceanAge } = tectonicResult;
@@ -38,7 +39,15 @@ export class WorldGenerator {
     const windPass1 = generateWind(width, height, noise, climate, null, 0);
     applyTerrainDeflection(width, height, windPass1, elevation, seaLevel);
 
-    const { tempModifier, distToOcean } = generateOceanCurrents(width, height, windPass1, elevation, seaLevel, climate);
+    const { tempModifier, distToOcean } = generateOceanCurrents(
+      width,
+      height,
+      windPass1,
+      elevation,
+      seaLevel,
+      climate,
+      geom
+    );
 
     // Seasonal temperatures and PET — no wind dependence beyond the current
     // advection already baked into tempModifier.
@@ -55,13 +64,14 @@ export class WorldGenerator {
     const wind = meanWind(windSummer, windWinter);
 
     // Humidity simulation uses the matching seasonal wind per pass. Passing
-    // cellSizeKm makes the moisture transport resolution-independent.
+    // geom makes the moisture transport resolution-independent and applies
+    // per-row cos(lat) corrections so x-step shrinks toward the poles.
     const humidity = runClimateHumidity(
       width,
       height,
       elevation,
       seaLevel,
-      cellSizeKm,
+      geom,
       temps,
       windSummer,
       windWinter,

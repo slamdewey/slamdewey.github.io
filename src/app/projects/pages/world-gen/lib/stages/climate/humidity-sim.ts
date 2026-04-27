@@ -1,5 +1,6 @@
 import { clamp, mod } from '@lib/math';
 import { ClimateVariables } from '../../types';
+import { WorldGeometry } from '../../world-geometry';
 
 const SECONDS_PER_DAY = 86400;
 const M_PER_KM = 1000;
@@ -81,10 +82,12 @@ export function simulateHumidity(
   temperature: Float32Array,
   petAnnual: Float32Array,
   seaLevel: number,
-  cellSizeKm: number,
+  geom: WorldGeometry,
   cv: ClimateVariables,
   itczLatOffset = 0
 ): HumidityResult {
+  const cellSizeKm = geom.cellSizeKmEquator;
+  const cosLatRow = geom.cosLatRow;
   const size = width * height;
   const q = new Float32Array(size);
   const qNext = new Float32Array(size);
@@ -96,8 +99,11 @@ export function simulateHumidity(
   const cycleDays = Math.max(1, cv.cycleDays);
   const dtDays = cycleDays / iterations;
 
-  // Step-displacement multiplier: a wind magnitude of 1 advances a parcel
-  // (windReferenceMs · dtDays · 86400 s/day) meters per step. Convert to cells.
+  // Step-displacement multiplier: a wind magnitude of 1 at the equator advances
+  // a parcel (windReferenceMs · dtDays · 86400 s/day) meters per step. The per-row
+  // east-step shrinks toward the poles because longitude pixels cover less km
+  // there — `cellsPerStepX[y] = stepFactor / cosLat[y]` (same wind sweeps more
+  // pixels per second at high lat). Y-step is lat-invariant.
   const stepFactor = (cv.windReferenceMs * dtDays * SECONDS_PER_DAY) / (cellSizeKm * M_PER_KM);
 
   // Per-step decay multipliers from per-day rates. We cache (1 − exp(−rate·dt))
@@ -108,8 +114,18 @@ export function simulateHumidity(
   const subsidenceFrac = 1 - Math.exp(-cv.subsidenceDecayPerDay * dtDays);
   const soilTimescale = Math.max(1, cv.soilMoistureTimescaleDays);
 
-  // Diffusion blend factor: D · dt / dx². Clamp to 1 for safety on coarse maps.
-  const diffusionBlend = clamp((cv.moistureDiffusivityKm2PerDay * dtDays) / (cellSizeKm * cellSizeKm), 0, 1);
+  // Diffusion blend factors. y-direction is lat-invariant. x-direction needs
+  // 1/cos²(lat) scaling because dx in km shrinks with cos(lat); we cap each
+  // per-row blend at 1 for CFL safety so polar rows don't go unstable.
+  const yDiffBlend = clamp((cv.moistureDiffusivityKm2PerDay * dtDays) / (cellSizeKm * cellSizeKm), 0, 1);
+  const xDiffBlendRow = new Float32Array(height);
+  const xStepFactorRow = new Float32Array(height);
+  const COS_FLOOR = 0.05; // cap polar amplification so the very last few rows don't blow up
+  for (let y = 0; y < height; y++) {
+    const c = Math.max(cosLatRow[y], COS_FLOOR);
+    xStepFactorRow[y] = stepFactor / c;
+    xDiffBlendRow[y] = clamp(yDiffBlend / (c * c), 0, 1);
+  }
 
   // Saturation capacity per cell — Clausius-Clapeyron is exponential in T,
   // but temperature is already normalized [0, 1] so a linear form is fine
@@ -190,39 +206,45 @@ export function simulateHumidity(
 
     // --- 3. Semi-Lagrangian advection ---
     for (let y = 0; y < height; y++) {
+      const xStep = xStepFactorRow[y];
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
         const wIdx = idx * 2;
-        const srcX = x - wind[wIdx] * stepFactor;
+        const srcX = x - wind[wIdx] * xStep;
         const srcY = y - wind[wIdx + 1] * stepFactor;
         qNext[idx] = bilinearSample(q, srcX, srcY, width, height);
       }
     }
     for (let i = 0; i < size; i++) q[i] = qNext[i];
 
-    // --- 4. Diffusion ---
-    if (diffusionBlend > 0) {
+    // --- 4. Diffusion (separable: x-pass, then y-pass) ---
+    if (yDiffBlend > 0) {
+      // x-pass: per-row blend with the 3-cell longitudinal mean.
+      for (let y = 0; y < height; y++) {
+        const blend = xDiffBlendRow[y];
+        if (blend <= 0) continue;
+        const keep = 1 - blend;
+        const rowOff = y * width;
+        for (let x = 0; x < width; x++) {
+          const xW = mod(x - 1, width);
+          const xE = mod(x + 1, width);
+          const mean = (q[rowOff + xW] + q[rowOff + x] + q[rowOff + xE]) / 3;
+          qNext[rowOff + x] = q[rowOff + x] * keep + mean * blend;
+        }
+      }
+      for (let i = 0; i < size; i++) q[i] = qNext[i];
+
+      // y-pass: lat-invariant blend with the 3-cell meridional mean.
+      const yKeep = 1 - yDiffBlend;
       for (let y = 0; y < height; y++) {
         const yN = y > 0 ? y - 1 : 0;
         const yS = y < height - 1 ? y + 1 : height - 1;
         for (let x = 0; x < width; x++) {
-          const xW = mod(x - 1, width);
-          const xE = mod(x + 1, width);
-          const sum =
-            q[yN * width + xW] +
-            q[yN * width + x] +
-            q[yN * width + xE] +
-            q[y * width + xW] +
-            q[y * width + x] +
-            q[y * width + xE] +
-            q[yS * width + xW] +
-            q[yS * width + x] +
-            q[yS * width + xE];
-          qNext[y * width + x] = sum / 9;
+          const mean = (q[yN * width + x] + q[y * width + x] + q[yS * width + x]) / 3;
+          qNext[y * width + x] = q[y * width + x] * yKeep + mean * yDiffBlend;
         }
       }
-      const keep = 1 - diffusionBlend;
-      for (let i = 0; i < size; i++) q[i] = q[i] * keep + qNext[i] * diffusionBlend;
+      for (let i = 0; i < size; i++) q[i] = qNext[i];
     }
 
     // --- 5–9. Subsidence + orographic + Föhn + convective + saturation ---
@@ -230,6 +252,7 @@ export function simulateHumidity(
     for (let y = 0; y < height; y++) {
       const sub = subsidenceRow[y];
       const conv = convFrac * itczBoost[y] * stormBoostRow[y];
+      const xStep = xStepFactorRow[y];
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
 
@@ -237,7 +260,7 @@ export function simulateHumidity(
 
         if (elevation[idx] >= seaLevel) {
           const wIdx = idx * 2;
-          const upX = x - wind[wIdx] * stepFactor;
+          const upX = x - wind[wIdx] * xStep;
           const upY = y - wind[wIdx + 1] * stepFactor;
           const upwindE = bilinearSample(elevation, upX, upY, width, height);
           const rise = elevation[idx] - upwindE;
@@ -284,21 +307,43 @@ export function simulateHumidity(
 }
 
 /**
- * Bilinear sample with cylindrical X wrap and clamped Y.
+ * Bilinear sample with cylindrical X wrap and pole wrap on Y. A parcel
+ * advected past a pole continues over the pole onto the antipodal longitude:
+ * y < 0 becomes y' = −y − 1 with x shifted by W/2; y ≥ H becomes y' = 2H − y − 1
+ * with the same x shift. This is the equirectangular projection of a great-
+ * circle path crossing the pole.
  */
 function bilinearSample(field: Float32Array, x: number, y: number, width: number, height: number): number {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
   const fx = x - x0;
   const fy = y - y0;
-  const x0w = mod(x0, width);
-  const x1w = mod(x0 + 1, width);
-  const y0c = y0 < 0 ? 0 : y0 >= height ? height - 1 : y0;
-  const y1c = y0 + 1 < 0 ? 0 : y0 + 1 >= height ? height - 1 : y0 + 1;
-  const v00 = field[y0c * width + x0w];
-  const v10 = field[y0c * width + x1w];
-  const v01 = field[y1c * width + x0w];
-  const v11 = field[y1c * width + x1w];
+  const halfW = width >> 1;
+
+  let y0i = y0;
+  let xShiftA = 0;
+  if (y0i < 0) {
+    y0i = -y0i - 1;
+    xShiftA = halfW;
+  } else if (y0i >= height) {
+    y0i = 2 * height - y0i - 1;
+    xShiftA = halfW;
+  }
+
+  let y1i = y0 + 1;
+  let xShiftB = 0;
+  if (y1i < 0) {
+    y1i = -y1i - 1;
+    xShiftB = halfW;
+  } else if (y1i >= height) {
+    y1i = 2 * height - y1i - 1;
+    xShiftB = halfW;
+  }
+
+  const v00 = field[y0i * width + mod(x0 + xShiftA, width)];
+  const v10 = field[y0i * width + mod(x0 + 1 + xShiftA, width)];
+  const v01 = field[y1i * width + mod(x0 + xShiftB, width)];
+  const v11 = field[y1i * width + mod(x0 + 1 + xShiftB, width)];
   const top = v00 * (1 - fx) + v10 * fx;
   const bot = v01 * (1 - fx) + v11 * fx;
   return top * (1 - fy) + bot * fy;
