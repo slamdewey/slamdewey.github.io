@@ -1,5 +1,5 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
-import { map, mod, cylindricalSx, cylindricalCx } from '@lib/math';
+import { map, mod, sphericalEmbed3D } from '@lib/math';
 import { NoiseVariables, TectonicVariables } from '../types';
 import { TectonicResult } from './tectonic-plates';
 
@@ -20,7 +20,6 @@ export function generateElevation(
   const warpNoiseY = new OpenSimplexNoise((nv.seed ^ 0x7a7f1337) | 0);
   const elevation = new Float32Array(width * height);
 
-  const yScale = (2 * Math.PI) / width;
   const baseFreq = nv.frequency * 0.5;
   // Warp frequency is expressed directly in unit-circle cycles-per-map (not
   // multiplied by baseFreq), so a single slider setting produces a predictable
@@ -37,23 +36,24 @@ export function generateElevation(
   const plateRadius = Math.sqrt((width * height) / Math.max(1, tectonic.plates.length));
   const warpAmp = tv.coastlineWarpAmplitude * plateRadius;
 
+  const np = new Float32Array(3);
   let min = Infinity,
     max = -Infinity;
 
   for (let y = 0; y < height; y++) {
-    const ny = y * yScale;
     for (let x = 0; x < width; x++) {
-      const sx = cylindricalSx(x, width);
-      const cx = cylindricalCx(x, width);
-
       const idx = y * width + x;
+      sphericalEmbed3D(x, y, width, height, np);
+      const nx = np[0];
+      const ny = np[1];
+      const nz = np[2];
 
-      const wx = warpNoiseX.eval3D(sx * warpFreq, ny * warpFreq, cx * warpFreq) * warpAmp;
-      const wy = warpNoiseY.eval3D(sx * warpFreq, ny * warpFreq, cx * warpFreq) * warpAmp;
+      const wx = warpNoiseX.eval3D(nx * warpFreq, ny * warpFreq, nz * warpFreq) * warpAmp;
+      const wy = warpNoiseY.eval3D(nx * warpFreq, ny * warpFreq, nz * warpFreq) * warpAmp;
       const base = sampleBaseElevationBilinear(tectonic.baseElevation, width, height, x + wx, y + wy);
 
       // Layer noise for terrain detail
-      const n = fBm3D(noise, sx, ny, cx, nv.octaves, baseFreq, nv.persistence, nv.lacunarity);
+      const n = fBm3D(noise, nx, ny, nz, nv.octaves, baseFreq, nv.persistence, nv.lacunarity);
       elevation[idx] = base + n * 0.8;
 
       if (elevation[idx] > max) max = elevation[idx];

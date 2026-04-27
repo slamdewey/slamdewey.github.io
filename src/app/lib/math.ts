@@ -53,17 +53,33 @@ export function sign(a: number): number {
 }
 
 /**
- * Cylindrical wrapping: normalized sin component. Returns [-1, 1].
- * Together with cylindricalCx, maps x onto a unit circle so the
- * noise tiles seamlessly at x=0 and x=width.
+ * Spherical 3D embedding for noise sampling on an equirectangular grid.
+ *
+ * Maps cell (x, y) to its unit-vector position on the sphere
+ *   lat = π/2 − (y+0.5)/H · π   (row 0 = north pole)
+ *   lon = (x+0.5)/W · 2π
+ * giving (cos(lat)·cos(lon), cos(lat)·sin(lon), sin(lat)).
+ *
+ * Using these components as the 3D noise coordinate gives features uniform
+ * arc-length size on the globe — no polar squash in the sphere view, no
+ * equator-vs-pole density bias, and longitude still wraps seamlessly. The
+ * frequency multiplier specifies cycles around the equator, same as before.
+ *
+ * Writes [nx, ny, nz] into `out` to keep hot loops allocation-free.
  */
-export function cylindricalSx(x: number, width: number): number {
-  return Math.sin((x * TWO_PI) / width);
-}
-
-/** Cylindrical wrapping: normalized cos component. Returns [-1, 1]. */
-export function cylindricalCx(x: number, width: number): number {
-  return Math.cos((x * TWO_PI) / width);
+export function sphericalEmbed3D(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  out: Float32Array | number[]
+): void {
+  const lon = ((x + 0.5) / width) * TWO_PI;
+  const lat = Math.PI * 0.5 - ((y + 0.5) / height) * Math.PI;
+  const cosLat = Math.cos(lat);
+  out[0] = cosLat * Math.cos(lon);
+  out[1] = cosLat * Math.sin(lon);
+  out[2] = Math.sin(lat);
 }
 
 export function vec2Normalize(x: number, y: number): [number, number] {

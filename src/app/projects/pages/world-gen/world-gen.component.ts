@@ -1,18 +1,8 @@
-import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  ElementRef,
-  OnDestroy,
-  signal,
-  viewChild,
-} from '@angular/core';
-import { SphereView } from '@lib/sphere-view';
+import { ChangeDetectionStrategy, Component, computed, OnDestroy, signal } from '@angular/core';
 import { SkeletonLoaderComponent } from '@components/skeleton-loader/skeleton-loader.component';
 import { BannerComponent } from '@components/banner/banner.component';
 import { CodeBlockComponent } from '@components/code-block/code-block.component';
+import { SphereViewComponent } from '@components/sphere-view/sphere-view.component';
 import { StageDemoComponent, StageImage } from './components/stage-demo/stage-demo.component';
 import { ParamControlsComponent } from './components/param-controls/param-controls.component';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -74,10 +64,11 @@ const LAYER_SPHERE_SIZE = 512;
     MatButtonToggleModule,
     FormsModule,
     SkeletonLoaderComponent,
+    SphereViewComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WorldGenComponent implements OnDestroy, AfterViewInit {
+export class WorldGenComponent implements OnDestroy {
   readonly layerOptions = LAYER_OPTIONS;
 
   // --- Code snippets ---
@@ -246,12 +237,15 @@ if (tColdest > T_TROPICAL_COLDEST) {
   // Worker
   private worker: Worker | null = null;
 
-  // Layer sphere view — wired to the currently-selected layer.
-  layerSphereCanvas = viewChild<ElementRef<HTMLCanvasElement>>('layerSphereCanvas');
-  private sphereView: SphereView | null = null;
+  readonly layerSphereSize = LAYER_SPHERE_SIZE;
   // Longitude rotation is derived from sharedPanOffset so the sphere spins in
   // lockstep with every cylindrical layer panner. Latitude tilt is sphere-only.
-  private layerSphereRotLat = 0;
+  layerSphereRotLat = signal(0);
+  layerSphereRotLon = computed(() => {
+    const img = this.fullDemoImage();
+    if (!img) return 0;
+    return (this.sharedPanOffset() / img.width) * Math.PI * 2;
+  });
   private isLayerSphereRotating = false;
   private layerRotStartX = 0;
   private layerRotStartY = 0;
@@ -260,66 +254,10 @@ if (tColdest > T_TROPICAL_COLDEST) {
 
   constructor() {
     setTimeout(() => this.regenerate(), 0);
-    // Re-upload texture and re-render whenever the selected layer's image
-    // changes (new generation OR layer toggle, since fullDemoImage is computed
-    // from selectedLayer).
-    effect(() => {
-      const img = this.fullDemoImage();
-      if (!img) return;
-      this.uploadLayerSphereTexture(img);
-      this.renderLayerSphere();
-    });
-    // Re-render whenever the shared pan offset moves.
-    effect(() => {
-      this.sharedPanOffset();
-      this.renderLayerSphere();
-    });
-  }
-
-  ngAfterViewInit(): void {
-    this.ensureSphereView();
-    this.renderLayerSphere();
   }
 
   ngOnDestroy(): void {
     this.worker?.terminate();
-    this.sphereView?.dispose();
-    this.sphereView = null;
-  }
-
-  private ensureSphereView(): void {
-    if (this.sphereView) return;
-    const ref = this.layerSphereCanvas();
-    if (!ref) return;
-    try {
-      this.sphereView = new SphereView(ref.nativeElement);
-      this.sphereView.setSize(LAYER_SPHERE_SIZE);
-    } catch {
-      // WebGL2 unavailable — sphere view stays null; the canvas will be blank.
-      this.sphereView = null;
-    }
-  }
-
-  private currentLayerRotLon(): number {
-    const img = this.fullDemoImage();
-    if (!img) return 0;
-    return (this.sharedPanOffset() / img.width) * Math.PI * 2;
-  }
-
-  private renderLayerSphere(): void {
-    this.ensureSphereView();
-    const view = this.sphereView;
-    const img = this.fullDemoImage();
-    if (!view || !img) return;
-    // Direct GPU draw — sub-millisecond on any modern GPU. rAF coalescing was
-    // adding latency without measurable benefit at this draw size.
-    view.render(this.currentLayerRotLon(), this.layerSphereRotLat);
-  }
-
-  private uploadLayerSphereTexture(img: { rgba: Uint8Array; width: number; height: number }): void {
-    this.ensureSphereView();
-    if (!this.sphereView) return;
-    this.sphereView.uploadEquirect(img.rgba, img.width, img.height);
   }
 
   // --- Sphere drag: horizontal → sharedPanOffset, vertical → rotLat ---
@@ -328,7 +266,7 @@ if (tColdest > T_TROPICAL_COLDEST) {
     this.isLayerSphereRotating = true;
     this.layerRotStartX = e.clientX;
     this.layerRotStartY = e.clientY;
-    this.layerRotBaseLat = this.layerSphereRotLat;
+    this.layerRotBaseLat = this.layerSphereRotLat();
     this.layerRotBasePan = this.sharedPanOffset();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -346,15 +284,11 @@ if (tColdest > T_TROPICAL_COLDEST) {
     let lat = this.layerRotBaseLat + dy * latScale;
     if (lat > limit) lat = limit;
     else if (lat < -limit) lat = -limit;
-    this.layerSphereRotLat = lat;
+    this.layerSphereRotLat.set(lat);
     // Horizontal drag → sharedPanOffset (drives sphere lon AND every equirect panner).
     const dx = e.clientX - this.layerRotStartX;
     const panScale = img.width / target.clientWidth;
     this.sharedPanOffset.set(this.layerRotBasePan - dx * panScale);
-    // Render immediately — the sharedPanOffset effect would also re-render but
-    // its microtask scheduling adds latency; calling here keeps both axes on
-    // the same fast path.
-    this.renderLayerSphere();
   }
 
   onLayerSphereRotateEnd(e: PointerEvent): void {

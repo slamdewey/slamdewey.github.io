@@ -342,6 +342,93 @@ export function sphereVoronoiToMercatorRGBA(
 }
 
 /**
+ * Render the cell map as an equirectangular projection (row 0 = north pole,
+ * uniform lat per row, col 0 = lon = -π). Suitable for upload as a sphere
+ * texture sampled by an orthographic shader.
+ *
+ * Each pixel computes nearest-seed directly so cell edges remain sharp.
+ */
+export function sphereVoronoiToEquirectRGBA(
+  result: SphereVoronoiResult,
+  outWidth: number,
+  outHeight: number,
+  showBoundaries: boolean
+): Uint8Array {
+  const rgba = new Uint8Array(outWidth * outHeight * 4);
+  const cellMap = new Int32Array(outWidth * outHeight);
+  const seeds = result.seeds;
+  const n = seeds.length;
+
+  const sx = new Float64Array(n);
+  const sy = new Float64Array(n);
+  const sz = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    sx[i] = seeds[i].x;
+    sy[i] = seeds[i].y;
+    sz[i] = seeds[i].z;
+  }
+
+  for (let row = 0; row < outHeight; row++) {
+    // Row 0 = north pole (lat = +π/2), row H-1 ≈ south pole.
+    const lat = Math.PI / 2 - ((row + 0.5) / outHeight) * Math.PI;
+    const cosLat = Math.cos(lat);
+    const sinLat = Math.sin(lat);
+    for (let col = 0; col < outWidth; col++) {
+      const lon = ((col + 0.5) / outWidth) * 2 * Math.PI - Math.PI;
+      const px = cosLat * Math.cos(lon);
+      const py = cosLat * Math.sin(lon);
+      const pz = sinLat;
+      let maxDot = -Infinity;
+      let closest = 0;
+      for (let i = 0; i < n; i++) {
+        const d = px * sx[i] + py * sy[i] + pz * sz[i];
+        if (d > maxDot) {
+          maxDot = d;
+          closest = i;
+        }
+      }
+      cellMap[row * outWidth + col] = closest;
+    }
+  }
+
+  const colors = buildCellColors(result.seeds.length);
+
+  for (let row = 0; row < outHeight; row++) {
+    for (let col = 0; col < outWidth; col++) {
+      const idx = row * outWidth + col;
+      const cell = cellMap[idx];
+      const out = idx * 4;
+
+      let isBorder = false;
+      if (showBoundaries) {
+        const left = col > 0 ? cellMap[idx - 1] : cellMap[row * outWidth + outWidth - 1];
+        if (left !== cell) isBorder = true;
+        else {
+          const right = col < outWidth - 1 ? cellMap[idx + 1] : cellMap[row * outWidth];
+          if (right !== cell) isBorder = true;
+          else if (row > 0 && cellMap[idx - outWidth] !== cell) isBorder = true;
+          else if (row < outHeight - 1 && cellMap[idx + outWidth] !== cell) isBorder = true;
+        }
+      }
+
+      if (isBorder) {
+        rgba[out] = 20;
+        rgba[out + 1] = 20;
+        rgba[out + 2] = 20;
+      } else {
+        const c = colors[cell];
+        rgba[out] = c[0];
+        rgba[out + 1] = c[1];
+        rgba[out + 2] = c[2];
+      }
+      rgba[out + 3] = 255;
+    }
+  }
+
+  return rgba;
+}
+
+/**
  * Render the cell map onto a sphere viewed orthographically. Pixels outside
  * the disk are transparent. The view's center is at `(lon = rotLon, lat = rotLat)`.
  *

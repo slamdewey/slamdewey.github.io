@@ -111,11 +111,7 @@
     position: relative;
     aspect-ratio: 1 / 1;
     width: 100%;
-    background: radial-gradient(circle at center, #0b1220 60%, #04070d 100%);
     border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     cursor: grab;
     touch-action: none;
     overflow: hidden;
@@ -123,12 +119,12 @@
     &:active {
       cursor: grabbing;
     }
+  }
 
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
+  &__preview-sphere-view {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 
   &__preview-sphere-skeleton {

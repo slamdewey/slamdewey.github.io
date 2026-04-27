@@ -1,7 +1,7 @@
 import { buildVoronoiGraph, type VoronoiEdge } from '@lib/voronoi';
 import { generateSphereVoronoi, type Vec3 } from '@lib/voronoi-sphere';
 import { OpenSimplexNoise } from '@lib/noise';
-import { mod, cylindricalSx, cylindricalCx } from '@lib/math';
+import { mod, sphericalEmbed3D } from '@lib/math';
 import { NoiseVariables, TectonicVariables } from '../types';
 
 export enum PlateType {
@@ -432,19 +432,24 @@ function assignPlateProperties(
   centroids: PlateCentroid[],
   plateCount: number,
   width: number,
+  height: number,
   seed: number
 ): PlateProperties[] {
   const rng = { s: (seed ^ 0xdeadbeef) | 1 };
   const continentNoise = new OpenSimplexNoise((seed ^ 0xcafebeef) | 0);
-  const CONTINENT_FREQ = 0.4;
-  const yScale = (2 * Math.PI) / width;
+  // The unit-vector embedding confines noise samples to the box [−1, 1]³, so
+  // freq must be high enough that multiple distinct features fit on the
+  // sphere. Below ~1.0 a single noise blob dominates the whole globe and its
+  // gradient along z = sin(lat) forces a hemispheric bias (one whole hemi
+  // continental, the other oceanic). 1.6 gives ~3 features pole-to-pole and
+  // ~1.6 around the equator — continent-sized chunks at all latitudes.
+  const CONTINENT_FREQ = 1.6;
 
+  const np = new Float32Array(3);
   const plates: PlateProperties[] = [];
   for (let i = 0; i < plateCount; i++) {
-    const sx = cylindricalSx(centroids[i].x, width);
-    const cx = cylindricalCx(centroids[i].x, width);
-    const ny = centroids[i].y * yScale;
-    const sample = continentNoise.eval3D(sx * CONTINENT_FREQ, ny * CONTINENT_FREQ, cx * CONTINENT_FREQ);
+    sphericalEmbed3D(centroids[i].x, centroids[i].y, width, height, np);
+    const sample = continentNoise.eval3D(np[0] * CONTINENT_FREQ, np[1] * CONTINENT_FREQ, np[2] * CONTINENT_FREQ);
 
     const angle = xorshift32(rng) * Math.PI * 2;
     const magnitude = 0.3 + xorshift32(rng) * 0.7;
@@ -912,17 +917,15 @@ function rasterizePlateInteractions(
   const subReliefNoise = new OpenSimplexNoise((nv.seed ^ 0xbee5ca7e) | 0);
   const subReliefFreq = nv.frequency * tv.continentalSubReliefFrequency;
   const subReliefAmp = tv.continentalSubReliefAmplitude;
-  const yScaleSub = (2 * Math.PI) / width;
   const ageStrength = tv.oceanicAgeGradientStrength;
 
+  const npSub = new Float32Array(3);
   for (let y = 0; y < height; y++) {
-    const ny = y * yScaleSub;
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       const plate = plates[plateMap[idx]];
       if (plate.type === PlateType.Continental) {
-        const sx = cylindricalSx(x, width);
-        const cx = cylindricalCx(x, width);
+        sphericalEmbed3D(x, y, width, height, npSub);
         // Plain fBm in [-1, 1], symmetric around 0 → roughly half swells
         // (positive) and half basins (negative). The earlier ridged-fBm form
         // (1 − |n|) only produced positive deltas, so the diverging red/blue
@@ -932,7 +935,7 @@ function rasterizePlateInteractions(
         let f = subReliefFreq;
         let a = 1;
         for (let o = 0; o < 4; o++) {
-          const n = subReliefNoise.eval3D(sx * f, ny * f, cx * f);
+          const n = subReliefNoise.eval3D(npSub[0] * f, npSub[1] * f, npSub[2] * f);
           sum += n * a;
           range += a;
           f *= 2.0;
@@ -962,7 +965,7 @@ function rasterizePlateInteractions(
   // band stamped along the plate edge.
   const pass5Warp = new OpenSimplexNoise((nv.seed ^ 0xfa5170c5) | 0);
   const warpFreqPass5 = nv.frequency * tv.coastlineWarpFrequency;
-  const yScalePass5 = (2 * Math.PI) / width;
+  const npWarp = new Float32Array(3);
 
   for (let i = 0; i < size; i++) {
     const bi = nearestBoundary[i];
@@ -986,10 +989,12 @@ function rasterizePlateInteractions(
     // so the band can jitter but cannot stamp phantom mountains far inland.
     const px = i % width;
     const py = (i - px) / width;
-    const sx = cylindricalSx(px, width);
-    const cx = cylindricalCx(px, width);
-    const ny = py * yScalePass5;
-    const warpSample = pass5Warp.eval3D(sx * warpFreqPass5, ny * warpFreqPass5, cx * warpFreqPass5);
+    sphericalEmbed3D(px, py, width, height, npWarp);
+    const warpSample = pass5Warp.eval3D(
+      npWarp[0] * warpFreqPass5,
+      npWarp[1] * warpFreqPass5,
+      npWarp[2] * warpFreqPass5
+    );
     const warpLim = 0.8 * effectiveFalloff;
     const rawOffset = warpSample * effectiveFalloff * tv.coastlineWarpAmplitude * 3;
     const distOffset = rawOffset > warpLim ? warpLim : rawOffset < -warpLim ? -warpLim : rawOffset;
@@ -1164,7 +1169,7 @@ export function generateTectonicPlates(
   // Step 5: Compute plate centroids (averaging Vec3 unit vectors → renormalize
   // → project to pixel) and assign properties.
   const centroids = computePlateCentroidsSphere(sphereSeeds, cellToPlate, cellCount, plateCount, width, height);
-  const plates = assignPlateProperties(centroids, plateCount, width, nv.seed);
+  const plates = assignPlateProperties(centroids, plateCount, width, height, nv.seed);
 
   // Step 6: Aggregate and classify plate-level boundaries
   const rawBoundaries = aggregatePlateBoundaries(graph.edges, cellToPlate, plateCount);

@@ -1,5 +1,5 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
-import { clamp, cylindricalSx, cylindricalCx, mod } from '@lib/math';
+import { clamp, sphericalEmbed3D, mod } from '@lib/math';
 import { ClimateVariables, NoiseVariables } from '../types';
 
 /**
@@ -132,7 +132,6 @@ function buildPressureField(
 ): Float32Array {
   const size = width * height;
   const P = new Float32Array(size);
-  const yScale = (2 * Math.PI) / width;
   const noiseFreq = nv.frequency * 0.5;
 
   const rowP = new Float32Array(height);
@@ -151,13 +150,12 @@ function buildPressureField(
     }
   }
 
+  const np = new Float32Array(3);
   for (let y = 0; y < height; y++) {
-    const ny = y * yScale;
     const baseP = rowP[y];
     for (let x = 0; x < width; x++) {
-      const sx = cylindricalSx(x, width);
-      const cx = cylindricalCx(x, width);
-      const nPerturb = fBm3D(noise, sx, ny, cx, 2, noiseFreq, 0.5, 2) * 0.15;
+      sphericalEmbed3D(x, y, width, height, np);
+      const nPerturb = fBm3D(noise, np[0], np[1], np[2], 2, noiseFreq, 0.5, 2) * 0.15;
       let thermalP = 0;
       if (thermalField && zonalMeanT) {
         const dT = thermalField[y * width + x] - zonalMeanT[y];

@@ -63,96 +63,131 @@
     <!-- 1. Seeds -->
     <section class="voronoi-demo__section voronoi-demo__showcase">
       <h2>1. Seeds</h2>
-      <p>Deterministic xorshift32 PRNG drops N points on the plane.</p>
-      <label class="voronoi-demo__slider-label">
-        Seed count: {{ s1Count() }}
-        <mat-slider [min]="s1Min" [max]="s1Max" step="1" discrete>
-          <input matSliderThumb [ngModel]="s1Count()" (ngModelChange)="setS1($event)" />
-        </mat-slider>
-      </label>
-      <div class="voronoi-demo__canvas-wrap">
-        <canvas #seedsCanvas></canvas>
+      <div class="voronoi-demo__text">
+        <p>Deterministic xorshift32 PRNG drops N points on the plane.</p>
+        <x-code-block [code]="codeSeeds" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <label class="voronoi-demo__slider-label">
+          Seed count: {{ s1Count() }}
+          <mat-slider [min]="s1Min" [max]="s1Max" step="1" discrete>
+            <input matSliderThumb [ngModel]="s1Count()" (ngModelChange)="setS1($event)" />
+          </mat-slider>
+        </label>
+        <div class="voronoi-demo__canvas-wrap">
+          <canvas #seedsCanvas></canvas>
+        </div>
       </div>
     </section>
 
     <!-- 2. Cells & Relaxation -->
     <section class="voronoi-demo__section voronoi-demo__showcase">
       <h2>2. Cells &amp; Lloyd Relaxation</h2>
-      <p>
-        Every pixel claims its nearest seed (raw). Each iteration nudges seeds toward their cell's centroid, evening out
-        the sizes.
-      </p>
-      <label class="voronoi-demo__slider-label">
-        Iterations: {{ s2Iterations() }}
-        <mat-slider [min]="s2Min" [max]="s2Max" step="1" discrete>
-          <input matSliderThumb [ngModel]="s2Iterations()" (ngModelChange)="setS2($event)" />
-        </mat-slider>
-      </label>
-      <div class="voronoi-demo__canvas-wrap">
-        <canvas #relaxCanvas></canvas>
+      <div class="voronoi-demo__text">
+        <p>
+          Every pixel claims its nearest seed (raw). Each iteration nudges seeds toward their cell's centroid, evening
+          out the sizes.
+        </p>
+        <x-code-block [code]="codeAssign" />
+        <x-code-block [code]="codeRelax" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <label class="voronoi-demo__slider-label">
+          Iterations: {{ s2Iterations() }}
+          <mat-slider [min]="s2Min" [max]="s2Max" step="1" discrete>
+            <input matSliderThumb [ngModel]="s2Iterations()" (ngModelChange)="setS2($event)" />
+          </mat-slider>
+        </label>
+        <div class="voronoi-demo__canvas-wrap">
+          <canvas #relaxCanvas></canvas>
+        </div>
       </div>
     </section>
 
     <!-- 3. Cylindrical Wrapping -->
     <section class="voronoi-demo__section voronoi-demo__showcase">
       <h2>3. Cylindrical Wrapping</h2>
-      <p>For world maps, the x-axis must seam — distance and centroid math both go modulo width.</p>
-      <div class="voronoi-demo__canvas-wrap">
-        <canvas #wrapOffCanvas></canvas>
+      <div class="voronoi-demo__text">
+        <p>
+          For world-map strips, the x-axis must seam. Distance and the centroid pass both go modulo width — angular
+          averaging in sin/cos space keeps the centroid pass from breaking at the wrap.
+        </p>
+        <x-code-block [code]="codeWrapCylindrical" />
       </div>
-      <p class="voronoi-demo__caption">No wrapping — hard seams at left/right edges.</p>
-      <div
-        class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--pannable"
-        (pointerdown)="onWrapPanStart($event)"
-        (pointermove)="onWrapPanMove($event)"
-        (pointerup)="onWrapPanEnd()">
-        <canvas #wrapOnCanvas></canvas>
-      </div>
-      <p class="voronoi-demo__caption">Wrapping on — drag to pan across the seam.</p>
-    </section>
-
-    <!-- 4. Adjacency Graph -->
-    <section class="voronoi-demo__section voronoi-demo__showcase">
-      <h2>4. Adjacency Graph</h2>
-      <p>One pass over the pixel grid yields the dual graph — who's neighbors with whom — for downstream simulation.</p>
-      <div
-        class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--pannable"
-        (pointerdown)="onGraphPanStart($event)"
-        (pointermove)="onGraphPanMove($event)"
-        (pointerup)="onGraphPanEnd()">
-        <canvas #graphCanvas></canvas>
+      <div class="voronoi-demo__demo">
+        <div class="voronoi-demo__canvas-wrap">
+          <canvas #wrapOffCanvas></canvas>
+        </div>
+        <p class="voronoi-demo__caption">No wrapping — hard seams at left/right edges.</p>
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--pannable"
+          (pointerdown)="onWrapPanStart($event)"
+          (pointermove)="onWrapPanMove($event)"
+          (pointerup)="onWrapPanEnd()">
+          <canvas #wrapOnCanvas></canvas>
+        </div>
+        <p class="voronoi-demo__caption">Wrapping on — drag to pan across the seam.</p>
       </div>
     </section>
 
-    <!-- 5. Spherical Wrapping -->
+    <!-- 4. Spherical Wrapping -->
     <section class="voronoi-demo__section voronoi-demo__showcase">
-      <h2>5. Spherical Wrapping</h2>
-      <p>
-        Same idea, two dimensions of wrap: cells live on a sphere. The same data shows as an orthographic globe and as a
-        mercator projection — which itself wraps forever along x, like every world map ever.
-      </p>
-      <label class="voronoi-demo__slider-label">
-        Seed count: {{ s5Count() }}
-        <mat-slider [min]="s5Min" [max]="s5Max" [step]="s5Step" discrete>
-          <input matSliderThumb [ngModel]="s5Count()" (ngModelChange)="setS5($event)" />
-        </mat-slider>
-      </label>
-      <div
-        class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--square voronoi-demo__canvas-wrap--pannable"
-        (pointerdown)="onSphereRotateStart($event)"
-        (pointermove)="onSphereRotateMove($event)"
-        (pointerup)="onSphereRotateEnd()">
-        <canvas #sphereCanvas></canvas>
+      <h2>4. Spherical Wrapping</h2>
+      <div class="voronoi-demo__text">
+        <p>
+          Cells live on a unit sphere. Seeds are unit vectors; the nearest-seed loop becomes a max-dot-product over
+          those vectors. The same data drives an orthographic globe and a mercator projection — drag either, both stay
+          in sync.
+        </p>
+        <x-code-block [code]="codeWrapSphere" />
       </div>
-      <p class="voronoi-demo__caption">Drag to rotate the globe.</p>
-      <div
-        class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--mercator voronoi-demo__canvas-wrap--pannable"
-        (pointerdown)="onMercatorPanStart($event)"
-        (pointermove)="onMercatorPanMove($event)"
-        (pointerup)="onMercatorPanEnd()">
-        <canvas #mercatorCanvas></canvas>
+      <div class="voronoi-demo__demo">
+        <label class="voronoi-demo__slider-label">
+          Seed count: {{ s5Count() }}
+          <mat-slider [min]="s5Min" [max]="s5Max" [step]="s5Step" discrete>
+            <input matSliderThumb [ngModel]="s5Count()" (ngModelChange)="setS5($event)" />
+          </mat-slider>
+        </label>
+        <div class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--square">
+          <x-sphere-view
+            class="voronoi-demo__sphere"
+            [texture]="sphereTexture()"
+            [size]="s5SphereSize"
+            [(rotLon)]="sphereRotLon"
+            [(rotLat)]="sphereRotLat">
+            <canvas #sphereOverlayCanvas class="voronoi-demo__sphere-overlay"></canvas>
+          </x-sphere-view>
+        </div>
+        <p class="voronoi-demo__caption">Drag to rotate the globe.</p>
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--mercator voronoi-demo__canvas-wrap--pannable"
+          (pointerdown)="onMercatorPanStart($event)"
+          (pointermove)="onMercatorPanMove($event)"
+          (pointerup)="onMercatorPanEnd()">
+          <canvas #mercatorCanvas></canvas>
+        </div>
+        <p class="voronoi-demo__caption">Mercator — drag to pan; the globe rotates with it.</p>
       </div>
-      <p class="voronoi-demo__caption">Mercator projection — drag to pan; the seam is invisible.</p>
+    </section>
+
+    <!-- 5. Adjacency Graph -->
+    <section class="voronoi-demo__section voronoi-demo__showcase">
+      <h2>5. Adjacency Graph</h2>
+      <div class="voronoi-demo__text">
+        <p>
+          One pass over the pixel grid yields the dual graph — who's neighbors with whom — for downstream simulation.
+        </p>
+        <x-code-block [code]="codeGraph" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--pannable"
+          (pointerdown)="onGraphPanStart($event)"
+          (pointermove)="onGraphPanMove($event)"
+          (pointerup)="onGraphPanEnd()">
+          <canvas #graphCanvas></canvas>
+        </div>
+      </div>
     </section>
   </article>
 </div>

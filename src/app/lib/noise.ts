@@ -713,12 +713,16 @@ export class OpenSimplexNoise {
   }
 }
 
-/** Fractal Brownian Motion using 3D noise with cylindrical wrapping */
+/**
+ * Fractal Brownian Motion using 3D noise. The (x, y, z) coordinate is
+ * provided by the caller — pair with `sphericalEmbed3D` (in @lib/math) so
+ * features stay uniform in arc-length on the globe.
+ */
 export function fBm3D(
   noise: OpenSimplexNoise,
-  sx: number,
+  x: number,
   y: number,
-  cx: number,
+  z: number,
   octaves: number,
   frequency: number,
   persistence: number,
@@ -729,7 +733,7 @@ export function fBm3D(
   let f = frequency;
   let a = 1;
   for (let o = 0; o < octaves; o++) {
-    sum += noise.eval3D(sx * f, y * f, cx * f) * a;
+    sum += noise.eval3D(x * f, y * f, z * f) * a;
     range += a;
     f *= lacunarity;
     a *= persistence;

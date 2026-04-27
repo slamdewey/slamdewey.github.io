@@ -22,7 +22,13 @@
           (pointermove)="onLayerSphereRotateMove($event)"
           (pointerup)="onLayerSphereRotateEnd($event)"
           (pointercancel)="onLayerSphereRotateEnd($event)">
-          <canvas #layerSphereCanvas></canvas>
+          <x-sphere-view
+            class="world-gen__preview-sphere-view"
+            [texture]="fullDemoImage()"
+            [size]="layerSphereSize"
+            [rotLon]="layerSphereRotLon()"
+            [rotLat]="layerSphereRotLat()"
+            [manualDrag]="true" />
           @if (isGenerating() || !fullDemoImage()) {
             <div class="world-gen__preview-sphere-skeleton">
               <x-skeleton-loader loadingMessage="Generating..." />

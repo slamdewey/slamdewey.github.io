@@ -1,5 +1,5 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
-import { map, cylindricalSx, cylindricalCx } from '@lib/math';
+import { map, sphericalEmbed3D } from '@lib/math';
 import { NoiseVariables } from '../types';
 
 export type Season = 'summer' | 'winter' | 'mean';
@@ -19,8 +19,8 @@ export function generateTemperature(
   const noise = new OpenSimplexNoise((nv.seed ^ 0xf88f88f8) | 0);
   const temperature = new Float32Array(width * height);
 
-  const yScale = (2 * Math.PI) / width;
   const jitterFreq = nv.frequency * 1.5;
+  const np = new Float32Array(3);
 
   // Max influence distance: pixels beyond this are fully "inland"
   const maxOceanInfluence = Math.round(width / 8);
@@ -30,7 +30,6 @@ export function generateTemperature(
   const tiltAmount = tiltSign * seasonalTilt;
 
   for (let y = 0; y < height; y++) {
-    const ny = y * yScale;
     // Inverse parabola: T(y) = 1 - (2y/height - 1)^2
     // Use raw y/height for latitude (geographic, not noise-space)
     const latNorm = (2 * y) / height - 1; // +1 at south pole, -1 at north pole
@@ -43,14 +42,13 @@ export function generateTemperature(
     const baseOceanTemp = latitudeTemp * 0.8;
 
     for (let x = 0; x < width; x++) {
-      const sx = cylindricalSx(x, width);
-      const cx = cylindricalCx(x, width);
+      sphericalEmbed3D(x, y, width, height, np);
 
       const idx = y * width + x;
       let temp = latitudeTemp;
 
       // Add noise jitter
-      const n = fBm3D(noise, sx, ny, cx, 1, jitterFreq, 1, 1);
+      const n = fBm3D(noise, np[0], np[1], np[2], 1, jitterFreq, 1, 1);
       temp *= map(n, -1, 1, 0.75, 1);
 
       if (elevation[idx] > seaLevel) {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, effect, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -6,6 +6,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSliderModule } from '@angular/material/slider';
 import { BannerComponent } from '@components/banner/banner.component';
+import { CodeBlockComponent } from '@components/code-block/code-block.component';
+import { SphereViewComponent, SphereViewTexture } from '@components/sphere-view/sphere-view.component';
 import {
   buildVoronoiGraph,
   generateSeeds,
@@ -18,8 +20,8 @@ import {
 } from '@lib/voronoi';
 import {
   generateSphereVoronoi,
+  sphereVoronoiToEquirectRGBA,
   sphereVoronoiToMercatorRGBA,
-  sphereVoronoiToOrthographicRGBA,
   SphereVoronoiResult,
   Vec3,
   vec3ToMercator,
@@ -43,8 +45,17 @@ const S5_GRID_W = 360;
 const S5_GRID_H = 180;
 const S5_MERC_W = 1200;
 const S5_MERC_H = 600;
+const S5_EQUIRECT_W = 1200;
+const S5_EQUIRECT_H = 600;
 const S5_SPHERE_SIZE = 500;
 const S5_RELAX = 3;
+
+interface SphereVariant {
+  result: SphereVoronoiResult;
+  mercator: HTMLCanvasElement;
+  equirect: SphereViewTexture;
+  edges: VoronoiEdge[];
+}
 
 @Component({
   selector: 'x-voronoi-demo',
@@ -52,12 +63,14 @@ const S5_RELAX = 3;
   styleUrls: ['./voronoi-demo.component.scss'],
   imports: [
     BannerComponent,
+    CodeBlockComponent,
     FormsModule,
     MatButtonModule,
     MatCheckboxModule,
     MatFormFieldModule,
     MatInputModule,
     MatSliderModule,
+    SphereViewComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -69,6 +82,81 @@ export class VoronoiDemoComponent {
   readonly s5Min = S5_MIN;
   readonly s5Max = S5_MAX;
   readonly s5Step = S5_STEP;
+  readonly s5SphereSize = S5_SPHERE_SIZE;
+
+  // --- Code snippets ---
+
+  readonly codeSeeds = `// Deterministic xorshift32 PRNG — same seed in, same points out.
+function rand(state: { s: number }): number {
+  let s = state.s;
+  s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
+  state.s = s;
+  return (s >>> 0) / 0xffffffff;
+}
+
+for (let i = 0; i < seedCount; i++) {
+  seeds.push({ x: rand(rng) * width, y: rand(rng) * height });
+}`;
+
+  readonly codeAssign = `// Every pixel claims its nearest seed. O(W·H·N) — brute force is plenty
+// fast at the resolutions we render here, and it generalizes trivially to
+// any distance metric (cylindrical wrap, great-circle, weighted, ...).
+let minDist = Infinity, closest = 0;
+for (let i = 0; i < n; i++) {
+  const dx = x - seeds[i].x;
+  const dy = y - seeds[i].y;
+  const d = dx * dx + dy * dy;
+  if (d < minDist) { minDist = d; closest = i; }
+}
+cells[y * width + x] = closest;`;
+
+  readonly codeRelax = `// Lloyd relaxation: lerp each seed toward its cell's centroid.
+// Partial step (×0.5) gives a smooth slider feel rather than snap-to-converged.
+for (let i = 0; i < seeds.length; i++) {
+  if (counts[i] === 0) continue;
+  const cx = sumX[i] / counts[i];
+  const cy = sumY[i] / counts[i];
+  seeds[i].x += (cx - seeds[i].x) * 0.5;
+  seeds[i].y += (cy - seeds[i].y) * 0.5;
+}`;
+
+  readonly codeWrapCylindrical = `// Cylindrical x-distance: take the shorter route around the seam.
+let dx = ax - bx;
+if (dx >  width / 2) dx -= width;
+else if (dx < -width / 2) dx += width;
+return Math.sqrt(dx * dx + (ay - by) ** 2);
+
+// The centroid pass also has to wrap. Plain averaging breaks at the seam,
+// so we average the angles in sin/cos space instead:
+const angle = (x / width) * 2 * Math.PI;
+sinSum[cell] += Math.sin(angle);
+cosSum[cell] += Math.cos(angle);
+// ...later: centroidX = atan2(sinSum, cosSum) / (2π) · width`;
+
+  readonly codeWrapSphere = `// Cells live on the unit sphere — distance is great-circle (arccos of dot).
+// Since arccos is monotonic, max dot-product is enough; no trig in the loop.
+let maxDot = -Infinity, closest = 0;
+for (let i = 0; i < n; i++) {
+  const d = p.x * seeds[i].x + p.y * seeds[i].y + p.z * seeds[i].z;
+  if (d > maxDot) { maxDot = d; closest = i; }
+}
+
+// Spherical Lloyd: average the cell's points in 3D, then renormalize back
+// to the unit sphere. Equirect rows weighted by cos(lat) to undo the
+// pinching toward the poles.`;
+
+  readonly codeGraph = `// One scan over the cell grid — any neighbor mismatch is a dual-graph edge.
+for (let y = 0; y < height; y++) {
+  for (let x = 0; x < width; x++) {
+    const cell = cells[y * width + x];
+    const right = x < width - 1 ? cells[y * width + x + 1]
+                : wrapX         ? cells[y * width]   // x-wrap to col 0
+                                : cell;
+    const below = y < height - 1 ? cells[(y + 1) * width + x] : cell;
+    if (right !== cell) addEdge(cell, right);
+    if (below !== cell) addEdge(cell, below);
+  }
+}`;
 
   // --- Playground (live-interactive) ---
   private playgroundCanvas = viewChild<ElementRef<HTMLCanvasElement>>('playgroundCanvas');
@@ -113,24 +201,19 @@ export class VoronoiDemoComponent {
   private graphPanOffset = 0;
 
   // --- Section 5: Spherical wrapping ---
-  private sphereCanvasRef = viewChild<ElementRef<HTMLCanvasElement>>('sphereCanvas');
+  private sphereOverlayCanvasRef = viewChild<ElementRef<HTMLCanvasElement>>('sphereOverlayCanvas');
   private mercatorCanvasRef = viewChild<ElementRef<HTMLCanvasElement>>('mercatorCanvas');
-  private s5Variants: { result: SphereVoronoiResult; mercator: HTMLCanvasElement; edges: VoronoiEdge[] }[] = [];
+  private s5Variants: SphereVariant[] = [];
   s5Count = signal(16);
 
-  private sphereRotLon = 0;
-  private sphereRotLat = 0;
-  private isSphereRotating = false;
-  private sphereRotStartX = 0;
-  private sphereRotStartY = 0;
-  private sphereRotBaseLon = 0;
-  private sphereRotBaseLat = 0;
+  sphereTexture = signal<SphereViewTexture | null>(null);
+  sphereRotLon = signal(0);
+  sphereRotLat = signal(0);
 
   private mercatorOffscreen: HTMLCanvasElement | null = null;
   private isMercatorPanning = false;
   private mercatorPanStartX = 0;
-  private mercatorPanBase = 0;
-  private mercatorPanOffset = 0;
+  private mercatorPanBaseLon = 0;
 
   constructor() {
     setTimeout(() => {
@@ -141,6 +224,22 @@ export class VoronoiDemoComponent {
       this.precomputeSphere();
       this.generatePlayground();
     }, 0);
+
+    // Redraw the great-circle overlay whenever rotation or the active variant
+    // changes. The sphere itself is rendered by <x-sphere-view> via WebGL.
+    effect(() => {
+      this.sphereRotLon();
+      this.sphereRotLat();
+      this.s5Count();
+      this.renderSphereOverlay();
+    });
+
+    // The mercator pan is a derived projection of the sphere's longitude
+    // rotation, so dragging either keeps the two views aligned.
+    effect(() => {
+      this.sphereRotLon();
+      this.renderMercator();
+    });
   }
 
   // --- Section 1: Seed placement (slider 2..30) ---
@@ -320,16 +419,23 @@ export class VoronoiDemoComponent {
       });
       const graph = buildVoronoiGraph(result.cells, S5_GRID_W, S5_GRID_H, count, true);
 
-      const rgba = sphereVoronoiToMercatorRGBA(result, S5_MERC_W, S5_MERC_H, true);
-      const canvas = document.createElement('canvas');
-      canvas.width = S5_MERC_W;
-      canvas.height = S5_MERC_H;
-      const ctx = canvas.getContext('2d')!;
-      ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), S5_MERC_W, S5_MERC_H), 0, 0);
+      const mercRgba = sphereVoronoiToMercatorRGBA(result, S5_MERC_W, S5_MERC_H, true);
+      const mercator = document.createElement('canvas');
+      mercator.width = S5_MERC_W;
+      mercator.height = S5_MERC_H;
+      const ctx = mercator.getContext('2d')!;
+      ctx.putImageData(new ImageData(new Uint8ClampedArray(mercRgba), S5_MERC_W, S5_MERC_H), 0, 0);
       this.drawSphereGraphOnMercator(ctx, result.seeds, graph.edges, S5_MERC_W, S5_MERC_H);
       this.drawSphereSeedsOnMercator(ctx, result.seeds, S5_MERC_W, S5_MERC_H, 3);
 
-      this.s5Variants.push({ result, mercator: canvas, edges: graph.edges });
+      const equirectRgba = sphereVoronoiToEquirectRGBA(result, S5_EQUIRECT_W, S5_EQUIRECT_H, true);
+
+      this.s5Variants.push({
+        result,
+        mercator,
+        equirect: { rgba: equirectRgba, width: S5_EQUIRECT_W, height: S5_EQUIRECT_H },
+        edges: graph.edges,
+      });
     }
     this.refreshS5();
   }
@@ -343,30 +449,28 @@ export class VoronoiDemoComponent {
     if (!this.s5Variants.length) return;
     const variant = this.s5Variants[this.s5IndexFor(this.s5Count())];
     this.mercatorOffscreen = variant.mercator;
-    this.mercatorPanOffset = 0;
     this.renderMercator();
-    this.renderSphereLive();
+    this.sphereTexture.set(variant.equirect);
+    this.renderSphereOverlay();
+  }
+
+  private mercatorPanFromLon(rotLon: number): number {
+    // One full rotation of the globe = one full mercator width. The sign
+    // matches both views: dragging right reduces rotLon (sphere "scrolls"
+    // east) and the same delta reduces panOffset so the mercator scrolls
+    // east too.
+    return (rotLon / (Math.PI * 2)) * S5_MERC_W;
   }
 
   private renderMercator(): void {
     const ref = this.mercatorCanvasRef();
     if (!ref || !this.mercatorOffscreen) return;
-    this.blitWithPan(ref.nativeElement, this.mercatorOffscreen, this.mercatorPanOffset);
+    this.blitWithPan(ref.nativeElement, this.mercatorOffscreen, this.mercatorPanFromLon(this.sphereRotLon()));
   }
 
-  private renderSphereLive(): void {
-    const ref = this.sphereCanvasRef();
+  private renderSphereOverlay(): void {
+    const ref = this.sphereOverlayCanvasRef();
     if (!ref || !this.s5Variants.length) return;
-    const variant = this.s5Variants[this.s5IndexFor(this.s5Count())];
-
-    const rgba = sphereVoronoiToOrthographicRGBA(
-      variant.result,
-      S5_SPHERE_SIZE,
-      this.sphereRotLon,
-      this.sphereRotLat,
-      true
-    );
-
     const el = ref.nativeElement;
     if (el.width !== S5_SPHERE_SIZE || el.height !== S5_SPHERE_SIZE) {
       el.width = S5_SPHERE_SIZE;
@@ -374,52 +478,25 @@ export class VoronoiDemoComponent {
     }
     const ctx = el.getContext('2d')!;
     ctx.clearRect(0, 0, S5_SPHERE_SIZE, S5_SPHERE_SIZE);
-    ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), S5_SPHERE_SIZE, S5_SPHERE_SIZE), 0, 0);
-
+    const variant = this.s5Variants[this.s5IndexFor(this.s5Count())];
     this.drawSphereGraphOnSphere(ctx, variant.result.seeds, variant.edges);
     this.drawSphereSeedsOnSphere(ctx, variant.result.seeds);
-  }
-
-  onSphereRotateStart(e: PointerEvent): void {
-    this.isSphereRotating = true;
-    this.sphereRotStartX = e.clientX;
-    this.sphereRotStartY = e.clientY;
-    this.sphereRotBaseLon = this.sphereRotLon;
-    this.sphereRotBaseLat = this.sphereRotLat;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    e.preventDefault();
-  }
-  onSphereRotateMove(e: PointerEvent): void {
-    if (!this.isSphereRotating) return;
-    const target = e.currentTarget as HTMLElement;
-    const scale = Math.PI / target.clientWidth;
-    const dLon = (e.clientX - this.sphereRotStartX) * scale;
-    const dLat = (e.clientY - this.sphereRotStartY) * scale;
-    this.sphereRotLon = this.sphereRotBaseLon - dLon;
-    const limit = Math.PI / 2 - 0.001;
-    let lat = this.sphereRotBaseLat + dLat;
-    if (lat > limit) lat = limit;
-    else if (lat < -limit) lat = -limit;
-    this.sphereRotLat = lat;
-    this.renderSphereLive();
-  }
-  onSphereRotateEnd(): void {
-    this.isSphereRotating = false;
   }
 
   onMercatorPanStart(e: PointerEvent): void {
     this.isMercatorPanning = true;
     this.mercatorPanStartX = e.clientX;
-    this.mercatorPanBase = this.mercatorPanOffset;
+    this.mercatorPanBaseLon = this.sphereRotLon();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     e.preventDefault();
   }
   onMercatorPanMove(e: PointerEvent): void {
     if (!this.isMercatorPanning) return;
     const target = e.currentTarget as HTMLElement;
-    const scale = S5_MERC_W / target.clientWidth;
-    this.mercatorPanOffset = this.mercatorPanBase - (e.clientX - this.mercatorPanStartX) * scale;
-    this.renderMercator();
+    // Map drag distance to longitude radians so the same pixel delta would
+    // translate to the same visual shift on either view.
+    const lonScale = (Math.PI * 2) / target.clientWidth;
+    this.sphereRotLon.set(this.mercatorPanBaseLon - (e.clientX - this.mercatorPanStartX) * lonScale);
   }
   onMercatorPanEnd(): void {
     this.isMercatorPanning = false;
@@ -488,6 +565,8 @@ export class VoronoiDemoComponent {
     ctx.lineWidth = 1.5;
     const segments = 16;
     const half = S5_SPHERE_SIZE / 2;
+    const rotLon = this.sphereRotLon();
+    const rotLat = this.sphereRotLat();
 
     for (const edge of edges) {
       const a = seeds[edge.cellA];
@@ -506,7 +585,7 @@ export class VoronoiDemoComponent {
         const py = k1 * a.y + k2 * b.y;
         const pz = k1 * a.z + k2 * b.z;
 
-        const view = vec3ToView({ x: px, y: py, z: pz }, this.sphereRotLon, this.sphereRotLat);
+        const view = vec3ToView({ x: px, y: py, z: pz }, rotLon, rotLat);
         if (!view.frontFacing) {
           if (started) {
             ctx.stroke();
@@ -533,8 +612,10 @@ export class VoronoiDemoComponent {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1.5;
     const half = S5_SPHERE_SIZE / 2;
+    const rotLon = this.sphereRotLon();
+    const rotLat = this.sphereRotLat();
     for (const seed of seeds) {
-      const view = vec3ToView(seed, this.sphereRotLon, this.sphereRotLat);
+      const view = vec3ToView(seed, rotLon, rotLat);
       if (!view.frontFacing) continue;
       const sx = half + view.u * half;
       const sy = half - view.vv * half;
