@@ -1,4 +1,4 @@
-import { Biome, KoppenClass } from '../types';
+import { Biome, KoppenClass, WorldFields } from '../types';
 
 const MOUNTAIN_LEVEL = 0.85;
 const SHALLOW_WATER_RANGE = 0.1;
@@ -64,15 +64,13 @@ function koppenToBiome(k: KoppenClass): Biome {
   }
 }
 
-export function classifyBiomes(
-  width: number,
-  height: number,
-  elevation: Float32Array,
-  koppenClass: Uint8Array,
-  seaLevel: number,
-  rivers?: Float32Array,
-  lakes?: Uint8Array
-): Float32Array {
+export function classifyBiomes(fields: WorldFields): Float32Array {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const koppenClass = fields.koppenClass!;
+  const seaLevel = fields.seaLevel!;
+  const rivers = fields.rivers;
+  const lakes = fields.lakes;
   const biomes = new Float32Array(width * height);
   const shallowWaterLevel = seaLevel - SHALLOW_WATER_RANGE;
 
