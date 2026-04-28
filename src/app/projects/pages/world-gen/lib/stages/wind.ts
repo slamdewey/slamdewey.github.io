@@ -1,6 +1,7 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { clamp, sphericalEmbed3D, mod } from '@lib/math';
-import { ClimateVariables, NoiseVariables } from '../types';
+import { ClimateVariables, NoiseVariables, WorldFields } from '../types';
+import { HADLEY_EXTENT, POLAR_EXTENT, FERREL_WIDTH, EKMAN_DEG } from '../physics';
 
 /**
  * Pressure-field → geostrophic-wind → Ekman-surface-friction wind model.
@@ -24,29 +25,10 @@ import { ClimateVariables, NoiseVariables } from '../types';
 const F0 = 8.0;
 /** Floor on |f| used to regularize 1/f near the equator. */
 const F_MIN = 0.8;
-/** Ekman rotation angle in degrees. */
-const EKMAN_DEG = 25;
 
-// --- Atmospheric cell structure -------------------------------------------
-// The three-cell (Hadley / Ferrel / polar) model is a planetary-rotation
-// feature of any Earth-like world. Cell extents are a function of planetary
-// rotation rate and insolation (Held-Hou theory), not tuning — so we encode
-// them as named physical constants rather than scattering the corresponding
-// latitudes (0.167, 0.333, 0.667, 0.833 …) through the pressure function.
-
-/** Hadley cell half-width as a fraction of pole-to-pole (0..1). Earth-like:
- *  30° / 180° = 1/6. Derived from atmospheric-height / planetary-radius
- *  geometry; effectively a constant for Earth-scale worlds. */
-const HADLEY_EXTENT = 1 / 6;
-
-/** Polar cell half-width — distance from pole to the Ferrel/polar boundary
- *  at ~60° latitude, as a fraction of pole-to-pole. Earth-like: 30° / 180°. */
-const POLAR_EXTENT = 1 / 6;
-
-/** Ferrel cell width is whatever remains between the Hadley and polar cells
- *  once HADLEY_EXTENT and POLAR_EXTENT are chosen — NOT a separate tunable.
- *  Changing either extent automatically resizes the Ferrel cell. */
-const FERREL_WIDTH = 1 - 2 * POLAR_EXTENT - 2 * HADLEY_EXTENT;
+// Atmospheric three-cell structure (HADLEY_EXTENT, POLAR_EXTENT, FERREL_WIDTH)
+// and the Ekman friction angle (EKMAN_DEG) are imported from `lib/physics.ts`
+// — they're Earth-like physical parameters shared with other stages.
 
 /** Gaussian sigma of each pressure band as a fraction of its parent cell
  *  half-width. 0.5 means 1σ covers half the cell — smooth but clear. */
@@ -267,13 +249,13 @@ function clampMagnitude(wind: Float32Array, maxMag: number): void {
  * zero. Consumers should expect this and clamp when appropriate.
  */
 export function generateWind(
-  width: number,
-  height: number,
+  fields: WorldFields,
   nv: NoiseVariables,
   cv: ClimateVariables,
   thermalField: Float32Array | null,
   itczLatOffset: number
 ): Float32Array {
+  const { width, height } = fields;
   const noise = new OpenSimplexNoise((nv.seed ^ 0xfae69060) | 0);
   const P = buildPressureField(width, height, itczLatOffset, thermalField, cv.thermalContrastStrength, noise, nv);
   const wind = geostrophicWind(width, height, P, cv.windStrength);
@@ -288,14 +270,13 @@ export function generateWind(
  * (along-contour) component is preserved, so flow routes around ridges
  * instead of charging straight into them. Magnitude is NOT renormalized —
  * wind slowing into a range is physically correct.
+ *
+ * Mutates: `wind` (in place).
  */
-export function applyTerrainDeflection(
-  width: number,
-  height: number,
-  wind: Float32Array,
-  elevation: Float32Array,
-  seaLevel: number
-): void {
+export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array): void {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const seaLevel = fields.seaLevel!;
   const slopeScale = 8;
 
   for (let y = 0; y < height; y++) {

@@ -1,7 +1,7 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { map, mod, sphericalEmbed3D } from '@lib/math';
-import { NoiseVariables, TectonicVariables } from '../types';
-import { TectonicResult } from './tectonic-plates';
+import { NoiseVariables, TectonicVariables, WorldFields } from '../types';
+import { TectonicResult } from './tectonic';
 
 export interface ElevationResult {
   elevation: Float32Array;
@@ -9,12 +9,12 @@ export interface ElevationResult {
 }
 
 export function generateElevation(
-  width: number,
-  height: number,
+  fields: WorldFields,
   tectonic: TectonicResult,
   nv: NoiseVariables,
   tv: TectonicVariables
 ): ElevationResult {
+  const { width, height } = fields;
   const noise = new OpenSimplexNoise(nv.seed);
   const warpNoiseX = new OpenSimplexNoise((nv.seed ^ 0x5eeda7a1) | 0);
   const warpNoiseY = new OpenSimplexNoise((nv.seed ^ 0x7a7f1337) | 0);

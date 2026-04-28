@@ -1,6 +1,7 @@
 import { clamp, mod } from '@lib/math';
-import { ClimateVariables } from '../types';
+import { ClimateVariables, WorldFields } from '../types';
 import { WorldGeometry } from '../world-geometry';
+import { BOUNDARY_EFOLD_KM } from '../physics';
 
 /**
  * Wind-driven ocean boundary currents transport heat along continental
@@ -33,20 +34,15 @@ export interface OceanCurrentResult {
   distToOcean: Float32Array;
 }
 
-/** Boundary-current e-folding length in km. ~4000 km is the fraction of an
- *  ocean basin within which real boundary currents dominate surface heat
- *  transport (Earth's circumference is 40,000 km, so 1/10 of a basin). */
-const BOUNDARY_EFOLD_KM = 4000;
-
 export function generateOceanCurrents(
-  width: number,
-  height: number,
+  fields: WorldFields,
   wind: Float32Array,
-  elevation: Float32Array,
-  seaLevel: number,
-  cv: ClimateVariables,
-  geom: WorldGeometry
+  geom: WorldGeometry,
+  cv: ClimateVariables
 ): OceanCurrentResult {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const seaLevel = fields.seaLevel!;
   const size = width * height;
   const tempModifier = new Float32Array(size);
   const distToOcean = new Float32Array(size);

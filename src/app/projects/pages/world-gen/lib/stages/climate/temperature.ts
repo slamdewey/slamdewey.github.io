@@ -1,14 +1,11 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { map, sphericalEmbed3D } from '@lib/math';
-import { NoiseVariables } from '../types';
+import { NoiseVariables, WorldFields } from '../../types';
 
 export type Season = 'summer' | 'winter' | 'mean';
 
 export function generateTemperature(
-  width: number,
-  height: number,
-  elevation: Float32Array,
-  seaLevel: number,
+  fields: WorldFields,
   nv: NoiseVariables,
   oceanTempModifier: Float32Array,
   distToOcean: Float32Array,
@@ -16,6 +13,9 @@ export function generateTemperature(
   seasonalTilt = 0,
   continentalityStrength = 0
 ): Float32Array {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const seaLevel = fields.seaLevel!;
   const noise = new OpenSimplexNoise((nv.seed ^ 0xf88f88f8) | 0);
   const temperature = new Float32Array(width * height);
 

@@ -1,4 +1,5 @@
 import { mod } from '@lib/math';
+import { WorldFields } from '../types';
 
 /**
  * Phase 3 — Hydrology & Erosion.
@@ -17,6 +18,9 @@ import { mod } from '@lib/math';
  *
  * Rainfall is uniform (1.0 per cell) in this pass — real precipitation is
  * computed downstream so we can't feed it back without reordering.
+ *
+ * `runHydrology` mutates `elevation` (in place) during the erosion loop;
+ * `computeFlowAndRivers` (pass 2) does not.
  */
 export interface HydrologyVariables {
   /** How many stream-power erosion iterations to run. */
@@ -77,26 +81,43 @@ const D8_DIST = [1, Math.SQRT2, 1, Math.SQRT2, 1, Math.SQRT2, 1, Math.SQRT2];
 const FILL_EPSILON = 1e-6;
 const EROSION_FLOOR_BELOW_SEA = 0.1;
 
-export function runHydrology(
+/**
+ * Bundle of intermediate fields produced by the fill → D8 → accumulate chain.
+ * Pass 1 (erosion) and pass 2 (rain-aware routing) both use this triple.
+ */
+interface FlowState {
+  filled: Float32Array;
+  flowDir: Int8Array;
+  flowAcc: Float32Array;
+}
+
+function routeFlow(
+  elevation: Float32Array,
   width: number,
   height: number,
-  elevation: Float32Array,
   seaLevel: number,
-  config: HydrologyVariables
-): HydrologyResult {
-  // 1. Depression fill. Pass-1 lake detection is skipped — the visible lake
-  // mask comes from pass 2 (buildLakeMaskGated) which has the climate data
-  // it needs to decide which basins are real lakes.
+  rainfall?: Float32Array
+): FlowState {
   const filled = priorityFloodFill(elevation, width, height, seaLevel);
-  const lakes = new Uint8Array(elevation.length);
-
-  // 2. Flow direction on the filled surface so every land cell has a downhill.
   const flowDir = computeD8FlowDir(filled, width, height, seaLevel);
+  const flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel, rainfall);
+  return { filled, flowDir, flowAcc };
+}
 
-  // 3. Initial flow accumulation.
-  let flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel);
+export function runHydrology(fields: WorldFields, config: HydrologyVariables): HydrologyResult {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const seaLevel = fields.seaLevel!;
+  // 1. Initial flow on un-eroded surface (uniform rainfall — real precip
+  //    isn't known yet). Pass-1 lake detection is skipped; the visible lake
+  //    mask comes from pass 2 (buildLakeMaskGated) which has the climate
+  //    data it needs to decide which basins are real lakes.
+  const lakes = new Uint8Array(elevation.length);
+  const initial = routeFlow(elevation, width, height, seaLevel);
+  const flowDir = initial.flowDir;
+  let flowAcc = initial.flowAcc;
 
-  // 4. Erosion passes on the original (un-filled) elevation.
+  // 2. Erosion iterations on the original (un-filled) elevation.
   const erosionFloor = seaLevel - EROSION_FLOOR_BELOW_SEA;
   for (let i = 0; i < config.erosionIterations; i++) {
     applyStreamPowerErosion(
@@ -114,11 +135,9 @@ export function runHydrology(
     applyHillslopeDiffusion(elevation, width, height, seaLevel, config.diffusionStrength);
   }
 
-  // 5. Final flow on the eroded surface. Re-fill so trapped basins don't
-  // break the topological walk after erosion reshapes things.
-  const finalFilled = priorityFloodFill(elevation, width, height, seaLevel);
-  const finalFlowDir = computeD8FlowDir(finalFilled, width, height, seaLevel);
-  flowAcc = computeFlowAccumulation(finalFilled, finalFlowDir, width, height, seaLevel);
+  // 3. Final flow on the eroded surface. Re-route so trapped basins don't
+  //    break the topological walk after erosion reshapes things.
+  ({ flowAcc } = routeFlow(elevation, width, height, seaLevel));
 
   const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
 
@@ -479,18 +498,13 @@ function buildRiverMask(
  * (see `buildLakeMaskGated`) so dry basins — even large cool-floored ones —
  * remain salt flats rather than spurious lakes.
  */
-export function computeFlowAndRivers(
-  width: number,
-  height: number,
-  elevation: Float32Array,
-  seaLevel: number,
-  rainfall: Float32Array,
-  petAnnual: Float32Array,
-  config: HydrologyVariables
-): HydrologyResult {
-  const filled = priorityFloodFill(elevation, width, height, seaLevel);
-  const flowDir = computeD8FlowDir(filled, width, height, seaLevel);
-  const flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel, rainfall);
+export function computeFlowAndRivers(fields: WorldFields, config: HydrologyVariables): HydrologyResult {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const seaLevel = fields.seaLevel!;
+  const rainfall = fields.precipAnnual!;
+  const petAnnual = fields.petAnnual!;
+  const { filled, flowAcc } = routeFlow(elevation, width, height, seaLevel, rainfall);
   const lakes = buildLakeMaskGated(
     elevation,
     filled,

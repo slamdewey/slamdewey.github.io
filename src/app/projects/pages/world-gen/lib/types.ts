@@ -140,6 +140,9 @@ export { DEFAULT_HYDROLOGY, type HydrologyVariables };
 
 export { KoppenClass } from './stages/climate/koppen';
 
+import type { BoundaryInfo, PlateProperties } from './stages/tectonic';
+export type { BoundaryInfo, PlateProperties };
+
 export interface WorldConfig {
   width: number;
   height: number;
@@ -175,6 +178,13 @@ export interface WorldData {
   width: number;
   height: number;
   plateMap: Int32Array;
+  /** Tectonic plates (continental/oceanic, drift, isostasy). Used by the
+   *  plates-layer renderer and any debug consumer that wants per-plate
+   *  metadata; no other stage reads it. */
+  plates: PlateProperties[];
+  /** Classified inter-plate boundaries (convergent/divergent/transform with
+   *  derived InteractionType). Same usage scope as `plates`. */
+  boundaries: BoundaryInfo[];
   faultLines: Float32Array;
   mountainRanges: Float32Array;
   /** Signed intra-continental perturbation (red = swell, blue = basin). Fix B. */
@@ -210,6 +220,20 @@ export interface WorldData {
   rivers: Float32Array; // [0, 1] river intensity on land, 0 on ocean
   lakes: Uint8Array; // 0/1 lake mask
 }
+
+/**
+ * Progressively-built field accumulator passed through the pipeline.
+ *
+ * `width` and `height` are required (set at construction); every other
+ * WorldData field is added incrementally as stages run. Stages destructure
+ * the fields they need from this object and may assert non-null on fields
+ * they require — call ordering in `pipeline.ts` is responsible for ensuring
+ * those fields exist by the time they're accessed.
+ */
+export type WorldFields = Partial<WorldData> & {
+  width: number;
+  height: number;
+};
 
 export type LayerName =
   | 'plates'

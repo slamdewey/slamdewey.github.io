@@ -1,6 +1,6 @@
-import { KoppenClass, type LayerName, type WorldData } from './types';
+import { KoppenClass, type LayerName, type WorldData, type BoundaryInfo, type PlateProperties } from './types';
 import { mapToUnsignedRange, mod } from '@lib/math';
-import { PlateType, BoundaryType, type TectonicResult } from './stages/tectonic-plates';
+import { PlateType, BoundaryType } from './stages/tectonic';
 
 /**
  * Convert a layer's Float32Array data to an RGBA Uint8Array for GPU upload.
@@ -80,8 +80,12 @@ export function layerToRGBA(
  * Continental plates get warm tints, oceanic get cool tints.
  * Boundary pixels are colored by type: red=convergent, blue=divergent, yellow=transform.
  */
-export function platesToRGBA(tectonic: TectonicResult, width: number, height: number): Uint8Array {
-  const { plateMap, plates, boundaries } = tectonic;
+export function platesToRGBA(
+  source: { plateMap: Int32Array; plates: PlateProperties[]; boundaries: BoundaryInfo[] },
+  width: number,
+  height: number
+): Uint8Array {
+  const { plateMap, plates, boundaries } = source;
   const size = width * height;
   const rgba = new Uint8Array(size * 4);
   const plateCount = plates.length;

@@ -1,6 +1,6 @@
-import { ClimateVariables, NoiseVariables } from '../../types';
+import { ClimateVariables, NoiseVariables, WorldFields } from '../../types';
 import { WorldGeometry } from '../../world-geometry';
-import { generateTemperature } from '../temperature';
+import { generateTemperature } from './temperature';
 import { computePET } from './pet';
 import { simulateHumidity } from './humidity-sim';
 import { deriveClimate } from './aridity';
@@ -34,22 +34,17 @@ export type ClimateResult = ClimateTemperatureResult & ClimateHumidityResult;
  * in pass 2 needs the temperature field to compute land–sea thermal contrast.
  */
 export function runClimateTemperature(
-  width: number,
-  height: number,
-  elevation: Float32Array,
-  seaLevel: number,
+  fields: WorldFields,
   oceanTempModifier: Float32Array,
   distToOcean: Float32Array,
   noise: NoiseVariables,
   cv: ClimateVariables
 ): ClimateTemperatureResult {
+  const { width, height } = fields;
   const size = width * height;
 
   const temperatureSummer = generateTemperature(
-    width,
-    height,
-    elevation,
-    seaLevel,
+    fields,
     noise,
     oceanTempModifier,
     distToOcean,
@@ -58,10 +53,7 @@ export function runClimateTemperature(
     cv.continentalityStrength
   );
   const temperatureWinter = generateTemperature(
-    width,
-    height,
-    elevation,
-    seaLevel,
+    fields,
     noise,
     oceanTempModifier,
     distToOcean,
@@ -90,16 +82,16 @@ export function runClimateTemperature(
  * continents (monsoons) shows up directly in seasonal precipitation.
  */
 export function runClimateHumidity(
-  width: number,
-  height: number,
-  elevation: Float32Array,
-  seaLevel: number,
+  fields: WorldFields,
   geom: WorldGeometry,
   temps: ClimateTemperatureResult,
   windSummer: Float32Array,
   windWinter: Float32Array,
   cv: ClimateVariables
 ): ClimateHumidityResult {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const seaLevel = fields.seaLevel!;
   const size = width * height;
 
   const summer = simulateHumidity(

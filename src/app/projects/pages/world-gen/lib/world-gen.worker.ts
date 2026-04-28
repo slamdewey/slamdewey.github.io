@@ -27,12 +27,12 @@ const ALL_LAYERS: LayerName[] = [
 
 addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
   const generator = new WorldGenerator(data.config);
-  const { worldData, tectonicResult } = generator.generate();
+  const worldData = generator.generate();
 
   const layerImages = {} as Record<LayerName, Uint8Array>;
   for (const layer of ALL_LAYERS) {
     if (layer === 'plates') {
-      layerImages[layer] = platesToRGBA(tectonicResult, worldData.width, worldData.height);
+      layerImages[layer] = platesToRGBA(worldData, worldData.width, worldData.height);
     } else {
       const src = selectLayerSource(worldData, layer);
       layerImages[layer] = layerToRGBA(src, worldData.width, worldData.height, layer, worldData.seaLevel, worldData);

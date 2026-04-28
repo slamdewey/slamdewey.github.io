@@ -1,15 +1,22 @@
 import { map, mod } from '@lib/math';
+import { WorldFields } from '../types';
 
 const SHALLOW_WATER_RANGE = 0.1;
 const DEEP_WATER_DIFFERENCE = 0.2;
 
-export function applyMountainRangesAndContinentalShelves(
-  width: number,
-  height: number,
-  elevation: Float32Array,
-  mountainRanges: Float32Array,
-  seaLevel: number
-): void {
+/**
+ * Final pass on the raw elevation field: dilates the mountain-range mask with a
+ * 3×3 max filter and uses it to lift land toward 1.0; below the shallow-water
+ * level, stretches depth toward `deepWaterLevel`.
+ *
+ * Reads: `fields.elevation`, `fields.mountainRanges`, `fields.seaLevel`.
+ * Mutates: `fields.elevation` (in place).
+ */
+export function applyMountainRangesAndContinentalShelves(fields: WorldFields): void {
+  const { width, height } = fields;
+  const elevation = fields.elevation!;
+  const mountainRanges = fields.mountainRanges!;
+  const seaLevel = fields.seaLevel!;
   const shallowWaterLevel = seaLevel - SHALLOW_WATER_RANGE;
   const deepWaterLevel = shallowWaterLevel - DEEP_WATER_DIFFERENCE;
 
