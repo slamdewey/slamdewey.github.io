@@ -25,7 +25,6 @@ export interface SphereViewTexture {
 })
 export class SphereViewComponent implements AfterViewInit, OnDestroy {
   texture = input<SphereViewTexture | null>(null);
-  size = input<number>(512);
   rotLon = model<number>(0);
   rotLat = model<number>(0);
   /**
@@ -38,6 +37,8 @@ export class SphereViewComponent implements AfterViewInit, OnDestroy {
 
   private canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('glCanvas');
   private view: SphereView | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private currentBackingSize = 0;
 
   private dragging = false;
   private dragStartX = 0;
@@ -58,31 +59,48 @@ export class SphereViewComponent implements AfterViewInit, OnDestroy {
       if (!this.view || !this.texture()) return;
       this.view.render(this.rotLon(), this.rotLat());
     });
-    effect(() => {
-      const s = this.size();
-      this.view?.setSize(s);
-      const tex = this.texture();
-      if (this.view && tex) this.view.render(this.rotLon(), this.rotLat());
-    });
   }
 
   ngAfterViewInit(): void {
     try {
-      this.view = new SphereView(this.canvasRef().nativeElement);
-      this.view.setSize(this.size());
+      const canvas = this.canvasRef().nativeElement;
+      this.view = new SphereView(canvas);
+
       const tex = this.texture();
       if (tex) {
         this.view.uploadEquirect(tex.rgba, tex.width, tex.height);
-        this.view.render(this.rotLon(), this.rotLat());
       }
+
+      // DPR-aware sizing: physical pixels = CSS pixels × devicePixelRatio.
+      // Without this, the WebGL backing store gets bilinearly stretched by
+      // the browser to fit the canvas's CSS box — which is exactly what
+      // makes the rendered globe look soft.
+      this.resizeObserver = new ResizeObserver(() => this.updateBackingSize());
+      this.resizeObserver.observe(canvas);
+      this.updateBackingSize();
     } catch {
       this.view = null;
     }
   }
 
   ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.view?.dispose();
     this.view = null;
+  }
+
+  private updateBackingSize(): void {
+    if (!this.view) return;
+    const canvas = this.canvasRef().nativeElement;
+    const cssSize = Math.min(canvas.clientWidth, canvas.clientHeight);
+    if (cssSize <= 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    const physical = Math.max(1, Math.round(cssSize * dpr));
+    if (physical === this.currentBackingSize) return;
+    this.currentBackingSize = physical;
+    this.view.setSize(physical);
+    if (this.texture()) this.view.render(this.rotLon(), this.rotLat());
   }
 
   onRotateStart(e: PointerEvent): void {

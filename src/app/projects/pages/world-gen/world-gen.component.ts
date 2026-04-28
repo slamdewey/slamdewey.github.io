@@ -50,8 +50,6 @@ const LAYER_OPTIONS: { value: LayerName; label: string }[] = [
   { value: 'lakes', label: 'Lakes' },
 ];
 
-const LAYER_SPHERE_SIZE = 512;
-
 @Component({
   selector: 'x-world-gen',
   templateUrl: './world-gen.component.html',
@@ -237,7 +235,6 @@ if (tColdest > T_TROPICAL_COLDEST) {
   // Worker
   private worker: Worker | null = null;
 
-  readonly layerSphereSize = LAYER_SPHERE_SIZE;
   // Longitude rotation is derived from sharedPanOffset so the sphere spins in
   // lockstep with every cylindrical layer panner. Latitude tilt is sphere-only.
   layerSphereRotLat = signal(0);

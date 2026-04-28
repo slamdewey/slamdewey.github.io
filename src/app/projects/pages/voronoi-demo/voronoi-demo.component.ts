@@ -82,7 +82,6 @@ export class VoronoiDemoComponent {
   readonly s5Min = S5_MIN;
   readonly s5Max = S5_MAX;
   readonly s5Step = S5_STEP;
-  readonly s5SphereSize = S5_SPHERE_SIZE;
 
   // --- Code snippets ---
 
