@@ -1,5 +1,6 @@
 import { ClimateVariables, NoiseVariables, WorldFields } from '../../types';
 import { WorldGeometry } from '../../world-geometry';
+import { PRECIP_MM_PER_UNIT } from '../../physics';
 import { generateTemperature } from './temperature';
 import { computePET } from './pet';
 import { simulateHumidity } from './humidity-sim';
@@ -7,18 +8,26 @@ import { deriveClimate } from './aridity';
 import { classifyKoppen } from './koppen';
 
 export interface ClimateTemperatureResult {
+  /** Summer mean temperature in °C. */
   temperatureSummer: Float32Array;
+  /** Winter mean temperature in °C. */
   temperatureWinter: Float32Array;
+  /** Annual mean temperature in °C. */
   temperatureMean: Float32Array;
+  /** Per-season PET in mm. */
   petSummer: Float32Array;
   petWinter: Float32Array;
+  /** Annual PET in mm/year (= petSummer + petWinter). */
   petAnnual: Float32Array;
 }
 
 export interface ClimateHumidityResult {
+  /** Per-season precipitation in mm (≈ half-year accumulation). */
   precipSummer: Float32Array;
   precipWinter: Float32Array;
+  /** Annual precipitation in mm/year (= precipSummer + precipWinter). */
   precipAnnual: Float32Array;
+  /** Soil moisture (display-normalized [0, 1]; raw bucket level lives inside the sim). */
   soilMoisture: Float32Array;
   aridityIndex: Float32Array;
   seasonality: Float32Array;
@@ -94,13 +103,22 @@ export function runClimateHumidity(
   const seaLevel = fields.seaLevel!;
   const size = width * height;
 
+  // The humidity sim's bucket model expects PET as a dimensionless budget in
+  // q-unit space (sim's internal moisture currency). Annual PET in mm divided
+  // by PRECIP_MM_PER_UNIT puts it on the same scale as the q field.
+  const petBudgetQ = new Float32Array(size);
+  const invMmPerUnit = 1 / PRECIP_MM_PER_UNIT;
+  for (let i = 0; i < size; i++) {
+    petBudgetQ[i] = temps.petAnnual[i] * invMmPerUnit;
+  }
+
   const summer = simulateHumidity(
     width,
     height,
     windSummer,
     elevation,
     temps.temperatureSummer,
-    temps.petAnnual,
+    petBudgetQ,
     seaLevel,
     geom,
     cv,
@@ -112,58 +130,40 @@ export function runClimateHumidity(
     windWinter,
     elevation,
     temps.temperatureWinter,
-    temps.petAnnual,
+    petBudgetQ,
     seaLevel,
     geom,
     cv,
     +cv.itczShift
   );
 
-  const precipSummer = summer.precip;
-  const precipWinter = winter.precip;
-
-  // Combined cycle precipitation. With rate-based physics the absolute scale
-  // is meaningful and consistent across resolutions, so we normalize once
-  // against a reference value rather than against a per-run percentile (which
-  // erased absolute magnitudes between runs and between summer/winter).
+  // Convert sim q-unit precipitation to mm. Each season's raw output represents
+  // a half-year of climatology, so summing summer + winter yields annual mm.
+  const precipSummer = new Float32Array(size);
+  const precipWinter = new Float32Array(size);
   const precipAnnual = new Float32Array(size);
   for (let i = 0; i < size; i++) {
-    precipAnnual[i] = (precipSummer[i] + precipWinter[i]) * 0.5;
+    precipSummer[i] = summer.precip[i] * PRECIP_MM_PER_UNIT;
+    precipWinter[i] = winter.precip[i] * PRECIP_MM_PER_UNIT;
+    precipAnnual[i] = precipSummer[i] + precipWinter[i];
   }
 
-  // Display-scale precipitation reference (raw → display = raw / REF, clamped).
-  // Tuned so that wet tropics & storm-track cells saturate near 1.0, mid-latitude
-  // continents land in the 0.4–0.7 range, and subtropical-high zones drop to
-  // 0.1–0.25 (which is what feeds the Köppen B class via aridity). If this is
-  // too low everything washes out white; too high and even the tropics look dry.
-  const PRECIP_DISPLAY_REF = 2.0;
-  const inv = 1 / PRECIP_DISPLAY_REF;
-  const precipSummerDisplay = new Float32Array(size);
-  const precipWinterDisplay = new Float32Array(size);
-  const precipAnnualDisplay = new Float32Array(size);
-  for (let i = 0; i < size; i++) {
-    precipSummerDisplay[i] = clampUnit(precipSummer[i] * inv);
-    precipWinterDisplay[i] = clampUnit(precipWinter[i] * inv);
-    precipAnnualDisplay[i] = clampUnit(precipAnnual[i] * inv);
-  }
-
-  // Soil moisture from both seasons, averaged. Normalized for display by the
-  // bucket capacity scale (precip_ref · soilMoistureTimescaleDays), giving a
-  // layer in [0, 1] where ~1 = saturated soil.
-  const soilCap = PRECIP_DISPLAY_REF * cv.soilMoistureTimescaleDays;
+  // Soil-moisture for visualization, [0, 1] normalized against the bucket's
+  // steady-state capacity (precip-rate × τ in q-units).
+  const soilCap = cv.soilMoistureTimescaleDays;
   const soilMoisture = new Float32Array(size);
   for (let i = 0; i < size; i++) {
-    soilMoisture[i] = clampUnit(((summer.soilMoisture[i] + winter.soilMoisture[i]) * 0.5) / soilCap);
+    const avg = (summer.soilMoisture[i] + winter.soilMoisture[i]) * 0.5;
+    soilMoisture[i] = clampUnit(avg / soilCap);
   }
 
-  // Aridity and Köppen both read display-scale precip ([0, 1] per season),
-  // matching the scale that PET is produced at — keeps the AI = MAP/PET ratio
-  // dimensionally consistent with how the existing Köppen thresholds are tuned.
+  // Aridity, seasonality, continentality, growing-season favorability — all
+  // computed in physical units (°C, mm, dimensionless ratios).
   const derived = deriveClimate(
     temps.temperatureSummer,
     temps.temperatureWinter,
-    precipSummerDisplay,
-    precipWinterDisplay,
+    precipSummer,
+    precipWinter,
     temps.petAnnual,
     cv
   );
@@ -171,8 +171,8 @@ export function runClimateHumidity(
   const koppenClass = classifyKoppen({
     temperatureSummer: temps.temperatureSummer,
     temperatureWinter: temps.temperatureWinter,
-    precipSummer: precipSummerDisplay,
-    precipWinter: precipWinterDisplay,
+    precipSummer,
+    precipWinter,
     aridityIndex: derived.aridityIndex,
     petAnnual: temps.petAnnual,
     elevation,
@@ -180,9 +180,9 @@ export function runClimateHumidity(
   });
 
   return {
-    precipSummer: precipSummerDisplay,
-    precipWinter: precipWinterDisplay,
-    precipAnnual: precipAnnualDisplay,
+    precipSummer,
+    precipWinter,
+    precipAnnual,
     soilMoisture,
     aridityIndex: derived.aridityIndex,
     seasonality: derived.seasonality,

@@ -133,11 +133,12 @@ export function generateOceanCurrents(
       tempModifier,
       cv.sstIterations,
       cv.sstDiffusion,
-      cv.sstRelaxation
+      cv.sstRelaxation,
+      cosLatRow
     );
   }
 
-  propagateNearestOcean(width, height, distToOcean, tempModifier);
+  propagateNearestOcean(width, height, distToOcean, tempModifier, cosLatRow);
   return { tempModifier, distToOcean };
 }
 
@@ -163,7 +164,8 @@ function advectSstAnomaly(
   tempModifier: Float32Array,
   iterations: number,
   diffusion: number,
-  relaxation: number
+  relaxation: number,
+  cosLatRow: Float32Array
 ): void {
   const size = width * height;
   const source = new Float32Array(tempModifier);
@@ -172,9 +174,19 @@ function advectSstAnomaly(
   const relax = clamp(relaxation, 0, 1);
   const relaxKeep = 1 - relax;
 
+  // Per-row east-west step factor: a wind component of 1 advances by more
+  // pixels at high latitudes because longitude pixels cover less km there.
+  // (Mirrors humidity-sim's xStepFactorRow.)
+  const COS_FLOOR = 0.05;
+  const xStepFactorRow = new Float32Array(height);
+  for (let y = 0; y < height; y++) {
+    xStepFactorRow[y] = 1 / Math.max(cosLatRow[y], COS_FLOOR);
+  }
+
   for (let iter = 0; iter < iterations; iter++) {
     // --- 1. Advect (semi-Lagrangian upwind, bilinear interp) ---
     for (let y = 0; y < height; y++) {
+      const xStep = xStepFactorRow[y];
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
         if (elevation[idx] > seaLevel) {
@@ -184,7 +196,7 @@ function advectSstAnomaly(
         const wIdx = idx * 2;
         const wx = wind[wIdx];
         const wy = wind[wIdx + 1];
-        next[idx] = bilinearSample(tempModifier, x - wx, y - wy, width, height);
+        next[idx] = bilinearSample(tempModifier, x - wx * xStep, y - wy, width, height);
       }
     }
     for (let i = 0; i < size; i++) tempModifier[i] = next[i];
@@ -259,8 +271,19 @@ function bilinearSample(field: Float32Array, x: number, y: number, width: number
  * Two-pass chamfer that simultaneously propagates Euclidean-approx distance
  * and copies the modifier value from whichever neighbor "won" the relaxation.
  * On exit, every land cell holds the modifier of its nearest ocean cell.
+ *
+ * Sphere-aware: east-west step costs are scaled by cos(lat) so accumulated
+ * `dist` represents equator-pixel-equivalent (≈ km) reach instead of raw
+ * pixel count. Without this, polar coastal cells would think the ocean is
+ * "far" simply because longitude pixels are short there in km.
  */
-function propagateNearestOcean(width: number, height: number, dist: Float32Array, modifier: Float32Array): void {
+function propagateNearestOcean(
+  width: number,
+  height: number,
+  dist: Float32Array,
+  modifier: Float32Array,
+  cosLatRow: Float32Array
+): void {
   const relax = (idx: number, srcIdx: number, cost: number): void => {
     const candidate = dist[srcIdx] + cost;
     if (candidate < dist[idx]) {
@@ -269,31 +292,47 @@ function propagateNearestOcean(width: number, height: number, dist: Float32Array
     }
   };
 
+  // Per-row step costs in equator-pixel-equivalent units.
+  const COS_FLOOR = 0.05;
+  const xCostRow = new Float32Array(height);
+  const diagCostRow = new Float32Array(height);
   for (let y = 0; y < height; y++) {
+    const c = Math.max(cosLatRow[y], COS_FLOOR);
+    xCostRow[y] = c;
+    diagCostRow[y] = Math.sqrt(c * c + 1);
+  }
+
+  for (let y = 0; y < height; y++) {
+    const xCost = xCostRow[y];
+    const diagCost = diagCostRow[y];
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
-      relax(idx, y * width + mod(x - 1, width), 1);
+      relax(idx, y * width + mod(x - 1, width), xCost);
       if (y > 0) {
         relax(idx, (y - 1) * width + x, 1);
-        relax(idx, (y - 1) * width + mod(x - 1, width), 1.414);
-        relax(idx, (y - 1) * width + mod(x + 1, width), 1.414);
+        relax(idx, (y - 1) * width + mod(x - 1, width), diagCost);
+        relax(idx, (y - 1) * width + mod(x + 1, width), diagCost);
       }
     }
   }
 
   for (let y = height - 1; y >= 0; y--) {
+    const xCost = xCostRow[y];
+    const diagCost = diagCostRow[y];
     for (let x = width - 1; x >= 0; x--) {
       const idx = y * width + x;
-      relax(idx, y * width + mod(x + 1, width), 1);
+      relax(idx, y * width + mod(x + 1, width), xCost);
       if (y < height - 1) {
         relax(idx, (y + 1) * width + x, 1);
-        relax(idx, (y + 1) * width + mod(x - 1, width), 1.414);
-        relax(idx, (y + 1) * width + mod(x + 1, width), 1.414);
+        relax(idx, (y + 1) * width + mod(x - 1, width), diagCost);
+        relax(idx, (y + 1) * width + mod(x + 1, width), diagCost);
       }
     }
   }
 
-  // Suppress modifier deep inland: scale by 1 - clamp(dist / maxInfluence)
+  // Suppress modifier deep inland: scale by 1 - clamp(dist / maxInfluence).
+  // maxInfluence is in equator-pixel-equivalent units, so the inland reach
+  // in km is consistent across latitudes.
   const maxInfluence = Math.round(width / 8);
   for (let i = 0; i < dist.length; i++) {
     if (dist[i] > 0) {

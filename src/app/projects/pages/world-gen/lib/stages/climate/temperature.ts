@@ -1,9 +1,24 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
-import { map, sphericalEmbed3D } from '@lib/math';
+import { sphericalEmbed3D } from '@lib/math';
 import { NoiseVariables, WorldFields } from '../../types';
+import {
+  T_EQUATOR_C,
+  T_POLE_C,
+  LAPSE_C_PER_NORM_ELEVATION,
+  OCEAN_SEASONAL_DAMPING,
+  OCEAN_MERIDIONAL_DAMPING,
+} from '../../physics';
 
 export type Season = 'summer' | 'winter' | 'mean';
 
+/** Peak-to-peak noise jitter in °C. Adds local variation without changing
+ *  the latitude/elevation field shape; small enough that it doesn't affect
+ *  Köppen statistics. */
+const NOISE_JITTER_C = 1.5;
+
+/** Air-cell temperature in °C. Latitude profile is parabolic between
+ *  equator and pole annual means, with hemispheric seasonal tilt, additive
+ *  elevation lapse, and coastal moderation toward the local ocean. */
 export function generateTemperature(
   fields: WorldFields,
   nv: NoiseVariables,
@@ -22,58 +37,60 @@ export function generateTemperature(
   const jitterFreq = nv.frequency * 1.5;
   const np = new Float32Array(3);
 
-  // Max influence distance: pixels beyond this are fully "inland"
   const maxOceanInfluence = Math.round(width / 8);
 
-  // Hemispheric tilt sign per season. Northern summer = +1 (NH warmer), winter = -1.
+  // Northern summer = +1 (NH warmer), winter = -1.
   const tiltSign = season === 'summer' ? 1 : season === 'winter' ? -1 : 0;
   const tiltAmount = tiltSign * seasonalTilt;
 
-  for (let y = 0; y < height; y++) {
-    // Inverse parabola: T(y) = 1 - (2y/height - 1)^2
-    // Use raw y/height for latitude (geographic, not noise-space)
-    const latNorm = (2 * y) / height - 1; // +1 at south pole, -1 at north pole
-    let latitudeTemp = 1 - latNorm * latNorm;
-    // Hemispheric tilt: warm one hemisphere, cool the other.
-    // latNorm < 0 = northern, > 0 = southern.
-    latitudeTemp += tiltAmount * -latNorm;
+  const T_RANGE = T_EQUATOR_C - T_POLE_C;
+  const T_GLOBAL_MEAN = (T_EQUATOR_C + T_POLE_C) * 0.5;
 
-    // Ocean baseline at this latitude — gets per-cell adjustment from currents.
-    const baseOceanTemp = latitudeTemp * 0.8;
+  for (let y = 0; y < height; y++) {
+    const latNorm = (2 * y) / height - 1; // +1 at south pole, -1 at north pole
+    // Annual-mean latitudinal temperature for the air column (= land baseline).
+    const annualMeanT = T_EQUATOR_C - T_RANGE * latNorm * latNorm;
+    // Per-hemisphere seasonal swing in °C. Sign convention preserved from prior
+    // model: with NH summer (tiltSign=+1) and NH cells (latNorm<0), `-latNorm`
+    // is positive → seasonalSwing > 0 → warmer NH summer.
+    const seasonalSwing = tiltAmount * -latNorm;
+    const latLandT = annualMeanT + seasonalSwing;
+    // Ocean has a softer meridional gradient than the atmosphere (warm water
+    // flows poleward, water can't go below ~-2°C) AND damped seasonal swing
+    // due to high thermal mass. We pull the latitude mean toward the global
+    // mean before adding the damped seasonal component.
+    const oceanAnnualT = T_GLOBAL_MEAN + (annualMeanT - T_GLOBAL_MEAN) * OCEAN_MERIDIONAL_DAMPING;
+    const oceanAirT = oceanAnnualT + seasonalSwing * OCEAN_SEASONAL_DAMPING;
 
     for (let x = 0; x < width; x++) {
       sphericalEmbed3D(x, y, width, height, np);
 
       const idx = y * width + x;
-      let temp = latitudeTemp;
-
-      // Add noise jitter
       const n = fBm3D(noise, np[0], np[1], np[2], 1, jitterFreq, 1, 1);
-      temp *= map(n, -1, 1, 0.75, 1);
+      const jitter = n * NOISE_JITTER_C;
 
+      let temp: number;
       if (elevation[idx] > seaLevel) {
+        temp = latLandT + jitter;
         const proximity = Math.min(distToOcean[idx] / maxOceanInfluence, 1);
 
-        // Continentality: amplify the seasonal tilt for inland cells. The
-        // extra tilt is equal-and-opposite between summer and winter, so the
-        // annual mean is preserved while the seasonal amplitude grows inland.
-        // Drives Dfa/Cfb contrasts (Chicago vs Dublin at the same latitude).
+        // Continentality: amplify the seasonal tilt for inland cells.
+        // Annual mean preserved (the per-season extras cancel summer↔winter).
         if (continentalityStrength > 0 && tiltAmount !== 0) {
-          temp += tiltAmount * -latNorm * continentalityStrength * proximity;
+          temp += seasonalSwing * continentalityStrength * proximity;
         }
 
-        // Lapse rate: temperature decreases with elevation
-        temp *= 1 - elevation[idx] * 0.3;
+        // Additive lapse rate — physical, not multiplicative.
+        temp -= elevation[idx] * LAPSE_C_PER_NORM_ELEVATION;
 
-        // Coastal moderation: blend toward the (current-adjusted) ocean
-        // temperature of the nearest ocean cell. The modifier is already
-        // scaled by proximity in the propagation pass.
+        // Coastal moderation: blend toward local ocean temperature
+        // (boundary-current modifier already applied to the ocean cell).
         const moderationStrength = (1 - proximity) * 0.3;
-        const localOceanTemp = baseOceanTemp + oceanTempModifier[idx];
+        const localOceanTemp = oceanAirT + oceanTempModifier[idx];
         temp = temp * (1 - moderationStrength) + localOceanTemp * moderationStrength;
       } else {
-        // Water is cooler; apply current-driven heat advection directly.
-        temp = temp * (4 / 5) + oceanTempModifier[idx];
+        // Water cells: damped seasonal swing + boundary-current anomaly.
+        temp = oceanAirT + oceanTempModifier[idx] + jitter * 0.5;
       }
 
       temperature[idx] = temp;

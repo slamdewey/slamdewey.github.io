@@ -1,30 +1,29 @@
 /**
- * Köppen-Geiger climate classification adapted to our normalized [0, 1]
- * temperature and precipitation fields.
+ * Köppen-Geiger climate classification in physical units (°C and mm/year).
  *
- * Standard Köppen uses absolute °C and mm — we use thresholds tuned to give
- * Earth-like distributions when temperature and precipitation are produced
- * by our seasonal sim. The five top-level groups (A/B/C/D/E) and their
- * precipitation/temperature subdivisions match the textbook taxonomy.
+ * Thresholds are the textbook values from Kottek et al. (2006) / Peel et al.
+ * (2007), not tuned percentiles. The B-class precipitation threshold uses the
+ * canonical formula `P_threshold_mm = 20 · T_annual_C + α` where α depends on
+ * the seasonal distribution of rainfall.
  */
 export enum KoppenClass {
-  // A — Tropical (T_coldest > tropical threshold)
+  // A — Tropical (T_coldest > 18 °C)
   Af, // tropical rainforest
   Am, // tropical monsoon
   Aw, // tropical savanna (winter-dry)
-  // B — Arid (aridity-index based)
+  // B — Arid (precipitation below temperature-dependent threshold)
   BWh, // hot desert
   BWk, // cold desert
   BSh, // hot steppe
   BSk, // cold steppe
-  // C — Temperate (T_coldest in temperate range, no severe cold winters)
+  // C — Temperate (mild winters, no severe cold)
   Cfa, // humid subtropical
   Cfb, // oceanic
   Csa, // hot mediterranean
   Csb, // warm mediterranean
   Cwa, // monsoon-influenced subtropical
   Cwb, // subtropical highland
-  // D — Continental (cold winters)
+  // D — Continental (cold winters, T_coldest ≤ 0 °C)
   Dfa, // hot continental
   Dfb, // warm continental
   Dfc, // subarctic
@@ -32,90 +31,52 @@ export enum KoppenClass {
   Dwb, // dry winter continental cool
   Dsa, // dry summer continental hot
   Dsb, // dry summer continental warm
-  // E — Polar
+  // E — Polar (T_warmest < 10 °C)
   ET, // tundra
   EF, // ice cap
 }
 
-// Normalized-temperature thresholds. These map roughly to Köppen's °C cutoffs
-// when temperature is produced by our [0, 1] latitude parabola. Adjust if
-// the climate sim is retuned.
-// Tightened from 0.65 → 0.68 — the previous value let Af/Am classes extend
-// into the 30–45° warm-temperate band where Earth has Cfa/Cfb. With our default
-// seasonal tilt (0.18) cells at ~35° latitude had tColdest ≈ 0.67, just above
-// the old A threshold; bumping it 0.03 keeps tropical classes confined to the
-// equatorial / subtropical bands they belong in.
-const T_TROPICAL_COLDEST = 0.68;
-// Pulled back from 0.55 → 0.52 — the 0.55 bump made D-class explode to 34 %
-// of land (Earth: 22 %), starving C-class. 0.52 splits the difference and
-// gives roughly the right C/D balance against the rest of the calibration.
-const T_NO_FROST = 0.52;
-// Bumped from 0.30 → 0.40 so more cool cells qualify as polar (ET/EF) before
-// they fall through to D-class. Was under-filling tundra (8.9 % vs Earth 13 %)
-// while D was over-filling (37 % vs Earth 22 %); with our generated worlds
-// having ~36 % polar landmass this redistribution is what actually balances.
-const T_POLAR_WARMEST = 0.4;
-const T_ICECAP_WARMEST = 0.18; // ~0°C warmest-month for EF (widened from 0.15 — was producing essentially no ice caps)
-const T_HOT_SUMMER = 0.75; // ~22°C warmest-month for a (vs b/c)
-// Widened from 0.55 → 0.60 so the boreal/subarctic forest belt (Dfc) actually
-// emerges. With the old threshold only deeply polar cells qualified for the
-// "cool-summer" sub-letter, leaving Earth's 9 % Dfc share at 0.6 % in the sim.
-const T_COOL_SUMMER = 0.6;
+// Köppen-Geiger temperature thresholds in °C.
+const T_TROPICAL_COLDEST = 18; // A class: coldest month > 18 °C
+const T_NO_FROST = 0; // D class: coldest month ≤ 0 °C
+const T_POLAR_WARMEST = 10; // E class: warmest month < 10 °C
+const T_ICECAP_WARMEST = 0; // EF: warmest month < 0 °C
+const T_HOT_SUMMER = 22; // a sub-letter: warmest month ≥ 22 °C
+const T_COOL_SUMMER = 18; // approximate b/c boundary without monthly data
 
-// Aridity thresholds for B class. AI = MAP / PET.
-// Tuned against the rate-based humidity model's natural distribution. The
-// recycling bucket keeps interior AI from going as low as Earth's, so we
-// tighten the steppe boundary to land near Earth's ~28 % B-class land share
-// (Sahara/Sahel + Asian steppes + Australian outback + Patagonia ≈ this).
-const AI_DESERT = 0.2;
-const AI_STEPPE = 0.3;
+// 70 %-of-rainfall threshold for the Köppen seasonality offset (α).
+const SEASONAL_DOMINANCE = 0.7;
 
-// Seasonality detection for w/s/f sub-letters. Real Köppen's 1/10 rule alone
-// is insufficient because cold cells trivially satisfy it (winter has near-zero
-// precip everywhere — moisture-limited, not pattern-limited). True monsoon
-// classification requires BOTH a 10:1 seasonal ratio AND an absolutely-wet wet
-// season. WET_SEASON_FLOOR is the absolute precip the wet season must clear
-// in display units; lowered from 0.25 → 0.12 so temperate cells with moderate
-// seasonality (Mediterranean Csa/Csb, monsoon-influenced Cwa/Cwb) actually
-// qualify — at PRECIP_DISPLAY_REF=2.0, display 0.12 ≈ 360 mm wet season ≈
-// real Köppen's monthly threshold scaled to a 6-month season.
+// 1/10 rule for s/w sub-letters: driest month (or season) must be < 1/10 of wettest.
 const SEASONAL_RATIO = 0.1;
-const WET_SEASON_FLOOR = 0.12;
 
 export interface KoppenInputs {
+  /** Summer mean temperature in °C. */
   temperatureSummer: Float32Array;
+  /** Winter mean temperature in °C. */
   temperatureWinter: Float32Array;
+  /** Per-season precipitation in mm. */
   precipSummer: Float32Array;
   precipWinter: Float32Array;
+  /** Aridity index MAP/PET, dimensionless. */
   aridityIndex: Float32Array;
+  /** Annual PET in mm/year — used to gate the B class away from polar deserts. */
   petAnnual: Float32Array;
   elevation: Float32Array;
   seaLevel: number;
 }
 
-/** Cells with annual PET below this floor have no meaningful evaporative
- *  demand and are excluded from the B (arid) classification regardless of
- *  their AI. Approximates the Köppen rule that real cold/polar regions are
- *  classified by temperature (E or D), not by aridity. Lowered to 0.08 so
- *  only deeply-polar cells skip B; the previous 0.15 was killing legitimate
- *  hot deserts that happened to have moderate PET. */
-const PET_B_FLOOR = 0.08;
+/** Cells with annual PET below this floor (mm/year) have no meaningful
+ *  evaporative demand and skip the B class regardless of MAP — the cell
+ *  goes to E or D instead. */
+const PET_B_FLOOR_MM = 100;
 
 /**
- * Classify each cell. Ocean cells get an "arbitrary" value (we pick `EF` as
- * a sentinel — biome stage overrides water cells anyway).
+ * Classify each cell. Ocean cells get a sentinel value (overridden by the
+ * biome stage anyway).
  */
 export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
-  const {
-    temperatureSummer,
-    temperatureWinter,
-    precipSummer,
-    precipWinter,
-    aridityIndex,
-    petAnnual,
-    elevation,
-    seaLevel,
-  } = inputs;
+  const { temperatureSummer, temperatureWinter, precipSummer, precipWinter, petAnnual, elevation, seaLevel } = inputs;
   const size = elevation.length;
   const out = new Uint8Array(size);
 
@@ -129,19 +90,18 @@ export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
     const tWinter = temperatureWinter[i];
     const tColdest = Math.min(tSummer, tWinter);
     const tWarmest = Math.max(tSummer, tWinter);
+    const tAnnualMean = (tSummer + tWinter) * 0.5;
     const pSummer = precipSummer[i];
     const pWinter = precipWinter[i];
     const totalP = pSummer + pWinter;
-    const summerShare = totalP > 0 ? pSummer / totalP : 0.5;
-    const ai = aridityIndex[i];
 
-    // True monsoonal seasonality: BOTH the wet season is meaningfully wet AND
-    // the dry season is < 1/10 of it. Cold cells where winter precip is
-    // moisture-limited (not pattern-limited) fail the wet-season floor and
-    // correctly fall to the f sub-letter (no dry season).
+    // True monsoonal seasonality: dry season < 1/10 of wet season.
+    // No absolute floor needed when precip is in mm — the ratio test
+    // is meaningful even at low magnitudes (winter <1 mm vs summer 50 mm
+    // is genuine seasonality, not the model floundering near zero).
     const wetSeason = Math.max(pSummer, pWinter);
-    const isDryWinter = wetSeason >= WET_SEASON_FLOOR && pWinter < SEASONAL_RATIO * pSummer;
-    const isDrySummer = wetSeason >= WET_SEASON_FLOOR && pSummer < SEASONAL_RATIO * pWinter;
+    const isDryWinter = wetSeason > 1 && pWinter < SEASONAL_RATIO * pSummer;
+    const isDrySummer = wetSeason > 1 && pSummer < SEASONAL_RATIO * pWinter;
 
     // E — Polar (warmest "month" too cold)
     if (tWarmest < T_POLAR_WARMEST) {
@@ -149,39 +109,41 @@ export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
       continue;
     }
 
-    // B — Arid, with temperature-scaled thresholds. Real Köppen-Geiger uses
-    // P_threshold ≈ 2·(T_C + 14) — warm cells need MORE precip to escape arid
-    // (because PET is high), cold cells need less. Linear scale-with-tMean
-    // captures this: warm cells get a more permissive B threshold, cold cells
-    // a tighter one. Floored so coldest cells aren't fully exempt; gated by
-    // PET_B_FLOOR so cells with effectively no atmospheric demand (deep polar)
-    // skip B entirely and fall to E/D.
-    const tMean = (tColdest + tWarmest) * 0.5;
-    const aiScale = Math.max(0.1, tMean / 0.6);
-    if (petAnnual[i] >= PET_B_FLOOR && ai < AI_STEPPE * aiScale) {
-      const isDesert = ai < AI_DESERT * aiScale;
-      const isHot = tWarmest >= T_HOT_SUMMER;
-      if (isDesert) {
-        out[i] = isHot ? KoppenClass.BWh : KoppenClass.BWk;
-      } else {
-        out[i] = isHot ? KoppenClass.BSh : KoppenClass.BSk;
+    // B — Arid via Köppen-Geiger P_threshold formula:
+    //   P_threshold_mm = 20 · T_annual_C + α
+    //   α = 280 if 70 %+ of rain falls in summer (warm half)
+    //   α = 140 if rainfall is balanced
+    //   α = 0   if 70 %+ falls in winter (cool half)
+    //   BW (desert) when MAP < 0.5 × P_threshold
+    //   BS (steppe) when MAP < 1.0 × P_threshold
+    if (petAnnual[i] >= PET_B_FLOOR_MM) {
+      const summerShare = totalP > 0 ? pSummer / totalP : 0.5;
+      let alpha = 140;
+      if (summerShare >= SEASONAL_DOMINANCE) alpha = 280;
+      else if (summerShare <= 1 - SEASONAL_DOMINANCE) alpha = 0;
+      const pThresh = 20 * tAnnualMean + alpha;
+      if (totalP < pThresh) {
+        const isDesert = totalP < 0.5 * pThresh;
+        const isHot = tAnnualMean >= T_TROPICAL_COLDEST;
+        if (isDesert) {
+          out[i] = isHot ? KoppenClass.BWh : KoppenClass.BWk;
+        } else {
+          out[i] = isHot ? KoppenClass.BSh : KoppenClass.BSk;
+        }
+        continue;
       }
-      continue;
     }
 
     // A — Tropical (no cold winters)
     if (tColdest > T_TROPICAL_COLDEST) {
-      // Driest-season precipitation determines Af/Am/Aw. Bumped both cutoffs
-      // because the rate-based humidity model produces high absolute precip in
-      // the tropics — under the old 0.25/0.10 cutoffs, almost every tropical
-      // cell qualified as Af, and Aw (savanna) was effectively missing. Earth
-      // has Aw ≈ 8 % of land vs Af ≈ 7 %; the new cutoffs (0.40/0.20) restore
-      // that balance.
-      const driestShare = Math.min(summerShare, 1 - summerShare);
-      const driestPrecip = totalP * driestShare;
-      if (driestPrecip > 0.4) {
+      // Driest-month proxy: minimum of summer/winter precip averaged across
+      // the season. Köppen's textbook cutoff is 60 mm for the driest month;
+      // we use seasonal totals so scale up by a 6-month season → ~360 mm
+      // separates Af/Am, ~150 mm separates Am/Aw.
+      const driestSeason = Math.min(pSummer, pWinter);
+      if (driestSeason >= 360) {
         out[i] = KoppenClass.Af;
-      } else if (driestPrecip > 0.2) {
+      } else if (driestSeason >= 150) {
         out[i] = KoppenClass.Am;
       } else {
         out[i] = KoppenClass.Aw;

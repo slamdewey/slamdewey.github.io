@@ -5,16 +5,22 @@ import { WorldGeometry } from '../../world-geometry';
 const SECONDS_PER_DAY = 86400;
 const M_PER_KM = 1000;
 
-/** Temperature offset above frostThreshold below which recycling is fully suppressed. */
-const RECYCLING_T_COLD_CUTOFF_OFFSET = 0.05;
-/** Temperature at and above which recycling reaches its ceiling (warm-temperate / tropical). */
-const RECYCLING_T_WARM_SATURATE = 0.65;
+/** °C above frostThreshold below which recycling is fully suppressed. */
+const RECYCLING_T_COLD_CUTOFF_OFFSET = 5;
+/** °C at and above which recycling reaches its ceiling (warm-temperate / tropical). */
+const RECYCLING_T_WARM_SATURATE = 25;
+
+/** Temperature endpoints used to map °C → dimensionless [0, 1] for the qSat
+ *  and ocean-evaporation curves. Below T_QSAT_MIN qSat saturates at its
+ *  floor; above T_QSAT_MAX it saturates at its ceiling. */
+const T_QSAT_MIN_C = -10;
+const T_QSAT_MAX_C = 30;
 
 /**
  * Per-cell land recycling efficiency as a function of temperature.
  *
- * Smoothstep ramp from `frostThreshold + 0.05` (zero recycling) to
- * `RECYCLING_T_WARM_SATURATE = 0.65` (ceiling). Approximates the real-Earth
+ * Smoothstep ramp from `frostThreshold + 5°C` (zero recycling) to
+ * `RECYCLING_T_WARM_SATURATE = 25°C` (ceiling). Approximates the real-Earth
  * gradient where Amazon-style tropics recycle ~30% of precipitation, temperate
  * interiors ~10–20%, and subarctic/tundra ~2–5%. The ceiling parameter is the
  * user-facing `landEvapEfficiency` — i.e. the maximum recycling, achieved in
@@ -128,12 +134,14 @@ export function simulateHumidity(
   }
 
   // Saturation capacity per cell — Clausius-Clapeyron is exponential in T,
-  // but temperature is already normalized [0, 1] so a linear form is fine
-  // and avoids saturating too hard at the equator.
+  // but our internal q field is dimensionless so a linear form is fine
+  // and avoids saturating too hard at the equator. Temperature comes in as
+  // °C; map to [0, 1] across the qSat operating range.
+  const qSatRangeInv = 1 / (T_QSAT_MAX_C - T_QSAT_MIN_C);
   const qSat = new Float32Array(size);
   for (let i = 0; i < size; i++) {
-    const t = clamp(temperature[i], 0, 1);
-    qSat[i] = 0.2 + 0.8 * t;
+    const tNorm = clamp((temperature[i] - T_QSAT_MIN_C) * qSatRangeInv, 0, 1);
+    qSat[i] = 0.2 + 0.8 * tNorm;
   }
 
   // Steady-state soil-moisture initialization. Without this, the first ~τ days
@@ -180,11 +188,11 @@ export function simulateHumidity(
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
         if (elevation[idx] >= seaLevel) continue;
-        const t = clamp(temperature[idx], 0, 1);
+        const tNorm = clamp((temperature[idx] - T_QSAT_MIN_C) * qSatRangeInv, 0, 1);
         const deficit = qSat[idx] - q[idx];
         if (deficit <= 0) continue;
         // Per-step fraction of deficit filled. evapKept already integrates dt.
-        q[idx] += evapKept * rowMod * t * deficit;
+        q[idx] += evapKept * rowMod * tNorm * deficit;
       }
     }
 

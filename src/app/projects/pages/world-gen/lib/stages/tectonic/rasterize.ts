@@ -232,20 +232,29 @@ export function rasterizePlateInteractions(
       hasRidgeSeeds = true;
     }
   }
-  const distToRidge = chamferDistance(ridgeSeedMask, width, height);
+  // Sphere-aware: flat chamfer would pinch ocean-age contours to a vertex at
+  // the poles because horizontal pixel cost doesn't shrink with cos(lat). The
+  // other two chamfer calls above (boundary falloff, shelf band) share this
+  // latent bug, but they're clipped to a few pixels of falloff so it never
+  // shows visually — left as-is for now.
+  // Output is in radians; rescale to equator-pixel-equivalent units so the
+  // existing oceanAgeScale = width/6 stays calibrated for the exp() falloff.
+  const distToRidge = sphericalDistanceTransform(ridgeSeedMask, width, height);
+  const radToEqPx = width / (2 * Math.PI);
+  for (let i = 0; i < size; i++) {
+    if (Number.isFinite(distToRidge[i])) distToRidge[i] *= radToEqPx;
+  }
   const oceanAge = new Float32Array(size);
   const oceanAgeScale = width / 6;
 
-  // Find the max *finite* ridge distance for oceanAge layer normalization.
-  // chamferDistance fills unreachable cells with INF = width+height; when
-  // no ridge seeds exist, every cell stays at INF and the normalized field
-  // is left at 0.
+  // Find the max finite ridge distance for oceanAge normalization. Unreachable
+  // cells come back as Infinity; with no seeds the hasRidgeSeeds guard skips
+  // this whole block and oceanAge stays at 0.
   if (hasRidgeSeeds) {
-    const INF_SENTINEL = width + height - 1;
     let maxRidgeDist = 0;
     for (let i = 0; i < size; i++) {
       const d = distToRidge[i];
-      if (d > maxRidgeDist && d <= INF_SENTINEL) maxRidgeDist = d;
+      if (Number.isFinite(d) && d > maxRidgeDist) maxRidgeDist = d;
     }
     const invMax = maxRidgeDist > 0 ? 1 / maxRidgeDist : 0;
     for (let i = 0; i < size; i++) {
@@ -408,6 +417,134 @@ function propagateBoundaryIndex(
       queue.push(nIdx);
     }
   }
+}
+
+/**
+ * Multi-source Dijkstra on the equirect grid with sphere-aware edge weights.
+ * Returns great-circle distance (radians) from each cell to the nearest seed,
+ * Infinity if unreachable. Pole rows route across the pole to their antipodal
+ * longitude — crucial for fields read on the sphere view, where flat chamfer
+ * pinches to a vertex at the poles.
+ */
+function sphericalDistanceTransform(isSeed: Uint8Array, width: number, height: number): Float32Array {
+  const size = width * height;
+  const dist = new Float32Array(size);
+  for (let i = 0; i < size; i++) dist[i] = Infinity;
+  const visited = new Uint8Array(size);
+
+  // Cell-center unit vectors on the sphere, used for great-circle edge cost.
+  const centers = new Float32Array(size * 3);
+  const tmp = new Float32Array(3);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      sphericalEmbed3D(x, y, width, height, tmp);
+      const o = (y * width + x) * 3;
+      centers[o] = tmp[0];
+      centers[o + 1] = tmp[1];
+      centers[o + 2] = tmp[2];
+    }
+  }
+
+  // Binary min-heap over (dist, idx) pairs. Capacity 4× cell count is
+  // empirically safe — each cell is rarely relaxed more than a couple of times.
+  const heapCap = Math.max(64, size * 4);
+  const heapDist = new Float32Array(heapCap);
+  const heapIdx = new Int32Array(heapCap);
+  let heapSize = 0;
+  let poppedDist = 0;
+
+  const heapPush = (d: number, idx: number): void => {
+    let i = heapSize++;
+    heapDist[i] = d;
+    heapIdx[i] = idx;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (heapDist[parent] <= heapDist[i]) break;
+      const td = heapDist[i];
+      const ti = heapIdx[i];
+      heapDist[i] = heapDist[parent];
+      heapIdx[i] = heapIdx[parent];
+      heapDist[parent] = td;
+      heapIdx[parent] = ti;
+      i = parent;
+    }
+  };
+
+  const heapPop = (): number => {
+    poppedDist = heapDist[0];
+    const top = heapIdx[0];
+    heapSize--;
+    if (heapSize > 0) {
+      heapDist[0] = heapDist[heapSize];
+      heapIdx[0] = heapIdx[heapSize];
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1;
+        const r = l + 1;
+        let smallest = i;
+        if (l < heapSize && heapDist[l] < heapDist[smallest]) smallest = l;
+        if (r < heapSize && heapDist[r] < heapDist[smallest]) smallest = r;
+        if (smallest === i) break;
+        const td = heapDist[i];
+        const ti = heapIdx[i];
+        heapDist[i] = heapDist[smallest];
+        heapIdx[i] = heapIdx[smallest];
+        heapDist[smallest] = td;
+        heapIdx[smallest] = ti;
+        i = smallest;
+      }
+    }
+    return top;
+  };
+
+  for (let i = 0; i < size; i++) {
+    if (isSeed[i]) {
+      dist[i] = 0;
+      heapPush(0, i);
+    }
+  }
+
+  const halfW = width >> 1;
+
+  while (heapSize > 0) {
+    const i = heapPop();
+    if (visited[i]) continue;
+    if (poppedDist > dist[i]) continue;
+    visited[i] = 1;
+    const x = i % width;
+    const y = (i - x) / width;
+    const ci = i * 3;
+    const cix = centers[ci];
+    const ciy = centers[ci + 1];
+    const ciz = centers[ci + 2];
+
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        let ny = y + dy;
+        let nx = mod(x + dx, width);
+        if (ny < 0 || ny >= height) {
+          // Crossing a pole: stay in the pole row at the antipodal longitude.
+          ny = y;
+          nx = mod(nx + halfW, width);
+        }
+        const j = ny * width + nx;
+        if (visited[j]) continue;
+        const cj = j * 3;
+        let dot = cix * centers[cj] + ciy * centers[cj + 1] + ciz * centers[cj + 2];
+        if (dot > 1) dot = 1;
+        else if (dot < -1) dot = -1;
+        const step = Math.acos(dot);
+        const nd = poppedDist + step;
+        if (nd < dist[j]) {
+          dist[j] = nd;
+          heapPush(nd, j);
+        }
+      }
+    }
+  }
+
+  return dist;
 }
 
 /**

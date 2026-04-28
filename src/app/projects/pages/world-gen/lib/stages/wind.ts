@@ -133,6 +133,12 @@ function buildPressureField(
   }
 
   const np = new Float32Array(3);
+  // Reference temperature range (°C) used to convert land-sea anomaly into
+  // dimensionless pressure perturbation. With dT typically in ±5..15 °C,
+  // dividing by 50 keeps thermal contrast near the same magnitude scale as
+  // the latitudinal pressure baseline (≈1.0).
+  const T_THERMAL_REF_C = 50;
+  const thermalScale = thermalContrastStrength / T_THERMAL_REF_C;
   for (let y = 0; y < height; y++) {
     const baseP = rowP[y];
     for (let x = 0; x < width; x++) {
@@ -141,7 +147,7 @@ function buildPressureField(
       let thermalP = 0;
       if (thermalField && zonalMeanT) {
         const dT = thermalField[y * width + x] - zonalMeanT[y];
-        thermalP = -dT * thermalContrastStrength;
+        thermalP = -dT * thermalScale;
       }
       P[y * width + x] = baseP + nPerturb + thermalP;
     }
@@ -278,8 +284,16 @@ export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array):
   const elevation = fields.elevation!;
   const seaLevel = fields.seaLevel!;
   const slopeScale = 8;
+  // East-west pixels shrink in km by cos(lat) toward the poles, so a constant
+  // elevation gradient in pixel-space corresponds to a steeper slope in km
+  // at higher latitudes. Dividing the x-gradient by cos(lat) puts gx and gy
+  // in the same physical units (km-equivalent) so the slope magnitude and
+  // along-wind projection are sphere-correct.
+  const COS_FLOOR = 0.05;
 
   for (let y = 0; y < height; y++) {
+    const lat = (y / height - 0.5) * Math.PI;
+    const invCosLat = 1 / Math.max(Math.cos(lat), COS_FLOOR);
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       if (elevation[idx] <= seaLevel) continue;
@@ -292,7 +306,7 @@ export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array):
       const xR = mod(x + 1, width);
       const yT = clamp(y - 1, 0, height - 1);
       const yB = clamp(y + 1, 0, height - 1);
-      const gx = (elevation[y * width + xR] - elevation[y * width + xL]) * 0.5;
+      const gx = (elevation[y * width + xR] - elevation[y * width + xL]) * 0.5 * invCosLat;
       const gy = (elevation[yB * width + x] - elevation[yT * width + x]) * 0.5;
       const gMag = Math.sqrt(gx * gx + gy * gy);
       if (gMag < 1e-3) continue;

@@ -8,7 +8,8 @@ export interface NoiseVariables {
 }
 
 export interface ClimateVariables {
-  /** Hemispheric tilt magnitude in normalized temperature units. Drives summer/winter ΔT. */
+  /** Hemispheric tilt magnitude in °C. Peak per-hemisphere swing between
+   *  summer and winter at mid-latitudes. Earth-like ≈ 15 °C. */
   seasonalTilt: number;
   /** Magnitude of seasonal thermal-equator migration as a fraction of map
    *  height. Tropical bands (ITCZ + subtropical highs) shift by ±itczShift
@@ -22,9 +23,9 @@ export interface ClimateVariables {
    *  removes `rainShadowStrength · |rise| · 0.4` of the parcel's q without
    *  precipitating it (dry adiabatic warming dries the air). */
   rainShadowStrength: number;
-  /** Frost threshold in normalized temperature units; below this, PET ≈ 0 and no growing season. */
+  /** Frost threshold in °C; below this, PET ≈ 0 and no growing season. */
   frostThreshold: number;
-  /** Aridity wilt point; growing-season favorability falls below this. */
+  /** Aridity wilt point as a MAP/PET ratio; growing-season favorability falls below this. */
   aridityWiltPoint: number;
   /** Global multiplier on pressure-gradient wind magnitude. */
   windStrength: number;
@@ -66,7 +67,7 @@ export interface ClimateVariables {
   soilMoistureTimescaleDays: number;
   /** Maximum land-surface recycling efficiency, applied at warm-temperate and
    *  tropical temperatures. Cold cells receive less via a smoothstep ramp from
-   *  `frostThreshold + 0.05` (zero) up to T = 0.65 (ceiling). This separates
+   *  `frostThreshold + 5 °C` (zero) up to 25 °C (ceiling). This separates
    *  hot-desert recycling (BWh) from cold-desert recycling (BWk) — a single
    *  global scalar conflates them and forces a tuning tradeoff. Earth-scale
    *  recycling ratio is ~0.30 over the Amazon, ~0.05 over Siberia. */
@@ -75,12 +76,11 @@ export interface ClimateVariables {
    *  multiplier on convective rate. Approximates baroclinic-eddy precipitation
    *  that a quasi-static 2D sim cannot model directly. 0 disables the boost. */
   stormTrackBoost: number;
-  /** Peak temperature modifier from wind-driven boundary currents, as a
-   *  fraction of [0,1] temperature units. Applied at continental boundaries
-   *  (cold eastern / warm western ocean margins), falls off exponentially
-   *  into open ocean. Produces realistic east/west coastal asymmetry —
-   *  California/Atacama/Namib cold west-coasts vs Gulf-Stream warm east-
-   *  coasts on mid-latitude continents. */
+  /** Peak temperature modifier from wind-driven boundary currents, in °C.
+   *  Applied at continental boundaries (cold eastern / warm western ocean
+   *  margins), falls off exponentially into open ocean. Produces realistic
+   *  east/west coastal asymmetry — California/Atacama/Namib cold west-coasts
+   *  vs Gulf-Stream warm east-coasts on mid-latitude continents. */
   boundaryCurrentStrength: number;
   /** Seasonal-amplitude boost for deep-continental interiors. Interior land
    *  cells experience the seasonal tilt scaled by (1 + continentalityStrength
@@ -202,12 +202,13 @@ export interface WorldData {
   petSummer: Float32Array;
   petWinter: Float32Array;
   petAnnual: Float32Array;
+  /** Per-season precipitation in mm (≈ half-year accumulation). */
   precipSummer: Float32Array;
   precipWinter: Float32Array;
-  /** Mean per-cycle precipitation (avg of summer and winter sims), [0, 1]. */
+  /** Annual precipitation in mm/year (= precipSummer + precipWinter). */
   precipAnnual: Float32Array;
-  /** Steady-state soil-moisture from the recycling bucket model. mm-equivalent
-   *  scaled to [0, 1] for visualization; physical-units value lives inside the
+  /** Steady-state soil-moisture from the recycling bucket model, normalized
+   *  to [0, 1] for visualization; physical-units value lives inside the
    *  humidity sim. Wet-coast → dry-interior gradient when recycling is active. */
   soilMoisture: Float32Array;
   aridityIndex: Float32Array;
@@ -284,12 +285,12 @@ export const DEFAULT_NOISE: NoiseVariables = {
 };
 
 export const DEFAULT_CLIMATE: ClimateVariables = {
-  seasonalTilt: 0.18,
+  seasonalTilt: 15, // °C peak swing
   itczShift: 0.05,
   orographicLiftStrength: 3.0,
   rainShadowStrength: 1.0,
-  frostThreshold: 0.35,
-  aridityWiltPoint: 0.2,
+  frostThreshold: 0, // °C — water freezes at 0
+  aridityWiltPoint: 0.3, // MAP/PET ≈ 0.3 marks the semi-arid boundary
   windStrength: 1.0,
   thermalContrastStrength: 0.6,
   moistureIterations: 100,
@@ -304,7 +305,7 @@ export const DEFAULT_CLIMATE: ClimateVariables = {
   soilMoistureTimescaleDays: 45,
   landEvapEfficiency: 0.5,
   stormTrackBoost: 0.5,
-  boundaryCurrentStrength: 0.35,
+  boundaryCurrentStrength: 5, // °C peak coastal modifier
   continentalityStrength: 0.5,
   sstIterations: 40,
   sstDiffusion: 0.08,

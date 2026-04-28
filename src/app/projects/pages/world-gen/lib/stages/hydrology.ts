@@ -498,18 +498,37 @@ function buildRiverMask(
  * (see `buildLakeMaskGated`) so dry basins — even large cool-floored ones —
  * remain salt flats rather than spurious lakes.
  */
+/** Reference annual precipitation (mm/yr) used to normalize the rainfall
+ *  flow weight. A cell receiving 1000 mm/yr contributes 1.0 unit per step —
+ *  which keeps the flow-accumulation magnitudes (and the riverLogThreshold
+ *  tuning) aligned with the pass-1 erosion run, where rainfall = 1.0. */
+const PRECIP_FLOW_REFERENCE_MM = 1000;
+
 export function computeFlowAndRivers(fields: WorldFields, config: HydrologyVariables): HydrologyResult {
   const { width, height } = fields;
   const elevation = fields.elevation!;
   const seaLevel = fields.seaLevel!;
-  const rainfall = fields.precipAnnual!;
+  const precipAnnualMm = fields.precipAnnual!;
   const petAnnual = fields.petAnnual!;
-  const { filled, flowAcc } = routeFlow(elevation, width, height, seaLevel, rainfall);
+
+  // Normalize precipitation AND PET to dimensionless units against the same
+  // reference so that flow-accumulation magnitudes match the pass-1
+  // (uniform-rainfall) scale the river threshold was calibrated against,
+  // and the lake water-budget ratio (max flow vs Σ PET) stays unitless.
+  const rainfallFlow = new Float32Array(precipAnnualMm.length);
+  const petFlow = new Float32Array(petAnnual.length);
+  const invRef = 1 / PRECIP_FLOW_REFERENCE_MM;
+  for (let i = 0; i < precipAnnualMm.length; i++) {
+    rainfallFlow[i] = precipAnnualMm[i] * invRef;
+    petFlow[i] = petAnnual[i] * invRef;
+  }
+
+  const { filled, flowAcc } = routeFlow(elevation, width, height, seaLevel, rainfallFlow);
   const lakes = buildLakeMaskGated(
     elevation,
     filled,
     flowAcc,
-    petAnnual,
+    petFlow,
     width,
     height,
     seaLevel,

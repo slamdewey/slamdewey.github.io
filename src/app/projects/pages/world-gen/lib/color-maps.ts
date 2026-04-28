@@ -268,9 +268,10 @@ function colorElevation(data: Float32Array, rgba: Uint8Array, seaLevel: number):
   }
 }
 
-// Stops placed (not evenly spaced) so hue variation concentrates where most
-// land sits (~0.6–0.95). Aligns with biome temperature regimes: polar →
-// cold-temperate → cool → mild → warm → hot → extreme.
+// Display range for the temperature layer: -40 °C → +35 °C. Stops placed
+// so hue variation concentrates where most land sits.
+const TEMP_DISPLAY_MIN_C = -40;
+const TEMP_DISPLAY_MAX_C = 35;
 const TEMP_STOPS: { t: number; rgb: [number, number, number] }[] = [
   { t: 0.0, rgb: [40, 40, 120] },
   { t: 0.25, rgb: [70, 150, 220] },
@@ -282,15 +283,16 @@ const TEMP_STOPS: { t: number; rgb: [number, number, number] }[] = [
 ];
 
 function colorTemperature(data: Float32Array, rgba: Uint8Array): void {
+  const range = TEMP_DISPLAY_MAX_C - TEMP_DISPLAY_MIN_C;
   for (let i = 0; i < data.length; i++) {
-    const t = Math.max(0, Math.min(1, data[i]));
+    const tNorm = Math.max(0, Math.min(1, (data[i] - TEMP_DISPLAY_MIN_C) / range));
     const o = i * 4;
     let hi = 1;
-    while (hi < TEMP_STOPS.length - 1 && TEMP_STOPS[hi].t < t) hi++;
+    while (hi < TEMP_STOPS.length - 1 && TEMP_STOPS[hi].t < tNorm) hi++;
     const a = TEMP_STOPS[hi - 1];
     const b = TEMP_STOPS[hi];
     const span = b.t - a.t;
-    const k = span > 0 ? (t - a.t) / span : 0;
+    const k = span > 0 ? (tNorm - a.t) / span : 0;
     rgba[o] = Math.round(a.rgb[0] * (1 - k) + b.rgb[0] * k);
     rgba[o + 1] = Math.round(a.rgb[1] * (1 - k) + b.rgb[1] * k);
     rgba[o + 2] = Math.round(a.rgb[2] * (1 - k) + b.rgb[2] * k);
@@ -314,9 +316,14 @@ function colorWind(data: Float32Array, rgba: Uint8Array, width: number, height: 
   }
 }
 
+/** Annual precipitation display range, mm/year. ≥ ~3500 mm saturates the
+ *  scale (matches Earth's wettest tropics). */
+const PRECIP_DISPLAY_MAX_MM = 3500;
+
 function colorPrecipitation(data: Float32Array, rgba: Uint8Array): void {
+  const inv = 1 / PRECIP_DISPLAY_MAX_MM;
   for (let i = 0; i < data.length; i++) {
-    const v = Math.round(Math.max(0, Math.min(1, data[i])) * 255);
+    const v = Math.round(Math.max(0, Math.min(1, data[i] * inv)) * 255);
     const o = i * 4;
     rgba[o] = v;
     rgba[o + 1] = v;
@@ -383,7 +390,13 @@ const ROCK_COLOR: [number, number, number] = [120, 110, 95];
 const SNOW_COLOR: [number, number, number] = [248, 250, 252];
 
 const MOUNTAIN_LEVEL = 0.85;
-const SNOW_TEMPERATURE = 0.32; // mean temperature below this gets snow
+/** Annual-mean temperature (°C) at and above which there's no snow cover.
+ *  Real Earth's permanent snowline corresponds roughly to annual mean ≤ 0 °C
+ *  in flat terrain. We start the visual blend slightly higher (light dusting
+ *  on the warmest taiga) and saturate by deep boreal/Arctic conditions. */
+const SNOW_T_START_C = -2;
+/** Annual-mean temperature (°C) at and below which snow cover is fully saturated. */
+const SNOW_T_FULL_C = -20;
 const SNOW_ELEVATION = 0.7; // and elevation above this gets snow
 
 function colorBiomes(
@@ -430,7 +443,7 @@ function colorBiomes(
     if (lakes[i] === 1) {
       // Cold lakes ice over. Blend toward snow as the mean temp drops past
       // the same threshold land uses for snow cover.
-      const iceK = Math.min(1, Math.max(0, (SNOW_TEMPERATURE - temperatureMean[i]) / SNOW_TEMPERATURE));
+      const iceK = Math.min(1, Math.max(0, (SNOW_T_START_C - temperatureMean[i]) / (SNOW_T_START_C - SNOW_T_FULL_C)));
       rgba[o] = Math.round(LAKE_COLOR[0] * (1 - iceK) + SNOW_COLOR[0] * iceK);
       rgba[o + 1] = Math.round(LAKE_COLOR[1] * (1 - iceK) + SNOW_COLOR[1] * iceK);
       rgba[o + 2] = Math.round(LAKE_COLOR[2] * (1 - iceK) + SNOW_COLOR[2] * iceK);
@@ -469,7 +482,7 @@ function colorBiomes(
     // Snow cap: cold + high. Polar regions get snow at lower elevation.
     const tMean = temperatureMean[i];
     const snowChance =
-      Math.max(0, (SNOW_TEMPERATURE - tMean) / SNOW_TEMPERATURE) +
+      Math.max(0, (SNOW_T_START_C - tMean) / (SNOW_T_START_C - SNOW_T_FULL_C)) +
       Math.max(0, (e - SNOW_ELEVATION) / (1 - SNOW_ELEVATION)) * 0.6;
     if (snowChance > 0) {
       const k = Math.min(1, snowChance);
@@ -569,14 +582,14 @@ function colorLakes(data: Uint8Array, rgba: Uint8Array, seaLevel: number, worldD
   }
 }
 
+/** Aridity color ramp ceiling: AI ≥ this saturates the green end of the
+ *  scale. Earth's wettest tropics reach AI ≈ 4 — but the gradient that
+ *  matters for visualization concentrates below 1.5 (the desert-to-humid
+ *  transition), so we saturate beyond that. */
+const ARIDITY_DISPLAY_CEILING = 1.5;
+
 function colorAridity(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
   const elevation = worldData?.elevation;
-  // Aridity in [0, 1.5+]. Color stops:
-  //   0.0  hyper-arid → deep tan/brown
-  //   0.2  arid       → tan
-  //   0.5  semi-arid  → olive
-  //   0.65 humid      → green
-  //   1.0+ very humid → deep green
   for (let i = 0; i < data.length; i++) {
     const o = i * 4;
     if (elevation && elevation[i] < seaLevel) {
@@ -586,7 +599,7 @@ function colorAridity(data: Float32Array, rgba: Uint8Array, seaLevel: number, wo
       rgba[o + 3] = 255;
       continue;
     }
-    const v = Math.min(data[i], 1);
+    const v = Math.min(data[i] / ARIDITY_DISPLAY_CEILING, 1);
     const r = Math.round((1 - v) * 200 + v * 30);
     const g = Math.round((1 - v) * 150 + v * 140);
     const b = Math.round((1 - v) * 80 + v * 60);
