@@ -2,6 +2,7 @@ import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { clamp, sphericalEmbed3D, mod } from '@lib/math';
 import { ClimateVariables, NoiseVariables, WorldFields } from '../types';
 import { HADLEY_EXTENT, POLAR_EXTENT, FERREL_WIDTH, EKMAN_DEG } from '../physics';
+import { WorldGeometry } from '../world-geometry';
 
 /**
  * Pressure-field → geostrophic-wind → Ekman-surface-friction wind model.
@@ -279,7 +280,7 @@ export function generateWind(
  *
  * Mutates: `wind` (in place).
  */
-export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array): void {
+export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array, geom: WorldGeometry): void {
   const { width, height } = fields;
   const elevation = fields.elevation!;
   const seaLevel = fields.seaLevel!;
@@ -289,11 +290,9 @@ export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array):
   // at higher latitudes. Dividing the x-gradient by cos(lat) puts gx and gy
   // in the same physical units (km-equivalent) so the slope magnitude and
   // along-wind projection are sphere-correct.
-  const COS_FLOOR = 0.05;
 
   for (let y = 0; y < height; y++) {
-    const lat = (y / height - 0.5) * Math.PI;
-    const invCosLat = 1 / Math.max(Math.cos(lat), COS_FLOOR);
+    const invCosLat = geom.xStepFactorRow[y];
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       if (elevation[idx] <= seaLevel) continue;

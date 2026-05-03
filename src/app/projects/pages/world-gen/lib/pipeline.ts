@@ -38,12 +38,12 @@ export class WorldGenerator {
     // insensitive to rainfall magnitude (stream-power scales A^m, m≈0.5).
     // Mutates f.elevation; we discard the pass-1 flow outputs because
     // pass 2 (computeFlowAndRivers) re-runs them with real precipitation.
-    runHydrology(f, hydrology);
+    runHydrology(f, geom, hydrology);
 
     // Wind pass 1: latitude-only pressure field (no thermal contrast yet —
     // that needs temperatures, which need ocean currents, which need wind).
     const windPass1 = generateWind(f, noise, climate, null, 0);
-    applyTerrainDeflection(f, windPass1);
+    applyTerrainDeflection(f, windPass1, geom);
 
     const { tempModifier, distToOcean } = generateOceanCurrents(f, windPass1, geom, climate);
 
@@ -64,9 +64,9 @@ export class WorldGenerator {
     // low → onshore inflow; winter reverses it. This is the mechanism behind
     // real monsoon seasonality.
     const windSummer = generateWind(f, noise, climate, temps.temperatureSummer, -climate.itczShift);
-    applyTerrainDeflection(f, windSummer);
+    applyTerrainDeflection(f, windSummer, geom);
     const windWinter = generateWind(f, noise, climate, temps.temperatureWinter, +climate.itczShift);
-    applyTerrainDeflection(f, windWinter);
+    applyTerrainDeflection(f, windWinter, geom);
     Object.assign(f, { wind: meanWind(windSummer, windWinter), windSummer, windWinter });
 
     // Humidity simulation uses the matching seasonal wind per pass. Passing
@@ -89,7 +89,7 @@ export class WorldGenerator {
     // No erosion — topology is locked in from pass 1. Lake formation is gated
     // on a water-budget check (catchment inflow vs. basin PET demand) so dry
     // basins don't become spurious lakes.
-    Object.assign(f, computeFlowAndRivers(f, hydrology));
+    Object.assign(f, computeFlowAndRivers(f, geom, hydrology));
 
     f.biomes = classifyBiomes(f);
 

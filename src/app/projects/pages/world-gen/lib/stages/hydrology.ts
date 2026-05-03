@@ -1,5 +1,6 @@
 import { mod } from '@lib/math';
 import { WorldFields } from '../types';
+import { WorldGeometry } from '../world-geometry';
 
 /**
  * Phase 3 — Hydrology & Erosion.
@@ -53,7 +54,11 @@ export interface HydrologyVariables {
 
 export const DEFAULT_HYDROLOGY: HydrologyVariables = {
   erosionIterations: 8,
-  erosionStrength: 0.02,
+  // Calibrated for slope expressed in elev-units / km (geom.d8KmDist). The old
+  // pixel-distance default was 0.02; at the default world settings 1 equator
+  // pixel ≈ 40 km, so K_km = K_pixel · 40^slopeExponent (n = 1) keeps the
+  // equator-erosion-per-iteration the same.
+  erosionStrength: 0.8,
   flowExponent: 0.5,
   slopeExponent: 1.0,
   diffusionStrength: 0.1,
@@ -77,6 +82,9 @@ export interface HydrologyResult {
 const D8_DX = [0, 1, 1, 1, 0, -1, -1, -1];
 const D8_DY = [-1, -1, 0, 1, 1, 1, 0, -1];
 const D8_DIST = [1, Math.SQRT2, 1, Math.SQRT2, 1, Math.SQRT2, 1, Math.SQRT2];
+// Slot index into geom.diffWeights for each D8 direction:
+// 0 = EW, 1 = NS, 2 = diag.
+const D8_DIFF_SLOT = [1, 2, 0, 2, 1, 2, 0, 2];
 
 const FILL_EPSILON = 1e-6;
 const EROSION_FLOOR_BELOW_SEA = 0.1;
@@ -96,15 +104,16 @@ function routeFlow(
   width: number,
   height: number,
   seaLevel: number,
+  geom: WorldGeometry,
   rainfall?: Float32Array
 ): FlowState {
   const filled = priorityFloodFill(elevation, width, height, seaLevel);
   const flowDir = computeD8FlowDir(filled, width, height, seaLevel);
-  const flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel, rainfall);
+  const flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel, geom, rainfall);
   return { filled, flowDir, flowAcc };
 }
 
-export function runHydrology(fields: WorldFields, config: HydrologyVariables): HydrologyResult {
+export function runHydrology(fields: WorldFields, geom: WorldGeometry, config: HydrologyVariables): HydrologyResult {
   const { width, height } = fields;
   const elevation = fields.elevation!;
   const seaLevel = fields.seaLevel!;
@@ -113,7 +122,7 @@ export function runHydrology(fields: WorldFields, config: HydrologyVariables): H
   //    mask comes from pass 2 (buildLakeMaskGated) which has the climate
   //    data it needs to decide which basins are real lakes.
   const lakes = new Uint8Array(elevation.length);
-  const initial = routeFlow(elevation, width, height, seaLevel);
+  const initial = routeFlow(elevation, width, height, seaLevel, geom);
   const flowDir = initial.flowDir;
   let flowAcc = initial.flowAcc;
 
@@ -128,16 +137,17 @@ export function runHydrology(fields: WorldFields, config: HydrologyVariables): H
       height,
       seaLevel,
       erosionFloor,
+      geom,
       config.erosionStrength,
       config.flowExponent,
       config.slopeExponent
     );
-    applyHillslopeDiffusion(elevation, width, height, seaLevel, config.diffusionStrength);
+    applyHillslopeDiffusion(elevation, width, height, seaLevel, geom, config.diffusionStrength);
   }
 
   // 3. Final flow on the eroded surface. Re-route so trapped basins don't
   //    break the topological walk after erosion reshapes things.
-  ({ flowAcc } = routeFlow(elevation, width, height, seaLevel));
+  ({ flowAcc } = routeFlow(elevation, width, height, seaLevel, geom));
 
   const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
 
@@ -363,18 +373,28 @@ function computeFlowAccumulation(
   width: number,
   height: number,
   seaLevel: number,
+  geom: WorldGeometry,
   rainfall?: Float32Array
 ): Float32Array {
   const size = width * height;
   const flowAcc = new Float32Array(size);
+  const cosLatRow = geom.cosLatRow;
 
-  // Collect land-cell indices, then sort by descending elevation.
+  // Collect land-cell indices, then sort by descending elevation. Each cell
+  // contributes (rainfall ?? 1) · cos(lat) so flowAcc represents total upstream
+  // catchment-weighted-by-area on the sphere — polar cells (small km² area)
+  // contribute proportionally less, equatorial cells unchanged from before.
   let landCount = 0;
   const landIdx = new Int32Array(size);
-  for (let i = 0; i < size; i++) {
-    if (filled[i] >= seaLevel) {
-      landIdx[landCount++] = i;
-      flowAcc[i] = rainfall ? rainfall[i] : 1;
+  for (let y = 0; y < height; y++) {
+    const cosLat = cosLatRow[y];
+    const rowBase = y * width;
+    for (let x = 0; x < width; x++) {
+      const i = rowBase + x;
+      if (filled[i] >= seaLevel) {
+        landIdx[landCount++] = i;
+        flowAcc[i] = (rainfall ? rainfall[i] : 1) * cosLat;
+      }
     }
   }
   const landView = landIdx.subarray(0, landCount);
@@ -406,11 +426,14 @@ function applyStreamPowerErosion(
   height: number,
   seaLevel: number,
   floor: number,
+  geom: WorldGeometry,
   K: number,
   m: number,
   n: number
 ): void {
+  const d8KmDist = geom.d8KmDist;
   for (let y = 0; y < height; y++) {
+    const rowD8Base = y * 8;
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       if (elevation[idx] < seaLevel) continue;
@@ -424,7 +447,9 @@ function applyStreamPowerErosion(
 
       const drop = elevation[idx] - elevation[nIdx];
       if (drop <= 0) continue;
-      const slope = drop / D8_DIST[d];
+      // Slope is elev-units per km. Polar E-W km uses the COS_FLOOR clamp,
+      // so polar slopes don't blow up where cos(lat) → 0.
+      const slope = drop / d8KmDist[rowD8Base + d];
 
       const erode = K * Math.pow(flowAcc[idx], m) * Math.pow(slope, n);
       let next = elevation[idx] - erode;
@@ -441,25 +466,39 @@ function applyHillslopeDiffusion(
   width: number,
   height: number,
   seaLevel: number,
+  geom: WorldGeometry,
   kd: number
 ): void {
   if (kd <= 0) return;
   const src = Float32Array.from(elevation);
+  const diffWeights = geom.diffWeights;
   for (let y = 0; y < height; y++) {
+    const wRow = y * 3;
+    const wEw = diffWeights[wRow + 0];
+    const wNs = diffWeights[wRow + 1];
+    const wDiag = diffWeights[wRow + 2];
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       if (src[idx] < seaLevel) continue;
 
+      // Inverse-distance-squared neighbor weighting → diffusion is isotropic
+      // in km-space. Polar rows weight EW heavier than NS because EW pixels
+      // span fewer km there. Boundary rows skip the missing N/S neighbors and
+      // we renormalize against the actually-summed weight so the y=0 / y=H-1
+      // rows still produce a proper weighted mean (no synthetic boundary).
       let sum = 0;
-      let count = 0;
+      let totalW = 0;
       for (let d = 0; d < 8; d++) {
-        const nx = mod(x + D8_DX[d], width);
         const ny = y + D8_DY[d];
         if (ny < 0 || ny >= height) continue;
-        sum += src[ny * width + nx];
-        count++;
+        const nx = mod(x + D8_DX[d], width);
+        const slot = D8_DIFF_SLOT[d];
+        const w = slot === 0 ? wEw : slot === 1 ? wNs : wDiag;
+        sum += src[ny * width + nx] * w;
+        totalW += w;
       }
-      const avg = sum / count;
+      if (totalW <= 0) continue;
+      const avg = sum / totalW;
       elevation[idx] = src[idx] + (avg - src[idx]) * kd;
     }
   }
@@ -504,7 +543,11 @@ function buildRiverMask(
  *  tuning) aligned with the pass-1 erosion run, where rainfall = 1.0. */
 const PRECIP_FLOW_REFERENCE_MM = 1000;
 
-export function computeFlowAndRivers(fields: WorldFields, config: HydrologyVariables): HydrologyResult {
+export function computeFlowAndRivers(
+  fields: WorldFields,
+  geom: WorldGeometry,
+  config: HydrologyVariables
+): HydrologyResult {
   const { width, height } = fields;
   const elevation = fields.elevation!;
   const seaLevel = fields.seaLevel!;
@@ -523,7 +566,7 @@ export function computeFlowAndRivers(fields: WorldFields, config: HydrologyVaria
     petFlow[i] = petAnnual[i] * invRef;
   }
 
-  const { filled, flowAcc } = routeFlow(elevation, width, height, seaLevel, rainfallFlow);
+  const { filled, flowAcc } = routeFlow(elevation, width, height, seaLevel, geom, rainfallFlow);
   const lakes = buildLakeMaskGated(
     elevation,
     filled,

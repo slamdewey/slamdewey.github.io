@@ -47,8 +47,7 @@ export function generateOceanCurrents(
   const tempModifier = new Float32Array(size);
   const distToOcean = new Float32Array(size);
   const INF = width + height;
-  const cellSizeKmEq = geom.cellSizeKmEquator;
-  const cosLatRow = geom.cosLatRow;
+  const kmPerXPixelRow = geom.kmPerXPixelRow;
 
   // --- 1. Per-row east/west distance-to-land scans --------------------------
   // Two passes per direction handle cylindrical X-wrap cleanly: the first
@@ -90,8 +89,8 @@ export function generateOceanCurrents(
     const lat = y / height;
     // +1 at north pole, -1 at south pole, 0 at equator.
     const polewardness = (0.5 - lat) * 2;
-    // Convert pixel-distance to km using this row's actual E-W cell size.
-    const kmPerPxX = cellSizeKmEq * cosLatRow[y];
+    // Per-row actual E-W cell size in km (cellSizeKmEquator · cosLat, unclamped).
+    const kmPerPxX = kmPerXPixelRow[y];
 
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
@@ -134,11 +133,11 @@ export function generateOceanCurrents(
       cv.sstIterations,
       cv.sstDiffusion,
       cv.sstRelaxation,
-      cosLatRow
+      geom
     );
   }
 
-  propagateNearestOcean(width, height, distToOcean, tempModifier, cosLatRow);
+  propagateNearestOcean(width, height, distToOcean, tempModifier, geom);
   return { tempModifier, distToOcean };
 }
 
@@ -165,7 +164,7 @@ function advectSstAnomaly(
   iterations: number,
   diffusion: number,
   relaxation: number,
-  cosLatRow: Float32Array
+  geom: WorldGeometry
 ): void {
   const size = width * height;
   const source = new Float32Array(tempModifier);
@@ -176,12 +175,7 @@ function advectSstAnomaly(
 
   // Per-row east-west step factor: a wind component of 1 advances by more
   // pixels at high latitudes because longitude pixels cover less km there.
-  // (Mirrors humidity-sim's xStepFactorRow.)
-  const COS_FLOOR = 0.05;
-  const xStepFactorRow = new Float32Array(height);
-  for (let y = 0; y < height; y++) {
-    xStepFactorRow[y] = 1 / Math.max(cosLatRow[y], COS_FLOOR);
-  }
+  const xStepFactorRow = geom.xStepFactorRow;
 
   for (let iter = 0; iter < iterations; iter++) {
     // --- 1. Advect (semi-Lagrangian upwind, bilinear interp) ---
@@ -282,7 +276,7 @@ function propagateNearestOcean(
   height: number,
   dist: Float32Array,
   modifier: Float32Array,
-  cosLatRow: Float32Array
+  geom: WorldGeometry
 ): void {
   const relax = (idx: number, srcIdx: number, cost: number): void => {
     const candidate = dist[srcIdx] + cost;
@@ -292,12 +286,13 @@ function propagateNearestOcean(
     }
   };
 
-  // Per-row step costs in equator-pixel-equivalent units.
-  const COS_FLOOR = 0.05;
+  // Per-row step costs in equator-pixel-equivalent units. Derived from
+  // geom.xStepFactorRow (= 1 / max(cosLat, COS_FLOOR)), so the polar clamp
+  // matches every other sphere-aware stage.
   const xCostRow = new Float32Array(height);
   const diagCostRow = new Float32Array(height);
   for (let y = 0; y < height; y++) {
-    const c = Math.max(cosLatRow[y], COS_FLOOR);
+    const c = 1 / geom.xStepFactorRow[y];
     xCostRow[y] = c;
     diagCostRow[y] = Math.sqrt(c * c + 1);
   }

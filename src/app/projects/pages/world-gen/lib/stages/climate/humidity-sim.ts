@@ -93,7 +93,6 @@ export function simulateHumidity(
   itczLatOffset = 0
 ): HumidityResult {
   const cellSizeKm = geom.cellSizeKmEquator;
-  const cosLatRow = geom.cosLatRow;
   const size = width * height;
   const q = new Float32Array(size);
   const qNext = new Float32Array(size);
@@ -122,15 +121,15 @@ export function simulateHumidity(
 
   // Diffusion blend factors. y-direction is lat-invariant. x-direction needs
   // 1/cos²(lat) scaling because dx in km shrinks with cos(lat); we cap each
-  // per-row blend at 1 for CFL safety so polar rows don't go unstable.
+  // per-row blend at 1 for CFL safety so polar rows don't go unstable. The
+  // polar clamp lives in geom.xStepFactorRow (= 1 / max(cosLat, COS_FLOOR)).
   const yDiffBlend = clamp((cv.moistureDiffusivityKm2PerDay * dtDays) / (cellSizeKm * cellSizeKm), 0, 1);
   const xDiffBlendRow = new Float32Array(height);
   const xStepFactorRow = new Float32Array(height);
-  const COS_FLOOR = 0.05; // cap polar amplification so the very last few rows don't blow up
   for (let y = 0; y < height; y++) {
-    const c = Math.max(cosLatRow[y], COS_FLOOR);
-    xStepFactorRow[y] = stepFactor / c;
-    xDiffBlendRow[y] = clamp(yDiffBlend / (c * c), 0, 1);
+    const xs = geom.xStepFactorRow[y];
+    xStepFactorRow[y] = stepFactor * xs;
+    xDiffBlendRow[y] = clamp(yDiffBlend * xs * xs, 0, 1);
   }
 
   // Saturation capacity per cell — Clausius-Clapeyron is exponential in T,

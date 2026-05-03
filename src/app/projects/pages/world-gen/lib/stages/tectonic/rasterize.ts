@@ -129,15 +129,28 @@ export function rasterizePlateInteractions(
     }
   }
 
-  // Pass 2: Chamfer distance transform
-  const dist = chamferDistance(isBoundary, width, height);
+  // Sphere-aware Dijkstra distance transforms. Output is in radians on the
+  // unit sphere; rescaled to equator-pixel-equivalent so the existing
+  // pixel-derived thresholds (maxFalloffWidth, shelfWidth, oceanAgeScale) stay
+  // calibrated. Routing across the pole is handled inside the transform.
+  const radToEqPx = width / (2 * Math.PI);
+  const rescaleToEqPx = (d: Float32Array): void => {
+    for (let i = 0; i < d.length; i++) {
+      if (Number.isFinite(d[i])) d[i] *= radToEqPx;
+    }
+  };
 
-  // Pass 2b: Chamfer distance to nearest passive-margin shelf seed. Continental
+  // Pass 2: Distance to nearest plate-boundary pixel.
+  const dist = sphericalDistanceTransform(isBoundary, width, height);
+  rescaleToEqPx(dist);
+
+  // Pass 2b: Distance to nearest passive-margin shelf seed. Continental
   // pixels within shelf range get their gravity target pulled toward SHELF_TARGET,
   // producing the shallow band that gives coastlines their ragged, island-dotted
   // character. Pixels far inland (or outside continental plates entirely) keep
   // their plate's baseline as the target.
-  const distToShelfSeed = chamferDistance(shelfSeedMask, width, height);
+  const distToShelfSeed = sphericalDistanceTransform(shelfSeedMask, width, height);
+  rescaleToEqPx(distToShelfSeed);
 
   // Pass 3: BFS from boundary pixels to propagate boundary index outward
   // Use the maximum possible falloff width for BFS reach, then per-pixel widths in Pass 5
@@ -232,18 +245,10 @@ export function rasterizePlateInteractions(
       hasRidgeSeeds = true;
     }
   }
-  // Sphere-aware: flat chamfer would pinch ocean-age contours to a vertex at
-  // the poles because horizontal pixel cost doesn't shrink with cos(lat). The
-  // other two chamfer calls above (boundary falloff, shelf band) share this
-  // latent bug, but they're clipped to a few pixels of falloff so it never
-  // shows visually — left as-is for now.
-  // Output is in radians; rescale to equator-pixel-equivalent units so the
-  // existing oceanAgeScale = width/6 stays calibrated for the exp() falloff.
+  // Sphere-aware distance from ridge seeds; rescaled to equator-pixel-equivalent
+  // so the existing oceanAgeScale = width/6 stays calibrated for the exp() falloff.
   const distToRidge = sphericalDistanceTransform(ridgeSeedMask, width, height);
-  const radToEqPx = width / (2 * Math.PI);
-  for (let i = 0; i < size; i++) {
-    if (Number.isFinite(distToRidge[i])) distToRidge[i] *= radToEqPx;
-  }
+  rescaleToEqPx(distToRidge);
   const oceanAge = new Float32Array(size);
   const oceanAgeScale = width / 6;
 
@@ -540,56 +545,6 @@ function sphericalDistanceTransform(isSeed: Uint8Array, width: number, height: n
           dist[j] = nd;
           heapPush(nd, j);
         }
-      }
-    }
-  }
-
-  return dist;
-}
-
-/**
- * Two-pass Chamfer distance transform.
- * Returns approximate Euclidean distance to nearest boundary pixel.
- */
-function chamferDistance(isBoundary: Uint8Array, width: number, height: number): Float32Array {
-  const size = width * height;
-  const dist = new Float32Array(size);
-  const INF = width + height;
-
-  for (let i = 0; i < size; i++) {
-    dist[i] = isBoundary[i] ? 0 : INF;
-  }
-
-  // Forward pass (top-left to bottom-right)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      const left = y * width + mod(x - 1, width);
-      if (dist[left] + 1 < dist[idx]) dist[idx] = dist[left] + 1;
-      if (y > 0) {
-        const top = (y - 1) * width + x;
-        if (dist[top] + 1 < dist[idx]) dist[idx] = dist[top] + 1;
-        const topLeft = (y - 1) * width + mod(x - 1, width);
-        if (dist[topLeft] + 1.414 < dist[idx]) dist[idx] = dist[topLeft] + 1.414;
-        const topRight = (y - 1) * width + mod(x + 1, width);
-        if (dist[topRight] + 1.414 < dist[idx]) dist[idx] = dist[topRight] + 1.414;
-      }
-    }
-  }
-
-  // Backward pass (bottom-right to top-left)
-  for (let y = height - 1; y >= 0; y--) {
-    for (let x = width - 1; x >= 0; x--) {
-      const idx = y * width + x;
-      const right = y * width + mod(x + 1, width);
-      if (dist[right] + 1 < dist[idx]) dist[idx] = dist[right] + 1;
-      if (y < height - 1) {
-        const bottom = (y + 1) * width + x;
-        if (dist[bottom] + 1 < dist[idx]) dist[idx] = dist[bottom] + 1;
-        const bottomLeft = (y + 1) * width + mod(x - 1, width);
-        if (dist[bottomLeft] + 1.414 < dist[idx]) dist[idx] = dist[bottomLeft] + 1.414;
-        const bottomRight = (y + 1) * width + mod(x + 1, width);
-        if (dist[bottomRight] + 1.414 < dist[idx]) dist[idx] = dist[bottomRight] + 1.414;
       }
     }
   }
