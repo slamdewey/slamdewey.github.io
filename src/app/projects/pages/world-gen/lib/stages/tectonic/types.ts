@@ -27,8 +27,15 @@ export enum InteractionType {
 export interface PlateProperties {
   index: number;
   type: PlateType;
-  dx: number;
-  dy: number;
+  /**
+   * Euler rotation vector for the plate's rigid-body motion on the unit sphere.
+   * Direction is the Euler pole; magnitude is angular speed (arbitrary units —
+   * intensities are normalized later). Surface velocity at any point r̂ on the
+   * plate is `omega × r̂`, a tangent-plane vector regardless of latitude. This
+   * replaces the legacy 2D pixel-space (dx, dy) drift, which biased
+   * convergence classification at high latitudes.
+   */
+  omega: [number, number, number];
   /** Normalized lithospheric thickness [0, 1]. Continental ~0.55–0.85, Oceanic ~0.1–0.35. */
   thickness: number;
   /** Normalized crustal density [0, 1]. Continental ~0.2–0.4, Oceanic ~0.55–0.85 (higher = older). */
@@ -67,8 +74,16 @@ export interface TectonicResult {
   oceanAge: Float32Array;
 }
 
-/** Internal: 2D pixel-space centroid of a plate. */
+/**
+ * Internal: plate centroid in both representations.
+ *
+ * `x, y` is the equirect pixel projection (used by the cylindrical seed-placement
+ * helpers). `r` is the unit-vector centroid on the sphere (used by Phase-A
+ * boundary classification, which evaluates Euler-pole velocities at midpoints
+ * without going through pixel space).
+ */
 export interface PlateCentroid {
   x: number;
   y: number;
+  r: [number, number, number];
 }

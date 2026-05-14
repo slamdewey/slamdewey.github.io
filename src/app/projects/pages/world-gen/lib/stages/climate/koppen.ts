@@ -72,8 +72,85 @@ export interface KoppenInputs {
 const PET_B_FLOOR_MM = 100;
 
 /**
- * Classify each cell. Ocean cells get a sentinel value (overridden by the
- * biome stage anyway).
+ * Per-cell Köppen classification — pure function over scalar inputs.
+ * Extracted from `classifyKoppen` so the same logic can be evaluated at
+ * arbitrary render resolution via the WorldSampler (Phase A5).
+ *
+ * Ocean cells (elevation < seaLevel) return `KoppenClass.EF` as a sentinel
+ * that the biome stage / colorizer treats as "ignore."
+ */
+export function classifyKoppenAt(
+  tSummer: number,
+  tWinter: number,
+  pSummer: number,
+  pWinter: number,
+  petAnnual: number,
+  elevation: number,
+  seaLevel: number
+): KoppenClass {
+  if (elevation < seaLevel) return KoppenClass.EF;
+
+  const tColdest = Math.min(tSummer, tWinter);
+  const tWarmest = Math.max(tSummer, tWinter);
+  const tAnnualMean = (tSummer + tWinter) * 0.5;
+  const totalP = pSummer + pWinter;
+
+  // True monsoonal seasonality: dry season < 1/10 of wet season.
+  const wetSeason = Math.max(pSummer, pWinter);
+  const isDryWinter = wetSeason > 1 && pWinter < SEASONAL_RATIO * pSummer;
+  const isDrySummer = wetSeason > 1 && pSummer < SEASONAL_RATIO * pWinter;
+
+  // E — Polar (warmest "month" too cold)
+  if (tWarmest < T_POLAR_WARMEST) {
+    return tWarmest < T_ICECAP_WARMEST ? KoppenClass.EF : KoppenClass.ET;
+  }
+
+  // B — Arid via Köppen-Geiger P_threshold formula.
+  if (petAnnual >= PET_B_FLOOR_MM) {
+    const summerShare = totalP > 0 ? pSummer / totalP : 0.5;
+    let alpha = 140;
+    if (summerShare >= SEASONAL_DOMINANCE) alpha = 280;
+    else if (summerShare <= 1 - SEASONAL_DOMINANCE) alpha = 0;
+    const pThresh = 20 * tAnnualMean + alpha;
+    if (totalP < pThresh) {
+      const isDesert = totalP < 0.5 * pThresh;
+      const isHot = tAnnualMean >= T_TROPICAL_COLDEST;
+      if (isDesert) return isHot ? KoppenClass.BWh : KoppenClass.BWk;
+      return isHot ? KoppenClass.BSh : KoppenClass.BSk;
+    }
+  }
+
+  // A — Tropical (no cold winters)
+  if (tColdest > T_TROPICAL_COLDEST) {
+    const driestSeason = Math.min(pSummer, pWinter);
+    if (driestSeason >= 360) return KoppenClass.Af;
+    if (driestSeason >= 150) return KoppenClass.Am;
+    return KoppenClass.Aw;
+  }
+
+  // D — Continental (cold winters)
+  if (tColdest <= T_NO_FROST) {
+    const isHotSummer = tWarmest >= T_HOT_SUMMER;
+    const isCoolSummer = tWarmest < T_COOL_SUMMER;
+    if (isDrySummer) return isHotSummer ? KoppenClass.Dsa : KoppenClass.Dsb;
+    if (isDryWinter) return isHotSummer ? KoppenClass.Dwa : KoppenClass.Dwb;
+    if (isCoolSummer) return KoppenClass.Dfc;
+    if (isHotSummer) return KoppenClass.Dfa;
+    return KoppenClass.Dfb;
+  }
+
+  // C — Temperate (mild winters)
+  const isHotSummer = tWarmest >= T_HOT_SUMMER;
+  if (isDrySummer) return isHotSummer ? KoppenClass.Csa : KoppenClass.Csb;
+  if (isDryWinter) return isHotSummer ? KoppenClass.Cwa : KoppenClass.Cwb;
+  return isHotSummer ? KoppenClass.Cfa : KoppenClass.Cfb;
+}
+
+/**
+ * Classify every cell of the physics grid. Ocean cells get the EF sentinel
+ * (the biome stage ignores them and uses elevation-based water classes
+ * instead). Loop body delegates to `classifyKoppenAt` so render-resolution
+ * callers (color-maps.ts) reuse identical logic.
  */
 export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
   const { temperatureSummer, temperatureWinter, precipSummer, precipWinter, petAnnual, elevation, seaLevel } = inputs;
@@ -81,101 +158,15 @@ export function classifyKoppen(inputs: KoppenInputs): Uint8Array {
   const out = new Uint8Array(size);
 
   for (let i = 0; i < size; i++) {
-    if (elevation[i] < seaLevel) {
-      out[i] = KoppenClass.EF; // sentinel, ignored downstream
-      continue;
-    }
-
-    const tSummer = temperatureSummer[i];
-    const tWinter = temperatureWinter[i];
-    const tColdest = Math.min(tSummer, tWinter);
-    const tWarmest = Math.max(tSummer, tWinter);
-    const tAnnualMean = (tSummer + tWinter) * 0.5;
-    const pSummer = precipSummer[i];
-    const pWinter = precipWinter[i];
-    const totalP = pSummer + pWinter;
-
-    // True monsoonal seasonality: dry season < 1/10 of wet season.
-    // No absolute floor needed when precip is in mm — the ratio test
-    // is meaningful even at low magnitudes (winter <1 mm vs summer 50 mm
-    // is genuine seasonality, not the model floundering near zero).
-    const wetSeason = Math.max(pSummer, pWinter);
-    const isDryWinter = wetSeason > 1 && pWinter < SEASONAL_RATIO * pSummer;
-    const isDrySummer = wetSeason > 1 && pSummer < SEASONAL_RATIO * pWinter;
-
-    // E — Polar (warmest "month" too cold)
-    if (tWarmest < T_POLAR_WARMEST) {
-      out[i] = tWarmest < T_ICECAP_WARMEST ? KoppenClass.EF : KoppenClass.ET;
-      continue;
-    }
-
-    // B — Arid via Köppen-Geiger P_threshold formula:
-    //   P_threshold_mm = 20 · T_annual_C + α
-    //   α = 280 if 70 %+ of rain falls in summer (warm half)
-    //   α = 140 if rainfall is balanced
-    //   α = 0   if 70 %+ falls in winter (cool half)
-    //   BW (desert) when MAP < 0.5 × P_threshold
-    //   BS (steppe) when MAP < 1.0 × P_threshold
-    if (petAnnual[i] >= PET_B_FLOOR_MM) {
-      const summerShare = totalP > 0 ? pSummer / totalP : 0.5;
-      let alpha = 140;
-      if (summerShare >= SEASONAL_DOMINANCE) alpha = 280;
-      else if (summerShare <= 1 - SEASONAL_DOMINANCE) alpha = 0;
-      const pThresh = 20 * tAnnualMean + alpha;
-      if (totalP < pThresh) {
-        const isDesert = totalP < 0.5 * pThresh;
-        const isHot = tAnnualMean >= T_TROPICAL_COLDEST;
-        if (isDesert) {
-          out[i] = isHot ? KoppenClass.BWh : KoppenClass.BWk;
-        } else {
-          out[i] = isHot ? KoppenClass.BSh : KoppenClass.BSk;
-        }
-        continue;
-      }
-    }
-
-    // A — Tropical (no cold winters)
-    if (tColdest > T_TROPICAL_COLDEST) {
-      // Driest-month proxy: minimum of summer/winter precip averaged across
-      // the season. Köppen's textbook cutoff is 60 mm for the driest month;
-      // we use seasonal totals so scale up by a 6-month season → ~360 mm
-      // separates Af/Am, ~150 mm separates Am/Aw.
-      const driestSeason = Math.min(pSummer, pWinter);
-      if (driestSeason >= 360) {
-        out[i] = KoppenClass.Af;
-      } else if (driestSeason >= 150) {
-        out[i] = KoppenClass.Am;
-      } else {
-        out[i] = KoppenClass.Aw;
-      }
-      continue;
-    }
-
-    // D — Continental (cold winters)
-    if (tColdest <= T_NO_FROST) {
-      const isHotSummer = tWarmest >= T_HOT_SUMMER;
-      const isCoolSummer = tWarmest < T_COOL_SUMMER;
-      if (isDrySummer) {
-        out[i] = isHotSummer ? KoppenClass.Dsa : KoppenClass.Dsb;
-      } else if (isDryWinter) {
-        out[i] = isHotSummer ? KoppenClass.Dwa : KoppenClass.Dwb;
-      } else {
-        if (isCoolSummer) out[i] = KoppenClass.Dfc;
-        else if (isHotSummer) out[i] = KoppenClass.Dfa;
-        else out[i] = KoppenClass.Dfb;
-      }
-      continue;
-    }
-
-    // C — Temperate (mild winters)
-    const isHotSummer = tWarmest >= T_HOT_SUMMER;
-    if (isDrySummer) {
-      out[i] = isHotSummer ? KoppenClass.Csa : KoppenClass.Csb;
-    } else if (isDryWinter) {
-      out[i] = isHotSummer ? KoppenClass.Cwa : KoppenClass.Cwb;
-    } else {
-      out[i] = isHotSummer ? KoppenClass.Cfa : KoppenClass.Cfb;
-    }
+    out[i] = classifyKoppenAt(
+      temperatureSummer[i],
+      temperatureWinter[i],
+      precipSummer[i],
+      precipWinter[i],
+      petAnnual[i],
+      elevation[i],
+      seaLevel
+    );
   }
 
   return out;

@@ -82,6 +82,35 @@ export function sphericalEmbed3D(
   out[2] = Math.sin(lat);
 }
 
+/**
+ * Equirectangular integer neighbor lookup with sphere wrap.
+ *
+ * Given a row `y` and a longitudinal offset `nxRaw` (which may be outside
+ * `[0, W)`), returns `[nx, ny]` for the neighbor cell. Wraps longitude
+ * modulo width. Crossing a pole (ny < 0 or ny >= H) re-emerges at the same
+ * pole row at the antipodal longitude — matching the routing used by
+ * `sphericalDistanceTransform` in stages/tectonic/rasterize.ts.
+ *
+ * The output is the natural sphere-correct adjacency on an equirectangular
+ * grid: the cell "above" the north pole row is another north pole cell on
+ * the opposite side of the globe.
+ */
+export function wrapEquirectNeighbor(nxRaw: number, nyRaw: number, width: number, height: number): [number, number] {
+  let nx = mod(nxRaw, width);
+  let ny = nyRaw;
+  if (ny < 0) {
+    ny = -ny - 1;
+    nx = mod(nx + (width >> 1), width);
+  } else if (ny >= height) {
+    ny = 2 * height - 1 - ny;
+    nx = mod(nx + (width >> 1), width);
+  }
+  // Clamp pathologically large overshoots (multiple pole crossings).
+  if (ny < 0) ny = 0;
+  else if (ny >= height) ny = height - 1;
+  return [nx, ny];
+}
+
 export function vec2Normalize(x: number, y: number): [number, number] {
   const len = Math.sqrt(x * x + y * y);
   if (len === 0) return [0, 0];

@@ -56,7 +56,7 @@ export function computePlateCentroidsSphere(
   const centroids: PlateCentroid[] = [];
   for (let p = 0; p < plateCount; p++) {
     if (counts[p] === 0) {
-      centroids.push({ x: 0, y: 0 });
+      centroids.push({ x: 0, y: 0, r: [1, 0, 0] });
       continue;
     }
     const cx = sumX[p];
@@ -64,7 +64,7 @@ export function computePlateCentroidsSphere(
     const cz = sumZ[p];
     const len = Math.sqrt(cx * cx + cy * cy + cz * cz);
     if (len === 0) {
-      centroids.push({ x: 0, y: 0 });
+      centroids.push({ x: 0, y: 0, r: [1, 0, 0] });
       continue;
     }
     const nx = cx / len;
@@ -75,6 +75,7 @@ export function computePlateCentroidsSphere(
     centroids.push({
       x: mod(((lon + Math.PI) / TWO_PI) * width, width),
       y: ((Math.PI / 2 - lat) / Math.PI) * height,
+      r: [nx, ny, nz],
     });
   }
 
@@ -121,8 +122,27 @@ export function assignPlateProperties(
     sphericalEmbed3D(centroids[i].x, centroids[i].y, width, height, np);
     const sample = continentNoise.eval3D(np[0] * CONTINENT_FREQ, np[1] * CONTINENT_FREQ, np[2] * CONTINENT_FREQ);
 
-    const angle = xorshift32(rng) * Math.PI * 2;
+    // Euler rotation vector: isotropic direction on S², magnitude in the same
+    // 0.3–1.0 range as the legacy 2D drift so downstream intensity calibration
+    // (which normalizes to [0, 1] across all boundaries anyway) stays comparable.
+    // Sampled via Marsaglia: pick a uniform unit vector, scale by magnitude.
+    let ox = 0;
+    let oy = 0;
+    let oz = 0;
+    let s2 = 2;
+    while (s2 >= 1 || s2 === 0) {
+      const u = xorshift32(rng) * 2 - 1;
+      const v = xorshift32(rng) * 2 - 1;
+      s2 = u * u + v * v;
+      if (s2 < 1 && s2 > 0) {
+        const f = 2 * Math.sqrt(1 - s2);
+        ox = u * f;
+        oy = v * f;
+        oz = 1 - 2 * s2;
+      }
+    }
     const magnitude = 0.3 + xorshift32(rng) * 0.7;
+    const omega: [number, number, number] = [ox * magnitude, oy * magnitude, oz * magnitude];
 
     const type = sample > 0 ? PlateType.Continental : PlateType.Oceanic;
 
@@ -143,8 +163,7 @@ export function assignPlateProperties(
     plates.push({
       index: i,
       type,
-      dx: Math.cos(angle) * magnitude,
-      dy: Math.sin(angle) * magnitude,
+      omega,
       thickness,
       density,
       baseElevation: computeIsostasy(thickness, density),

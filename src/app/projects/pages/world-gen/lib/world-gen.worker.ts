@@ -1,6 +1,7 @@
 import { WorldGenerator } from './pipeline';
 import { layerToRGBA, platesToRGBA } from './color-maps';
 import { LayerName, WorldData } from './types';
+import { WorldSampler } from './world-sampler';
 import { WorkerRequest, WorkerResponse } from './worker-types';
 
 const ALL_LAYERS: LayerName[] = [
@@ -29,17 +30,25 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
   const generator = new WorldGenerator(data.config);
   const worldData = generator.generate();
 
+  // Render resolution is separate from physics resolution (Phase A5). Layer
+  // images are materialized at renderW × renderH; if the config doesn't
+  // specify them they fall back to physics resolution (pre-A5 behavior).
+  const renderW = data.config.renderWidth ?? worldData.width;
+  const renderH = data.config.renderHeight ?? worldData.height;
+
+  const sampler = new WorldSampler(worldData);
   const layerImages = {} as Record<LayerName, Uint8Array>;
   for (const layer of ALL_LAYERS) {
+    const rgba = new Uint8Array(renderW * renderH * 4);
     if (layer === 'plates') {
-      layerImages[layer] = platesToRGBA(worldData, worldData.width, worldData.height);
+      platesToRGBA(rgba, renderW, renderH, sampler);
     } else {
-      const src = selectLayerSource(worldData, layer);
-      layerImages[layer] = layerToRGBA(src, worldData.width, worldData.height, layer, worldData.seaLevel, worldData);
+      layerToRGBA(rgba, renderW, renderH, layer, sampler);
     }
+    layerImages[layer] = rgba;
   }
 
-  const response: WorkerResponse = { worldData, layerImages };
+  const response: WorkerResponse = { worldData, layerImages, renderWidth: renderW, renderHeight: renderH };
 
   // Collect all typed array buffers for zero-copy transfer.
   // NOTE: temperature and precipitation alias temperatureMean / precipAnnual,
@@ -79,45 +88,9 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
   postMessage(response, transfer);
 });
 
-function selectLayerSource(worldData: WorldData, layer: LayerName): Float32Array | Uint8Array {
-  switch (layer) {
-    case 'wind':
-      return worldData.wind;
-    case 'windSummer':
-      return worldData.windSummer;
-    case 'windWinter':
-      return worldData.windWinter;
-    case 'flowAccumulation':
-      return worldData.flowAccumulation;
-    case 'rivers':
-      return worldData.rivers;
-    case 'lakes':
-      return worldData.lakes;
-    case 'faultLines':
-      return worldData.faultLines;
-    case 'continentalSubRelief':
-      return worldData.continentalSubRelief;
-    case 'oceanAge':
-      return worldData.oceanAge;
-    case 'elevation':
-      return worldData.elevation;
-    case 'temperature':
-      return worldData.temperatureMean;
-    case 'precipitation':
-      return worldData.precipAnnual;
-    case 'soilMoisture':
-      return worldData.soilMoisture;
-    case 'biomes':
-      return worldData.biomes;
-    case 'aridity':
-      return worldData.aridityIndex;
-    case 'seasonality':
-      return worldData.seasonality;
-    case 'growingSeason':
-      return worldData.growingSeason;
-    case 'koppen':
-      return worldData.koppenClass;
-    default:
-      throw new Error(`Unhandled layer ${layer}`);
-  }
-}
+// `selectLayerSource` is no longer needed — the new layerToRGBA goes through
+// the sampler, which knows how to read each field. Kept here in a comment
+// only for the historical record of which layer mapped to which array; that
+// mapping now lives inside `WorldSampler.sampleX` methods and the layer-
+// dispatch switch in color-maps.ts.
+export type _UnusedWorldData = WorldData;

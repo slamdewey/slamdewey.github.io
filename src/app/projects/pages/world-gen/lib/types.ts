@@ -150,6 +150,19 @@ export interface WorldConfig {
    *  Combined with width, this fixes cellSizeKm = circumferenceKm/width and makes
    *  the climate physics resolution-independent. */
   circumferenceKm: number;
+  /**
+   * Render resolution for the GPU-uploadable layer images, decoupled from
+   * the physics grid (Phase A5). If unset, defaults to width × height (the
+   * pre-A5 behavior — physics-res = render-res). Setting `renderWidth >
+   * width` produces sharper layer images: smooth fields are bilinear-
+   * upsampled and categorical fields (Köppen, biomes) are re-classified
+   * per render pixel from sampled inputs, eliminating the nearest-neighbor
+   * staircase that the physics grid otherwise imposes on coastlines and
+   * biome boundaries. The downside is layer-image generation cost scales
+   * with renderW × renderH.
+   */
+  renderWidth?: number;
+  renderHeight?: number;
   noise: NoiseVariables;
   climate: ClimateVariables;
   tectonic: TectonicVariables;

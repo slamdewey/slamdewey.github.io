@@ -44,11 +44,11 @@ export function generateTectonicPlates(fields: WorldFields, nv: NoiseVariables, 
   });
   const { cells: cellMap, seeds: sphereSeeds } = sphereVoronoi;
 
-  // Project sphere seeds → pixel coords for the cylindrical seed-placement and
-  // boundary-vector helpers below. These helpers compare adjacent or near-by
-  // cells where tangent-plane (pixel) distance is a fine approximation; the
-  // sphere-correct work happens in centroid math (Step 5) and the cos(lat)
-  // scaling in classifyBoundaries (Step 6).
+  // Project sphere seeds → pixel coords for the cylindrical seed-placement
+  // helpers below (farthest-point sampling, BFS partitioning). Those helpers
+  // compare adjacent or near-by cells where tangent-plane (pixel) distance is
+  // a fine approximation. Sphere-correct work happens in centroid math
+  // (Step 5) and the Euler-pole velocity classification in Step 6.
   const seeds = sphereSeedsToPixels(sphereSeeds, width, height);
 
   // Step 2: Build cell adjacency graph
@@ -72,7 +72,7 @@ export function generateTectonicPlates(fields: WorldFields, nv: NoiseVariables, 
 
   // Step 6: Aggregate and classify plate-level boundaries
   const rawBoundaries = aggregatePlateBoundaries(graph.edges, cellToPlate, plateCount);
-  const boundaries = classifyBoundaries(rawBoundaries, plates, centroids, width, height);
+  const boundaries = classifyBoundaries(rawBoundaries, plates, centroids);
 
   // Step 7: Rasterize interactions into baseElevation, faults, mountainRanges,
   // continentalSubRelief, distToRidge, and oceanAge.

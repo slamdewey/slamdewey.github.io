@@ -368,10 +368,12 @@ if (tColdest > T_TROPICAL_COLDEST) {
   }
 
   private onWorkerResult(result: WorkerResponse): void {
-    const { worldData, layerImages } = result;
+    const { worldData, layerImages, renderWidth, renderHeight } = result;
 
-    const w = worldData.width;
-    const h = worldData.height;
+    // Texture dimensions follow the *render* resolution (Phase A5). Physics
+    // resolution (worldData.width/height) only matters for stat readouts.
+    const w = renderWidth;
+    const h = renderHeight;
 
     this.plateImage.set({ rgba: layerImages.plates, width: w, height: h });
     this.faultImage.set({ rgba: layerImages.faultLines, width: w, height: h });

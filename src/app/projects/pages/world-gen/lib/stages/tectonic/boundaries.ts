@@ -54,9 +54,7 @@ function deriveInteractionType(type: BoundaryType, typeA: PlateType, typeB: Plat
 export function classifyBoundaries(
   rawBoundaries: { plateA: number; plateB: number; length: number }[],
   plates: PlateProperties[],
-  centroids: PlateCentroid[],
-  width: number,
-  height: number
+  centroids: PlateCentroid[]
 ): BoundaryInfo[] {
   const classified: { boundary: (typeof rawBoundaries)[0]; type: BoundaryType; rawIntensity: number }[] = [];
   let maxIntensity = 0;
@@ -64,35 +62,58 @@ export function classifyBoundaries(
   for (const boundary of rawBoundaries) {
     const pA = plates[boundary.plateA];
     const pB = plates[boundary.plateB];
-    const cA = centroids[boundary.plateA];
-    const cB = centroids[boundary.plateB];
+    const rA = centroids[boundary.plateA].r;
+    const rB = centroids[boundary.plateB].r;
 
-    // Wrap-aware A→B vector. Scale x components by cos(lat) at the boundary
-    // midpoint so geometry is in km-equivalent units rather than pixels — at
-    // high latitudes one pixel of x covers far less ground than one pixel of y.
-    const midY = (cA.y + cB.y) * 0.5;
-    const midLat = Math.PI / 2 - ((midY + 0.5) / height) * Math.PI;
-    const cosMid = Math.cos(midLat);
+    // Boundary midpoint as a unit vector on the sphere — sum of the two
+    // centroid unit vectors, renormalized. Matches a great-circle midpoint
+    // when |rA| = |rB| = 1, and degrades gracefully toward antipodal pairs
+    // (rare for adjacent plates).
+    let mx = rA[0] + rB[0];
+    let my = rA[1] + rB[1];
+    let mz = rA[2] + rB[2];
+    const mLen = Math.sqrt(mx * mx + my * my + mz * mz);
+    if (mLen === 0) continue;
+    mx /= mLen;
+    my /= mLen;
+    mz /= mLen;
 
-    let nxPx = cB.x - cA.x;
-    if (nxPx > width / 2) nxPx -= width;
-    else if (nxPx < -width / 2) nxPx += width;
-    const nx = nxPx * cosMid;
-    const ny = cB.y - cA.y;
-    const nLen = Math.sqrt(nx * nx + ny * ny);
+    // Surface velocity at the midpoint from each plate's Euler rotation:
+    // v = ω × r̂. Already a tangent-plane vector (perpendicular to r̂).
+    const oA = pA.omega;
+    const oB = pB.omega;
+    const dOx = oA[0] - oB[0];
+    const dOy = oA[1] - oB[1];
+    const dOz = oA[2] - oB[2];
+    // (ω_A − ω_B) × r̂_mid
+    const vx = dOy * mz - dOz * my;
+    const vy = dOz * mx - dOx * mz;
+    const vz = dOx * my - dOy * mx;
+    const vMag = Math.sqrt(vx * vx + vy * vy + vz * vz);
+    if (vMag === 0) continue;
+
+    // Boundary normal at midpoint: project (rB − rA) onto the tangent plane
+    // at r̂_mid (subtract the radial component) and normalize. Points from A
+    // toward B along the great circle through both centroids.
+    let nx = rB[0] - rA[0];
+    let ny = rB[1] - rA[1];
+    let nz = rB[2] - rA[2];
+    const nDotM = nx * mx + ny * my + nz * mz;
+    nx -= nDotM * mx;
+    ny -= nDotM * my;
+    nz -= nDotM * mz;
+    const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
     if (nLen === 0) continue;
-    const ux = nx / nLen;
-    const uy = ny / nLen;
+    nx /= nLen;
+    ny /= nLen;
+    nz /= nLen;
 
-    // Relative drift of A toward B (same cos(lat) scaling on x).
-    const relDx = (pA.dx - pB.dx) * cosMid;
-    const relDy = pA.dy - pB.dy;
-
-    // Project onto normal (positive = convergent)
-    const vNormal = relDx * ux + relDy * uy;
-    const vTanX = relDx - vNormal * ux;
-    const vTanY = relDy - vNormal * uy;
-    const vTangent = Math.sqrt(vTanX * vTanX + vTanY * vTanY);
+    // Project velocity onto normal (positive = convergent — A moving toward B).
+    const vNormal = vx * nx + vy * ny + vz * nz;
+    const vTanX = vx - vNormal * nx;
+    const vTanY = vy - vNormal * ny;
+    const vTanZ = vz - vNormal * nz;
+    const vTangent = Math.sqrt(vTanX * vTanX + vTanY * vTanY + vTanZ * vTanZ);
 
     let type: BoundaryType;
     if (Math.abs(vNormal) > vTangent) {
@@ -101,7 +122,7 @@ export function classifyBoundaries(
       type = BoundaryType.Transform;
     }
 
-    const rawIntensity = Math.sqrt(relDx * relDx + relDy * relDy);
+    const rawIntensity = vMag;
     if (rawIntensity > maxIntensity) maxIntensity = rawIntensity;
 
     classified.push({ boundary, type, rawIntensity });

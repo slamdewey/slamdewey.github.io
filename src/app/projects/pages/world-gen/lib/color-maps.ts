@@ -1,96 +1,117 @@
-import { KoppenClass, type LayerName, type WorldData, type BoundaryInfo, type PlateProperties } from './types';
-import { mapToUnsignedRange, mod } from '@lib/math';
+import { KoppenClass, type LayerName, type WorldData, type BoundaryInfo } from './types';
+import { mapToUnsignedRange } from '@lib/math';
 import { PlateType, BoundaryType } from './stages/tectonic';
+import { classifyKoppenAt } from './stages/climate/koppen';
+import type { WorldSampler } from './world-sampler';
 
 /**
- * Convert a layer's Float32Array data to an RGBA Uint8Array for GPU upload.
- * Biome layer uses hillshading from elevation for a 3D effect.
+ * Convert a layer to an RGBA Uint8Array for GPU upload, materialized at
+ * the requested render resolution (Phase A5).
+ *
+ * `renderW × renderH` is independent of the sampler's physics resolution.
+ * Smooth fields (temperature, precipitation, etc.) are bilinear-sampled
+ * from the physics grid; categorical fields (Köppen, lakes) are
+ * nearest-sampled or re-classified per render pixel from sampled inputs.
+ * Sharp features (coastlines, plate boundaries) currently inherit the
+ * bilinear smoothing as a soft blur — a follow-up phase can replace that
+ * with analytical polyline snapping for sub-pixel-crisp edges.
  */
 export function layerToRGBA(
-  data: Float32Array | Uint8Array,
-  width: number,
-  height: number,
+  rgba: Uint8Array,
+  renderW: number,
+  renderH: number,
   layer: LayerName,
-  seaLevel: number,
-  worldData?: WorldData
-): Uint8Array {
-  const rgba = new Uint8Array(width * height * 4);
-
+  sampler: WorldSampler
+): void {
   switch (layer) {
     case 'plates':
-      // Handled separately via platesToRGBA — should not reach here
+      // Plate layer is rendered via platesToRGBA — caller should route there.
       break;
     case 'faultLines':
-      colorFaultLines(data as Float32Array, rgba);
+      colorFaultLines(rgba, renderW, renderH, sampler);
       break;
     case 'continentalSubRelief':
-      colorDivergingRedBlue(data as Float32Array, rgba, 1 / 0.35);
+      colorContinentalSubRelief(rgba, renderW, renderH, sampler);
       break;
     case 'oceanAge':
-      colorScalarRaw(data as Float32Array, rgba, [180, 220, 255], [5, 15, 40]);
+      colorOceanAge(rgba, renderW, renderH, sampler);
       break;
     case 'elevation':
-      colorElevation(data as Float32Array, rgba, seaLevel);
+      colorElevation(rgba, renderW, renderH, sampler);
       break;
     case 'temperature':
-      colorTemperature(data as Float32Array, rgba);
+      colorTemperature(rgba, renderW, renderH, sampler);
       break;
     case 'wind':
+      colorWind(rgba, renderW, renderH, sampler, sampler.raw.wind);
+      break;
     case 'windSummer':
+      colorWind(rgba, renderW, renderH, sampler, sampler.raw.windSummer);
+      break;
     case 'windWinter':
-      colorWind(data as Float32Array, rgba, width, height);
+      colorWind(rgba, renderW, renderH, sampler, sampler.raw.windWinter);
       break;
     case 'precipitation':
-      colorPrecipitation(data as Float32Array, rgba);
+      colorPrecipitation(rgba, renderW, renderH, sampler);
       break;
     case 'soilMoisture':
-      colorSoilMoisture(data as Float32Array, rgba, seaLevel, worldData);
+      colorSoilMoisture(rgba, renderW, renderH, sampler);
       break;
     case 'biomes':
-      colorBiomes(data as Float32Array, rgba, width, height, worldData);
+      colorBiomes(rgba, renderW, renderH, sampler);
       break;
     case 'flowAccumulation':
-      colorFlowAccumulation(data as Float32Array, rgba, seaLevel, worldData);
+      colorFlowAccumulation(rgba, renderW, renderH, sampler);
       break;
     case 'rivers':
-      colorRivers(data as Float32Array, rgba, seaLevel, worldData);
+      colorRivers(rgba, renderW, renderH, sampler);
       break;
     case 'lakes':
-      colorLakes(data as Uint8Array, rgba, seaLevel, worldData);
+      colorLakes(rgba, renderW, renderH, sampler);
       break;
     case 'aridity':
-      colorAridity(data as Float32Array, rgba, seaLevel, worldData);
+      colorAridity(rgba, renderW, renderH, sampler);
       break;
     case 'seasonality':
-      colorScalar(data as Float32Array, rgba, [50, 50, 80], [240, 200, 80], 1, seaLevel, worldData);
+      colorMaskedScalar(
+        rgba,
+        renderW,
+        renderH,
+        sampler,
+        (px, py) => sampler.sampleSeasonality(px, py),
+        [50, 50, 80],
+        [240, 200, 80]
+      );
       break;
     case 'growingSeason':
-      colorScalar(data as Float32Array, rgba, [120, 80, 40], [40, 180, 60], 1, seaLevel, worldData);
+      colorMaskedScalar(
+        rgba,
+        renderW,
+        renderH,
+        sampler,
+        (px, py) => sampler.sampleGrowingSeason(px, py),
+        [120, 80, 40],
+        [40, 180, 60]
+      );
       break;
     case 'koppen':
-      colorKoppen(data as Uint8Array, rgba, seaLevel, worldData);
+      colorKoppen(rgba, renderW, renderH, sampler);
       break;
   }
-
-  return rgba;
 }
 
 /**
- * Render tectonic plates as colored Voronoi cells.
- * Continental plates get warm tints, oceanic get cool tints.
- * Boundary pixels are colored by type: red=convergent, blue=divergent, yellow=transform.
+ * Render tectonic plates as colored Voronoi cells at render resolution.
+ * Boundary pixels are detected by sampling 4 neighbors at *physics-pixel*
+ * spacing — at higher render resolutions the boundary outline matches the
+ * physics-grid boundary, just upsampled. (Sub-pixel-crisp plate boundaries
+ * would require analytical polyline rendering — deferred.)
  */
-export function platesToRGBA(
-  source: { plateMap: Int32Array; plates: PlateProperties[]; boundaries: BoundaryInfo[] },
-  width: number,
-  height: number
-): Uint8Array {
-  const { plateMap, plates, boundaries } = source;
-  const size = width * height;
-  const rgba = new Uint8Array(size * 4);
+export function platesToRGBA(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const world = sampler.raw;
+  const { plates, boundaries } = world;
   const plateCount = plates.length;
 
-  // Build boundary lookup for coloring boundary pixels
   const boundaryMap = new Map<number, BoundaryType>();
   for (const b of boundaries) {
     const lo = Math.min(b.plateA, b.plateB);
@@ -98,39 +119,41 @@ export function platesToRGBA(
     boundaryMap.set(lo * plateCount + hi, b.type);
   }
 
-  // Generate plate colors — warm hues for continental, cool for oceanic
   const plateColors: [number, number, number][] = plates.map((p, i) => {
-    const hue = (i * 137.508) % 360; // golden angle spacing
+    const hue = (i * 137.508) % 360;
     if (p.type === PlateType.Continental) {
-      return hslToRgb(((hue % 120) + 20) / 360, 0.5, 0.5); // warm: 20-140 range
-    } else {
-      return hslToRgb(((hue % 120) + 180) / 360, 0.5, 0.45); // cool: 180-300 range
+      return hslToRgb(((hue % 120) + 20) / 360, 0.5, 0.5);
     }
+    return hslToRgb(((hue % 120) + 180) / 360, 0.5, 0.45);
   });
 
-  // Boundary type colors
   const BOUNDARY_COLORS: Record<BoundaryType, [number, number, number]> = {
     [BoundaryType.Convergent]: [200, 40, 40],
     [BoundaryType.Divergent]: [40, 80, 200],
     [BoundaryType.Transform]: [200, 180, 40],
   };
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      const cell = plateMap[idx];
-      const out = idx * 4;
+  const physicsW = sampler.width;
+  const physicsH = sampler.height;
+  const scaleX = physicsW / renderW;
+  const scaleY = physicsH / renderH;
 
-      // Check if this is a boundary pixel
+  for (let ry = 0; ry < renderH; ry++) {
+    const py = (ry + 0.5) * scaleY - 0.5;
+    for (let rx = 0; rx < renderW; rx++) {
+      const px = (rx + 0.5) * scaleX - 0.5;
+      const cell = sampler.samplePlate(px, py);
+      const out = (ry * renderW + rx) * 4;
+
+      // Boundary detection: sample 4 physics-pixel neighbors and check for
+      // a different plate id. At render-res ≥ physics-res this preserves
+      // the same one-physics-pixel-wide boundary band as the original.
+      const nL = sampler.samplePlate(px - 1, py);
+      const nR = sampler.samplePlate(px + 1, py);
+      const nU = sampler.samplePlate(px, py - 1);
+      const nD = sampler.samplePlate(px, py + 1);
       let boundaryType: BoundaryType | null = null;
-      const neighbors = [
-        x > 0 ? plateMap[idx - 1] : plateMap[y * width + width - 1],
-        x < width - 1 ? plateMap[idx + 1] : plateMap[y * width],
-        y > 0 ? plateMap[idx - width] : -1,
-        y < height - 1 ? plateMap[idx + width] : -1,
-      ];
-
-      for (const n of neighbors) {
+      for (const n of [nL, nR, nU, nD]) {
         if (n >= 0 && n !== cell) {
           const lo = Math.min(cell, n);
           const hi = Math.max(cell, n);
@@ -156,17 +179,42 @@ export function platesToRGBA(
       rgba[out + 3] = 255;
     }
   }
-
-  return rgba;
 }
+
+// ── Per-pixel coordinate helper ────────────────────────────────────────────
+
+/**
+ * Stream physics-pixel coordinates for every render pixel in row-major order.
+ * Centralizes the scaling so per-layer color functions can stay tight.
+ */
+function forEachRenderPixel(
+  renderW: number,
+  renderH: number,
+  sampler: WorldSampler,
+  fn: (rx: number, ry: number, px: number, py: number, out: number) => void
+): void {
+  const scaleX = sampler.width / renderW;
+  const scaleY = sampler.height / renderH;
+  let out = 0;
+  for (let ry = 0; ry < renderH; ry++) {
+    const py = (ry + 0.5) * scaleY - 0.5;
+    for (let rx = 0; rx < renderW; rx++) {
+      const px = (rx + 0.5) * scaleX - 0.5;
+      fn(rx, ry, px, py, out);
+      out += 4;
+    }
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
   const m = l - c / 2;
-  let r = 0,
-    g = 0,
-    b = 0;
+  let r = 0;
+  let g = 0;
+  let b = 0;
   const sector = (h * 6) | 0;
   switch (sector % 6) {
     case 0:
@@ -197,79 +245,67 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [((r + m) * 255) | 0, ((g + m) * 255) | 0, ((b + m) * 255) | 0];
 }
 
-/** Diverging red-blue ramp centered on zero. `scale` maps input → [-1, 1]. */
-function colorDivergingRedBlue(data: Float32Array, rgba: Uint8Array, scale: number): void {
-  for (let i = 0; i < data.length; i++) {
-    const t = Math.max(-1, Math.min(1, data[i] * scale));
-    const o = i * 4;
+// ── Per-layer renderers ────────────────────────────────────────────────────
+
+function colorFaultLines(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const v = Math.round(sampler.sampleFaultLines(px, py) * 255);
+    rgba[o] = v;
+    rgba[o + 1] = v;
+    rgba[o + 2] = v;
+    rgba[o + 3] = 255;
+  });
+}
+
+function colorContinentalSubRelief(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const scale = 1 / 0.35;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const t = Math.max(-1, Math.min(1, sampler.sampleContinentalSubRelief(px, py) * scale));
     if (t >= 0) {
-      // 0 → neutral gray (200, 200, 200); +1 → warm red (220, 60, 60).
       rgba[o] = Math.round(200 + t * 20);
       rgba[o + 1] = Math.round(200 + t * -140);
       rgba[o + 2] = Math.round(200 + t * -140);
     } else {
-      // 0 → neutral gray; -1 → cool blue (60, 90, 220).
       const k = -t;
       rgba[o] = Math.round(200 - k * 140);
       rgba[o + 1] = Math.round(200 - k * 110);
       rgba[o + 2] = Math.round(200 + k * 20);
     }
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-/** Direct [0, 1] scalar colorizer that ignores elevation/seaLevel masking —
- *  needed because the ocean-age field is defined globally, not just on water. */
-function colorScalarRaw(
-  data: Float32Array,
-  rgba: Uint8Array,
-  low: [number, number, number],
-  high: [number, number, number]
-): void {
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    const t = Math.max(0, Math.min(1, data[i]));
+function colorOceanAge(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const low: [number, number, number] = [180, 220, 255];
+  const high: [number, number, number] = [5, 15, 40];
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const t = Math.max(0, Math.min(1, sampler.sampleOceanAge(px, py)));
     rgba[o] = Math.round(low[0] * (1 - t) + high[0] * t);
     rgba[o + 1] = Math.round(low[1] * (1 - t) + high[1] * t);
     rgba[o + 2] = Math.round(low[2] * (1 - t) + high[2] * t);
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-function colorFaultLines(data: Float32Array, rgba: Uint8Array): void {
-  for (let i = 0; i < data.length; i++) {
-    const v = Math.round(data[i] * 255);
-    const o = i * 4;
-    rgba[o] = v;
-    rgba[o + 1] = v;
-    rgba[o + 2] = v;
-    rgba[o + 3] = 255;
-  }
-}
-
-function colorElevation(data: Float32Array, rgba: Uint8Array, seaLevel: number): void {
-  for (let i = 0; i < data.length; i++) {
-    const raw = data[i]; // [-1, 1]
-    const o = i * 4;
+function colorElevation(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const raw = sampler.sampleElevation(px, py);
     if (raw < seaLevel) {
-      // Water: blue tint, darker for deeper
       const depth = mapToUnsignedRange(raw);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);
     } else {
-      // Land: grayscale
       const v = Math.round(mapToUnsignedRange(raw) * 255);
       rgba[o] = v;
       rgba[o + 1] = v;
       rgba[o + 2] = v;
     }
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-// Display range for the temperature layer: -40 °C → +35 °C. Stops placed
-// so hue variation concentrates where most land sits.
 const TEMP_DISPLAY_MIN_C = -40;
 const TEMP_DISPLAY_MAX_C = 35;
 const TEMP_STOPS: { t: number; rgb: [number, number, number] }[] = [
@@ -282,11 +318,11 @@ const TEMP_STOPS: { t: number; rgb: [number, number, number] }[] = [
   { t: 1.0, rgb: [140, 20, 20] },
 ];
 
-function colorTemperature(data: Float32Array, rgba: Uint8Array): void {
+function colorTemperature(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
   const range = TEMP_DISPLAY_MAX_C - TEMP_DISPLAY_MIN_C;
-  for (let i = 0; i < data.length; i++) {
-    const tNorm = Math.max(0, Math.min(1, (data[i] - TEMP_DISPLAY_MIN_C) / range));
-    const o = i * 4;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const t = sampler.sampleTemperatureMean(px, py);
+    const tNorm = Math.max(0, Math.min(1, (t - TEMP_DISPLAY_MIN_C) / range));
     let hi = 1;
     while (hi < TEMP_STOPS.length - 1 && TEMP_STOPS[hi].t < tNorm) hi++;
     const a = TEMP_STOPS[hi - 1];
@@ -297,88 +333,83 @@ function colorTemperature(data: Float32Array, rgba: Uint8Array): void {
     rgba[o + 1] = Math.round(a.rgb[1] * (1 - k) + b.rgb[1] * k);
     rgba[o + 2] = Math.round(a.rgb[2] * (1 - k) + b.rgb[2] * k);
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-function colorWind(data: Float32Array, rgba: Uint8Array, width: number, height: number): void {
-  // Wind is interleaved [dx, dy, ...] and non-unit (magnitude up to ~1.5).
-  // Clamp components to [-1, 1] for the display mapping so strong winds
-  // saturate predictably rather than wrap.
-  const cellCount = width * height;
-  for (let i = 0; i < cellCount; i++) {
-    const dx = Math.max(-1, Math.min(1, data[i * 2]));
-    const dy = Math.max(-1, Math.min(1, data[i * 2 + 1]));
-    const o = i * 4;
+function colorWind(
+  rgba: Uint8Array,
+  renderW: number,
+  renderH: number,
+  sampler: WorldSampler,
+  source: Float32Array
+): void {
+  const tmp: [number, number] = [0, 0];
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    sampler.sampleWind(px, py, source, tmp);
+    const dx = Math.max(-1, Math.min(1, tmp[0]));
+    const dy = Math.max(-1, Math.min(1, tmp[1]));
     rgba[o] = Math.round(mapToUnsignedRange(dx) * 255);
     rgba[o + 1] = Math.round(mapToUnsignedRange(dy) * 255);
     rgba[o + 2] = 0;
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-/** Annual precipitation display range, mm/year. ≥ ~3500 mm saturates the
- *  scale (matches Earth's wettest tropics). */
 const PRECIP_DISPLAY_MAX_MM = 3500;
 
-function colorPrecipitation(data: Float32Array, rgba: Uint8Array): void {
+function colorPrecipitation(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
   const inv = 1 / PRECIP_DISPLAY_MAX_MM;
-  for (let i = 0; i < data.length; i++) {
-    const v = Math.round(Math.max(0, Math.min(1, data[i] * inv)) * 255);
-    const o = i * 4;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const v = Math.round(Math.max(0, Math.min(1, sampler.samplePrecipAnnual(px, py) * inv)) * 255);
     rgba[o] = v;
     rgba[o + 1] = v;
     rgba[o + 2] = v;
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-/** Soil moisture: dry tan → wet teal ramp on land, ocean masked. */
-function colorSoilMoisture(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
-  const elevation = worldData?.elevation;
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    if (elevation && elevation[i] < seaLevel) {
+function colorSoilMoisture(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    if (sampler.sampleElevation(px, py) < seaLevel) {
       rgba[o] = 0;
       rgba[o + 1] = 30;
       rgba[o + 2] = 80;
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    const t = Math.max(0, Math.min(1, data[i]));
-    // dry: tan (190, 165, 110); wet: deep teal (30, 110, 130)
+    const t = Math.max(0, Math.min(1, sampler.sampleSoilMoisture(px, py)));
     rgba[o] = Math.round(190 * (1 - t) + 30 * t);
     rgba[o + 1] = Math.round(165 * (1 - t) + 110 * t);
     rgba[o + 2] = Math.round(110 * (1 - t) + 130 * t);
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-// Satellite-realistic palette indexed by Köppen class. Colors picked to
-// resemble Blue Marble at global scale rather than the high-saturation
-// political-map Köppen palette used in the dedicated Köppen layer.
+// Satellite-realistic palette indexed by Köppen class.
 const KOPPEN_NATURAL: Record<KoppenClass, [number, number, number]> = {
-  [KoppenClass.Af]: [30, 80, 35], // tropical rainforest — deep green
-  [KoppenClass.Am]: [45, 100, 45], // monsoon — slightly lighter
-  [KoppenClass.Aw]: [165, 145, 80], // savanna — yellow-green
-  [KoppenClass.BWh]: [225, 200, 145], // hot desert — pale tan
-  [KoppenClass.BWk]: [180, 165, 130], // cold desert — gray-tan
-  [KoppenClass.BSh]: [195, 170, 110], // hot steppe — straw
-  [KoppenClass.BSk]: [170, 160, 110], // cold steppe — drab khaki
-  [KoppenClass.Cfa]: [80, 130, 65], // humid subtropical — medium green
-  [KoppenClass.Cfb]: [95, 145, 75], // oceanic — fresh green
-  [KoppenClass.Csa]: [150, 145, 85], // mediterranean hot — olive
-  [KoppenClass.Csb]: [135, 140, 95], // mediterranean warm — gray-olive
-  [KoppenClass.Cwa]: [90, 135, 70], // subtropical monsoon
-  [KoppenClass.Cwb]: [100, 145, 80], // subtropical highland
-  [KoppenClass.Dfa]: [80, 115, 60], // hot continental
-  [KoppenClass.Dfb]: [70, 105, 60], // warm continental
-  [KoppenClass.Dfc]: [70, 95, 65], // subarctic — darker olive
+  [KoppenClass.Af]: [30, 80, 35],
+  [KoppenClass.Am]: [45, 100, 45],
+  [KoppenClass.Aw]: [165, 145, 80],
+  [KoppenClass.BWh]: [225, 200, 145],
+  [KoppenClass.BWk]: [180, 165, 130],
+  [KoppenClass.BSh]: [195, 170, 110],
+  [KoppenClass.BSk]: [170, 160, 110],
+  [KoppenClass.Cfa]: [80, 130, 65],
+  [KoppenClass.Cfb]: [95, 145, 75],
+  [KoppenClass.Csa]: [150, 145, 85],
+  [KoppenClass.Csb]: [135, 140, 95],
+  [KoppenClass.Cwa]: [90, 135, 70],
+  [KoppenClass.Cwb]: [100, 145, 80],
+  [KoppenClass.Dfa]: [80, 115, 60],
+  [KoppenClass.Dfb]: [70, 105, 60],
+  [KoppenClass.Dfc]: [70, 95, 65],
   [KoppenClass.Dwa]: [110, 130, 80],
   [KoppenClass.Dwb]: [85, 110, 70],
   [KoppenClass.Dsa]: [135, 130, 80],
   [KoppenClass.Dsb]: [115, 125, 85],
-  [KoppenClass.ET]: [155, 155, 140], // tundra — pale olive-gray
-  [KoppenClass.EF]: [240, 242, 245], // ice cap — bright white
+  [KoppenClass.ET]: [155, 155, 140],
+  [KoppenClass.EF]: [240, 242, 245],
 };
 
 const SHALLOW_OCEAN: [number, number, number] = [60, 110, 165];
@@ -388,39 +419,36 @@ const LAKE_COLOR: [number, number, number] = [50, 95, 150];
 const RIVER_COLOR: [number, number, number] = [70, 115, 165];
 const ROCK_COLOR: [number, number, number] = [120, 110, 95];
 const SNOW_COLOR: [number, number, number] = [248, 250, 252];
-
 const MOUNTAIN_LEVEL = 0.85;
-/** Annual-mean temperature (°C) at and above which there's no snow cover.
- *  Real Earth's permanent snowline corresponds roughly to annual mean ≤ 0 °C
- *  in flat terrain. We start the visual blend slightly higher (light dusting
- *  on the warmest taiga) and saturate by deep boreal/Arctic conditions. */
 const SNOW_T_START_C = -2;
-/** Annual-mean temperature (°C) at and below which snow cover is fully saturated. */
 const SNOW_T_FULL_C = -20;
-const SNOW_ELEVATION = 0.7; // and elevation above this gets snow
+const SNOW_ELEVATION = 0.7;
 
-function colorBiomes(
-  _data: Float32Array,
-  rgba: Uint8Array,
-  width: number,
-  height: number,
-  worldData?: WorldData
-): void {
-  if (!worldData) return;
-  const { elevation, koppenClass, temperatureMean, rivers, lakes, seaLevel } = worldData;
-  const hillshade = computeHillshade(elevation, width, height);
+/**
+ * Biomes layer. Per render pixel: sample elevation, re-classify Köppen
+ * from sampled climate inputs (so biome boundaries follow the bilinear-
+ * smooth elevation rather than the nearest-physics-pixel staircase), then
+ * apply hillshading. The Köppen reclassification is the user-confirmed
+ * design choice from Phase A5 — biome boundaries deserve render-res
+ * sharpness because they're the single most visually prominent feature.
+ */
+function colorBiomes(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
+  // Hillshade step in physics-pixel space: stays at 1 px regardless of
+  // render upsampling so the gradient is computed in the same units as
+  // the original. At renderRes > physicsRes this means the hillshade
+  // varies smoothly with elevation rather than tracking render pixels.
+  const stepPx = 1;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const e = sampler.sampleElevation(px, py);
 
-  for (let i = 0; i < elevation.length; i++) {
-    const o = i * 4;
-    const e = elevation[i];
-
-    // --- Water cells ------------------------------------------------------
+    // Ocean.
     if (e < seaLevel) {
-      // Ocean depth shading: depth measured below sea level, normalized.
-      const depth = (seaLevel - e) / Math.max(0.01, seaLevel + 1); // 0 at coast, 1 at -1
+      const depth = (seaLevel - e) / Math.max(0.01, seaLevel + 1);
       const t = Math.min(1, depth * 2);
-      // Blend coastal shelf → shallow → deep
-      let r: number, g: number, b: number;
+      let r: number;
+      let g: number;
+      let b: number;
       if (t < 0.15) {
         const k = t / 0.15;
         r = COASTAL_SHELF[0] * (1 - k) + SHALLOW_OCEAN[0] * k;
@@ -436,116 +464,110 @@ function colorBiomes(
       rgba[o + 1] = Math.round(g);
       rgba[o + 2] = Math.round(b);
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
 
-    // --- Inland water: lakes & rivers -------------------------------------
-    if (lakes[i] === 1) {
-      // Cold lakes ice over. Blend toward snow as the mean temp drops past
-      // the same threshold land uses for snow cover.
-      const iceK = Math.min(1, Math.max(0, (SNOW_T_START_C - temperatureMean[i]) / (SNOW_T_START_C - SNOW_T_FULL_C)));
+    // Inland water: lakes & rivers.
+    const lake = sampler.sampleLake(px, py);
+    const tMean = sampler.sampleTemperatureMean(px, py);
+    if (lake === 1) {
+      const iceK = Math.min(1, Math.max(0, (SNOW_T_START_C - tMean) / (SNOW_T_START_C - SNOW_T_FULL_C)));
       rgba[o] = Math.round(LAKE_COLOR[0] * (1 - iceK) + SNOW_COLOR[0] * iceK);
       rgba[o + 1] = Math.round(LAKE_COLOR[1] * (1 - iceK) + SNOW_COLOR[1] * iceK);
       rgba[o + 2] = Math.round(LAKE_COLOR[2] * (1 - iceK) + SNOW_COLOR[2] * iceK);
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    const riverIntensity = rivers[i];
+
+    // Re-classify Köppen at this render pixel using bilinear-sampled climate
+    // inputs. Lets biome boundaries follow the smooth bilinear elevation /
+    // temperature / precip fields rather than the nearest-physics-cell
+    // staircase that the precomputed koppenClass array represents.
+    const tSummer = sampler.sampleTemperatureSummer(px, py);
+    const tWinter = sampler.sampleTemperatureWinter(px, py);
+    const pSummer = sampler.samplePrecipSummer(px, py);
+    const pWinter = sampler.samplePrecipWinter(px, py);
+    const petAnnual = sampler.samplePetAnnual(px, py);
+    const koppen = classifyKoppenAt(tSummer, tWinter, pSummer, pWinter, petAnnual, e, seaLevel);
+
+    const riverIntensity = sampler.sampleRivers(px, py);
     if (riverIntensity > 0.5) {
-      // Rivers blend over the underlying terrain so they don't look painted on.
-      const baseColor = baseTerrainColor(koppenClass[i] as KoppenClass);
+      const baseColor = KOPPEN_NATURAL[koppen];
       const t = Math.min(1, (riverIntensity - 0.5) * 2);
       const r = baseColor[0] * (1 - t) + RIVER_COLOR[0] * t;
       const g = baseColor[1] * (1 - t) + RIVER_COLOR[1] * t;
       const b = baseColor[2] * (1 - t) + RIVER_COLOR[2] * t;
-      const shade = hillshade[i];
+      const shade = sampler.sampleHillshade(px, py, stepPx);
       rgba[o] = Math.min(255, Math.round(r * shade));
       rgba[o + 1] = Math.min(255, Math.round(g * shade));
       rgba[o + 2] = Math.min(255, Math.round(b * shade));
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
 
-    // --- Land: Köppen → natural color, optional snow cap, hillshade -------
-    let color = baseTerrainColor(koppenClass[i] as KoppenClass);
+    // Köppen-natural land color, then rock blend at high elevation, then snow.
+    let cr = KOPPEN_NATURAL[koppen][0];
+    let cg = KOPPEN_NATURAL[koppen][1];
+    let cb = KOPPEN_NATURAL[koppen][2];
 
-    // Bare-rock blend on very high terrain even before snow takes over.
     if (e > MOUNTAIN_LEVEL) {
       const k = Math.min(1, (e - MOUNTAIN_LEVEL) / (1 - MOUNTAIN_LEVEL));
-      color = [
-        color[0] * (1 - k) + ROCK_COLOR[0] * k,
-        color[1] * (1 - k) + ROCK_COLOR[1] * k,
-        color[2] * (1 - k) + ROCK_COLOR[2] * k,
-      ];
+      cr = cr * (1 - k) + ROCK_COLOR[0] * k;
+      cg = cg * (1 - k) + ROCK_COLOR[1] * k;
+      cb = cb * (1 - k) + ROCK_COLOR[2] * k;
     }
 
-    // Snow cap: cold + high. Polar regions get snow at lower elevation.
-    const tMean = temperatureMean[i];
     const snowChance =
       Math.max(0, (SNOW_T_START_C - tMean) / (SNOW_T_START_C - SNOW_T_FULL_C)) +
       Math.max(0, (e - SNOW_ELEVATION) / (1 - SNOW_ELEVATION)) * 0.6;
     if (snowChance > 0) {
       const k = Math.min(1, snowChance);
-      color = [
-        color[0] * (1 - k) + SNOW_COLOR[0] * k,
-        color[1] * (1 - k) + SNOW_COLOR[1] * k,
-        color[2] * (1 - k) + SNOW_COLOR[2] * k,
-      ];
+      cr = cr * (1 - k) + SNOW_COLOR[0] * k;
+      cg = cg * (1 - k) + SNOW_COLOR[1] * k;
+      cb = cb * (1 - k) + SNOW_COLOR[2] * k;
     }
 
-    const shade = hillshade[i];
-    rgba[o] = Math.min(255, Math.round(color[0] * shade));
-    rgba[o + 1] = Math.min(255, Math.round(color[1] * shade));
-    rgba[o + 2] = Math.min(255, Math.round(color[2] * shade));
+    const shade = sampler.sampleHillshade(px, py, stepPx);
+    rgba[o] = Math.min(255, Math.round(cr * shade));
+    rgba[o + 1] = Math.min(255, Math.round(cg * shade));
+    rgba[o + 2] = Math.min(255, Math.round(cb * shade));
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-function baseTerrainColor(k: KoppenClass): [number, number, number] {
-  const c = KOPPEN_NATURAL[k];
-  // Defensive copy because the snow/rock blend mutates locally.
-  return [c[0], c[1], c[2]];
-}
-
-function colorFlowAccumulation(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
-  const elevation = worldData?.elevation;
-  // log2(1 + max) roughly — clamp to a sensible upper bound so visualization
-  // doesn't collapse around one absurdly-long main stem.
+function colorFlowAccumulation(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
   const LOG_CAP = 18;
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    if (elevation && elevation[i] < seaLevel) {
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    if (sampler.sampleElevation(px, py) < seaLevel) {
       rgba[o] = 10;
       rgba[o + 1] = 20;
       rgba[o + 2] = 60;
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    const v = Math.min(Math.log2(1 + data[i]) / LOG_CAP, 1);
-    // Dark brown (low flow, dry land) → cyan (major rivers)
+    const v = Math.min(Math.log2(1 + sampler.sampleFlowAccumulation(px, py)) / LOG_CAP, 1);
     rgba[o] = Math.round((1 - v) * 80 + v * 120);
     rgba[o + 1] = Math.round((1 - v) * 60 + v * 220);
     rgba[o + 2] = Math.round((1 - v) * 30 + v * 255);
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-function colorRivers(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
-  const elevation = worldData?.elevation;
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    if (elevation && elevation[i] < seaLevel) {
-      // Ocean background — same palette as elevation layer.
-      const depth = mapToUnsignedRange(elevation[i]);
+function colorRivers(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const e = sampler.sampleElevation(px, py);
+    if (e < seaLevel) {
+      const depth = mapToUnsignedRange(e);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    const base = elevation ? Math.round(mapToUnsignedRange(elevation[i]) * 255) : 128;
-    const t = data[i];
-    // Blend grayscale land with a river blue.
+    const base = Math.round(mapToUnsignedRange(e) * 255);
+    const t = sampler.sampleRivers(px, py);
     const RIVER_R = 40;
     const RIVER_G = 120;
     const RIVER_B = 220;
@@ -553,88 +575,79 @@ function colorRivers(data: Float32Array, rgba: Uint8Array, seaLevel: number, wor
     rgba[o + 1] = Math.round(base * (1 - t) + RIVER_G * t);
     rgba[o + 2] = Math.round(base * (1 - t) + RIVER_B * t);
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-function colorLakes(data: Uint8Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
-  const elevation = worldData?.elevation;
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    if (elevation && elevation[i] < seaLevel) {
-      const depth = mapToUnsignedRange(elevation[i]);
+function colorLakes(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const e = sampler.sampleElevation(px, py);
+    if (e < seaLevel) {
+      const depth = mapToUnsignedRange(e);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    if (data[i] === 1) {
+    if (sampler.sampleLake(px, py) === 1) {
       rgba[o] = 30;
       rgba[o + 1] = 90;
       rgba[o + 2] = 200;
     } else {
-      const v = elevation ? Math.round(mapToUnsignedRange(elevation[i]) * 255) : 128;
+      const v = Math.round(mapToUnsignedRange(e) * 255);
       rgba[o] = v;
       rgba[o + 1] = v;
       rgba[o + 2] = v;
     }
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-/** Aridity color ramp ceiling: AI ≥ this saturates the green end of the
- *  scale. Earth's wettest tropics reach AI ≈ 4 — but the gradient that
- *  matters for visualization concentrates below 1.5 (the desert-to-humid
- *  transition), so we saturate beyond that. */
 const ARIDITY_DISPLAY_CEILING = 1.5;
 
-function colorAridity(data: Float32Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
-  const elevation = worldData?.elevation;
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    if (elevation && elevation[i] < seaLevel) {
+function colorAridity(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    if (sampler.sampleElevation(px, py) < seaLevel) {
       rgba[o] = 0;
       rgba[o + 1] = 30;
       rgba[o + 2] = 80;
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    const v = Math.min(data[i] / ARIDITY_DISPLAY_CEILING, 1);
-    const r = Math.round((1 - v) * 200 + v * 30);
-    const g = Math.round((1 - v) * 150 + v * 140);
-    const b = Math.round((1 - v) * 80 + v * 60);
-    rgba[o] = r;
-    rgba[o + 1] = g;
-    rgba[o + 2] = b;
+    const v = Math.min(sampler.sampleAridityIndex(px, py) / ARIDITY_DISPLAY_CEILING, 1);
+    rgba[o] = Math.round((1 - v) * 200 + v * 30);
+    rgba[o + 1] = Math.round((1 - v) * 150 + v * 140);
+    rgba[o + 2] = Math.round((1 - v) * 80 + v * 60);
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-function colorScalar(
-  data: Float32Array,
+function colorMaskedScalar(
   rgba: Uint8Array,
+  renderW: number,
+  renderH: number,
+  sampler: WorldSampler,
+  sample: (px: number, py: number) => number,
   low: [number, number, number],
-  high: [number, number, number],
-  scale: number,
-  seaLevel: number,
-  worldData?: WorldData
+  high: [number, number, number]
 ): void {
-  const elevation = worldData?.elevation;
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    if (elevation && elevation[i] < seaLevel) {
+  const seaLevel = sampler.seaLevel;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    if (sampler.sampleElevation(px, py) < seaLevel) {
       rgba[o] = 0;
       rgba[o + 1] = 30;
       rgba[o + 2] = 80;
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    const t = Math.max(0, Math.min(1, data[i] * scale));
+    const t = Math.max(0, Math.min(1, sample(px, py)));
     rgba[o] = Math.round(low[0] * (1 - t) + high[0] * t);
     rgba[o + 1] = Math.round(low[1] * (1 - t) + high[1] * t);
     rgba[o + 2] = Math.round(low[2] * (1 - t) + high[2] * t);
     rgba[o + 3] = 255;
-  }
+  });
 }
 
 const KOPPEN_COLORS: Record<KoppenClass, [number, number, number]> = {
@@ -662,47 +675,38 @@ const KOPPEN_COLORS: Record<KoppenClass, [number, number, number]> = {
   [KoppenClass.EF]: [102, 102, 102],
 };
 
-function colorKoppen(data: Uint8Array, rgba: Uint8Array, seaLevel: number, worldData?: WorldData): void {
-  const elevation = worldData?.elevation;
-  for (let i = 0; i < data.length; i++) {
-    const o = i * 4;
-    if (elevation && elevation[i] < seaLevel) {
-      const depth = mapToUnsignedRange(elevation[i]);
+function colorKoppen(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
+  const seaLevel = sampler.seaLevel;
+  forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
+    const e = sampler.sampleElevation(px, py);
+    if (e < seaLevel) {
+      const depth = mapToUnsignedRange(e);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);
       rgba[o + 3] = 255;
-      continue;
+      return;
     }
-    const color = KOPPEN_COLORS[data[i] as KoppenClass] ?? [255, 0, 255];
+    // Re-classify per render pixel to inherit bilinear smoothness in the
+    // climate inputs.
+    const tSummer = sampler.sampleTemperatureSummer(px, py);
+    const tWinter = sampler.sampleTemperatureWinter(px, py);
+    const pSummer = sampler.samplePrecipSummer(px, py);
+    const pWinter = sampler.samplePrecipWinter(px, py);
+    const petAnnual = sampler.samplePetAnnual(px, py);
+    const k = classifyKoppenAt(tSummer, tWinter, pSummer, pWinter, petAnnual, e, seaLevel);
+    const color = KOPPEN_COLORS[k] ?? [255, 0, 255];
     rgba[o] = color[0];
     rgba[o + 1] = color[1];
     rgba[o + 2] = color[2];
     rgba[o + 3] = 255;
-  }
+  });
 }
 
-/**
- * Simple hillshade: directional gradient from a top-left light source.
- * Returns a per-pixel shade multiplier in [0.6, 1.3].
- */
-function computeHillshade(elevation: Float32Array, width: number, height: number): Float32Array {
-  const shade = new Float32Array(width * height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      // Horizontal gradient (wraps)
-      const left = elevation[y * width + mod(x - 1, width)];
-      const right = elevation[y * width + mod(x + 1, width)];
-      const dx = right - left;
-      // Vertical gradient (clamps)
-      const up = y > 0 ? elevation[(y - 1) * width + x] : elevation[idx];
-      const down = y < height - 1 ? elevation[(y + 1) * width + x] : elevation[idx];
-      const dy = down - up;
-      // Light from top-left: dot(normal, lightDir) where lightDir ≈ (-1, -1, 2)
-      const s = 1 + (-dx - dy) * 2;
-      shade[idx] = Math.max(0.6, Math.min(1.3, s));
-    }
-  }
-  return shade;
-}
+// Re-export for callers that still want the BIOME_COLORS / KoppenClass enum
+// off color-maps.
+export { KOPPEN_NATURAL, KOPPEN_COLORS };
+
+// Avoid an unused import warning while keeping BoundaryInfo available for
+// downstream consumers who import from this module.
+export type { BoundaryInfo, WorldData };

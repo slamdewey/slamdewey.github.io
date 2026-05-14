@@ -3,25 +3,11 @@ import { mod, sphericalEmbed3D } from '@lib/math';
 import { NoiseVariables, TectonicVariables } from '../../types';
 import { BoundaryInfo, InteractionType, PlateProperties, PlateType } from './types';
 import { interactionElevation } from './boundaries';
+import { buildBoundaryPolylines, rasterizePolylines } from './boundary-polylines';
 
-// ── Per-interaction falloff width multipliers ────────────────────────────
-
-/**
- * Falloff width multiplier per interaction type.
- * Collision zones (Himalayas) are wide; transform faults (San Andreas) are narrow.
- * For subduction, the overriding plate side is wider than the trench side.
- */
-const FALLOFF_MULTIPLIER: Record<InteractionType, number> = {
-  [InteractionType.Collision]: 1.8,
-  [InteractionType.Subduction]: 1.4, // overriding (continental) side
-  [InteractionType.OceanicConvergence]: 0.7,
-  [InteractionType.ContinentalRift]: 1.2,
-  [InteractionType.OceanicRidge]: 0.8,
-  [InteractionType.Transform]: 0.35,
-};
-
-/** Subducting-side falloff is narrower (trench). */
-const SUBDUCTION_TRENCH_MULTIPLIER = 0.4;
+// Per-interaction falloff width multipliers moved to boundary-polylines.ts
+// (Phase A4) — each polyline carries its boundary's per-side widths at the
+// vertex level so this stage only consumes them via the rasterized seeds.
 
 // ── Continental shelf ─────────────────────────────────────────────────────
 
@@ -84,16 +70,23 @@ export function rasterizePlateInteractions(
   // mountain belt there keeps its full height.
   const shelfSeedMask = new Uint8Array(size);
 
+  const halfW = width >> 1;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       const plate = plateMap[idx];
 
+      // N/S neighbors at the pole rows wrap to the antipodal longitude on the
+      // same pole row — matching the spherical distance transform's routing.
+      const nNorthY = y > 0 ? y - 1 : 0;
+      const nNorthX = y > 0 ? x : mod(x + halfW, width);
+      const nSouthY = y < height - 1 ? y + 1 : height - 1;
+      const nSouthX = y < height - 1 ? x : mod(x + halfW, width);
       const neighbors = [
         x > 0 ? plateMap[idx - 1] : plateMap[y * width + width - 1],
         x < width - 1 ? plateMap[idx + 1] : plateMap[y * width],
-        y > 0 ? plateMap[idx - width] : -1,
-        y < height - 1 ? plateMap[idx + width] : -1,
+        plateMap[nNorthY * width + nNorthX],
+        plateMap[nSouthY * width + nSouthX],
       ];
 
       let bestIntensity = -1;
@@ -131,46 +124,111 @@ export function rasterizePlateInteractions(
 
   // Sphere-aware Dijkstra distance transforms. Output is in radians on the
   // unit sphere; rescaled to equator-pixel-equivalent so the existing
-  // pixel-derived thresholds (maxFalloffWidth, shelfWidth, oceanAgeScale) stay
-  // calibrated. Routing across the pole is handled inside the transform.
+  // pixel-derived thresholds (shelfWidth, oceanAgeScale) stay calibrated.
+  // Routing across the pole is handled inside the transform. Centers are
+  // precomputed once and shared across every per-stage Dijkstra call.
   const radToEqPx = width / (2 * Math.PI);
+  const cellCenters = computeCellCenters(width, height);
   const rescaleToEqPx = (d: Float32Array): void => {
     for (let i = 0; i < d.length; i++) {
       if (Number.isFinite(d[i])) d[i] *= radToEqPx;
     }
   };
 
-  // Pass 2: Distance to nearest plate-boundary pixel.
-  const dist = sphericalDistanceTransform(isBoundary, width, height);
-  rescaleToEqPx(dist);
-
-  // Pass 2b: Distance to nearest passive-margin shelf seed. Continental
-  // pixels within shelf range get their gravity target pulled toward SHELF_TARGET,
-  // producing the shallow band that gives coastlines their ragged, island-dotted
-  // character. Pixels far inland (or outside continental plates entirely) keep
-  // their plate's baseline as the target.
-  const distToShelfSeed = sphericalDistanceTransform(shelfSeedMask, width, height);
+  // Pass 2: Distance to nearest passive-margin shelf seed. Continental pixels
+  // within shelf range get their gravity target pulled toward SHELF_TARGET,
+  // producing the shallow band that gives coastlines their ragged, island-
+  // dotted character. Pixels far inland (or outside continental plates
+  // entirely) keep their plate's baseline as the target.
+  const distToShelfSeed = sphericalDistanceTransform(shelfSeedMask, width, height, cellCenters);
   rescaleToEqPx(distToShelfSeed);
 
-  // Pass 3: BFS from boundary pixels to propagate boundary index outward
-  // Use the maximum possible falloff width for BFS reach, then per-pixel widths in Pass 5
   const baseFalloff = Math.max(4, Math.round(width / 64));
-  const maxFalloffWidth = Math.ceil(baseFalloff * 1.8 * falloffScale); // 1.8 = largest multiplier (Collision)
-  propagateBoundaryIndex(nearestBoundary, isBoundary, dist, maxFalloffWidth, width, height);
-
   const shelfWidth = baseFalloff * SHELF_WIDTH_MULTIPLIER * falloffScale;
 
+  // Pass 3.5: Diffuse the discrete per-plate isostatic baseline into a
+  // continuous field. Without this, two adjacent plates with different
+  // baseElevation values produce a visible step at every boundary — the
+  // Jacobi pass (α = 0.1, 8 iterations) is too weak to bridge that gap, so
+  // passive boundaries (Transform, ContinentalRift, OceanicRidge) leave
+  // plate-shape cliffs in the surface.
+  //
+  // Orogenic boundaries (Collision, Subduction, OceanicConvergence) act as
+  // pinned values during the smoothing so the mountain-belt contrast is
+  // preserved; passive boundaries diffuse freely.
+  const baselineField = new Float32Array(size);
+  for (let i = 0; i < size; i++) baselineField[i] = plates[plateMap[i]].baseElevation;
+
+  const isBaselinePinned = new Uint8Array(size);
+  for (let i = 0; i < size; i++) {
+    if (!isBoundary[i]) continue;
+    const bi = nearestBoundary[i];
+    if (bi < 0) continue;
+    const it = boundaries[bi].interactionType;
+    if (
+      it === InteractionType.Collision ||
+      it === InteractionType.Subduction ||
+      it === InteractionType.OceanicConvergence
+    ) {
+      isBaselinePinned[i] = 1;
+    }
+  }
+
+  // 8-neighbor Jacobi smoothing of the baseline field with pole wrap.
+  // Smoothing radius ≈ sqrt(BASELINE_SMOOTH_ITERATIONS) px ≈ 5 px at 24 iters,
+  // enough to dissolve plate cliffs without erasing continent-scale contrast.
+  const BASELINE_SMOOTH_ITERATIONS = 24;
+  const baselineTemp = new Float32Array(size);
+  for (let iter = 0; iter < BASELINE_SMOOTH_ITERATIONS; iter++) {
+    for (let y = 0; y < height; y++) {
+      const upY = y > 0 ? y - 1 : 0;
+      const upXOff = y > 0 ? 0 : halfW;
+      const downY = y < height - 1 ? y + 1 : height - 1;
+      const downXOff = y < height - 1 ? 0 : halfW;
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        if (isBaselinePinned[idx]) {
+          baselineTemp[idx] = baselineField[idx];
+          continue;
+        }
+        const xW = mod(x - 1, width);
+        const xE = mod(x + 1, width);
+        const upX = mod(x + upXOff, width);
+        const downX = mod(x + downXOff, width);
+        const upRow = upY * width;
+        const downRow = downY * width;
+        const rowOff = y * width;
+        // 8 neighbors: 4 orthogonal + 4 diagonal. Equal weight is fine here —
+        // the field is a dimensionless elevation target, and per-row km-
+        // weighting would only matter for advection/diffusion of a flux. At
+        // pole rows, `upX`/`downX` already point to the antipodal longitude,
+        // so the diagonal offsets ±1 work the same way as interior rows.
+        const sum =
+          baselineField[rowOff + xW] +
+          baselineField[rowOff + xE] +
+          baselineField[upRow + upX] +
+          baselineField[downRow + downX] +
+          baselineField[upRow + mod(upX - 1, width)] +
+          baselineField[upRow + mod(upX + 1, width)] +
+          baselineField[downRow + mod(downX - 1, width)] +
+          baselineField[downRow + mod(downX + 1, width)];
+        baselineTemp[idx] = sum / 8;
+      }
+    }
+    baselineField.set(baselineTemp);
+  }
+
   // Pass 4: Jacobi relaxation for smooth interior elevation gradients.
-  // Each pixel has an "effective base" — usually its plate's isostatic
-  // baseline, but pulled toward SHELF_TARGET on the continental side of
-  // passive-style cont-ocean margins.
+  // Each pixel has an "effective base" — usually its smoothed isostatic
+  // baseline from above, but pulled toward SHELF_TARGET on the continental
+  // side of passive-style cont-ocean margins.
   const effectiveBase = (idx: number): number => {
-    const plate = plates[plateMap[idx]];
-    if (plate.type !== PlateType.Continental) return plate.baseElevation;
+    const base = baselineField[idx];
+    if (plates[plateMap[idx]].type !== PlateType.Continental) return base;
     const d = distToShelfSeed[idx];
-    if (d >= shelfWidth) return plate.baseElevation;
+    if (d >= shelfWidth) return base;
     const t = d / shelfWidth; // 0 at seed, 1 at far edge of shelf band
-    return SHELF_TARGET * (1 - t) + plate.baseElevation * t;
+    return SHELF_TARGET * (1 - t) + base * t;
   };
 
   // Initialize every pixel (boundary and interior) at its effective base.
@@ -192,12 +250,17 @@ export function rasterizePlateInteractions(
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
 
-        // Average of 4 neighbors (wrap x, clamp y) — needed for both pinned
-        // (soft-blend) and interior branches under Fix D.
+        // Average of 4 neighbors. X wraps; Y wraps across the pole to the
+        // antipodal longitude on the same pole row, so pole pixels relax
+        // against their real sphere neighbors instead of pinning themselves.
         const left = baseElevation[y * width + mod(x - 1, width)];
         const right = baseElevation[y * width + mod(x + 1, width)];
-        const up = y > 0 ? baseElevation[(y - 1) * width + x] : baseElevation[idx];
-        const down = y < height - 1 ? baseElevation[(y + 1) * width + x] : baseElevation[idx];
+        const upY = y > 0 ? y - 1 : 0;
+        const upX = y > 0 ? x : mod(x + halfW, width);
+        const downY = y < height - 1 ? y + 1 : height - 1;
+        const downX = y < height - 1 ? x : mod(x + halfW, width);
+        const up = baseElevation[upY * width + upX];
+        const down = baseElevation[downY * width + downX];
         const avg = (left + right + up + down) / 4;
 
         if (isBoundary[idx]) {
@@ -247,7 +310,7 @@ export function rasterizePlateInteractions(
   }
   // Sphere-aware distance from ridge seeds; rescaled to equator-pixel-equivalent
   // so the existing oceanAgeScale = width/6 stays calibrated for the exp() falloff.
-  const distToRidge = sphericalDistanceTransform(ridgeSeedMask, width, height);
+  const distToRidge = sphericalDistanceTransform(ridgeSeedMask, width, height, cellCenters);
   rescaleToEqPx(distToRidge);
   const oceanAge = new Float32Array(size);
   const oceanAgeScale = width / 6;
@@ -307,137 +370,134 @@ export function rasterizePlateInteractions(
     }
   }
 
-  // Pass 5: Add interaction falloff for faults and mountainRanges,
-  // and overlay interaction elevation delta on top of the gradient base.
-  // Each interaction type has its own falloff width; subduction is asymmetric.
-  //
-  // `dist[i]` is warped by a low-amplitude noise before the falloff curve is
-  // evaluated, so the interaction band (especially the subduction mountain
-  // belt) does not trace the Voronoi polygon 1:1 — without this, coastlines
-  // on active margins are forced straight by the uniform +0.35 elevation
-  // band stamped along the plate edge.
+  // Pass 5: Per-boundary stamping driven by vectorized polylines (Phase A4).
+  // Each boundary is represented as a Chaikin-smoothed sub-pixel polyline; the
+  // polyline carries per-vertex (widthA, widthB) that taper down to `min` of
+  // converging boundaries at triple-junctions. Rasterizing the polyline gives
+  // per-pixel seed widths that the plate-restricted Dijkstra propagates
+  // outward. Pass 5 then stamps elevation at every pixel reached, using the
+  // *propagated* width so wide stamps narrow gracefully as they approach
+  // narrow neighbors.
+  const polylines = buildBoundaryPolylines(plateMap, boundaries, plateCount, baseFalloff, falloffScale, width, height);
+  const rasterizedBoundaries = rasterizePolylines(polylines, boundaries.length, plateMap, width, height);
+
+  // Distance is warped per-pixel by a low-amplitude noise so the interaction
+  // band zigzags instead of tracing the (now-smoothed) polyline 1:1. Sample
+  // is pixel-local and boundary-independent — precompute once.
   const pass5Warp = new OpenSimplexNoise((nv.seed ^ 0xfa5170c5) | 0);
   const warpFreqPass5 = nv.frequency * tv.coastlineWarpFrequency;
   const npWarp = new Float32Array(3);
-
+  const warpSampleField = new Float32Array(size);
   for (let i = 0; i < size; i++) {
-    const bi = nearestBoundary[i];
-    if (bi < 0) continue;
-
-    const b = boundaries[bi];
-    const pixelPlate = plateMap[i];
-    const isSubducting = b.subductingPlate === pixelPlate;
-
-    // Compute per-pixel falloff width based on interaction type and side
-    let multiplier = FALLOFF_MULTIPLIER[b.interactionType];
-    if (b.interactionType === InteractionType.Subduction && isSubducting) {
-      multiplier = SUBDUCTION_TRENCH_MULTIPLIER;
-    } else if (b.interactionType === InteractionType.OceanicConvergence && isSubducting) {
-      multiplier = SUBDUCTION_TRENCH_MULTIPLIER;
-    }
-    const effectiveFalloff = baseFalloff * multiplier * falloffScale;
-
-    // Noise-warp the distance so the interaction band zigzags instead of
-    // tracing the plate polygon. Amplitude is capped at 0.8·effectiveFalloff
-    // so the band can jitter but cannot stamp phantom mountains far inland.
     const px = i % width;
     const py = (i - px) / width;
     sphericalEmbed3D(px, py, width, height, npWarp);
-    const warpSample = pass5Warp.eval3D(
+    warpSampleField[i] = pass5Warp.eval3D(
       npWarp[0] * warpFreqPass5,
       npWarp[1] * warpFreqPass5,
       npWarp[2] * warpFreqPass5
     );
-    const warpLim = 0.8 * effectiveFalloff;
-    const rawOffset = warpSample * effectiveFalloff * tv.coastlineWarpAmplitude * 3;
-    const distOffset = rawOffset > warpLim ? warpLim : rawOffset < -warpLim ? -warpLim : rawOffset;
-    const warpedDist = Math.max(0, dist[i] + distOffset);
+  }
 
-    if (warpedDist >= effectiveFalloff) continue;
+  // Accumulator for stacked interaction deltas. Clamped at the end so a
+  // freakish K-fold orogenic overlap can't produce nonsense elevations.
+  const interactionDelta = new Float32Array(size);
 
-    const t = 1 - warpedDist / effectiveFalloff;
-    const falloff = t * t; // quadratic for smoother edges
+  // Working buffers reused across boundaries.
+  const stampDist = new Float32Array(size);
+  const stampVisited = new Uint8Array(size);
+  const stampWidthA = new Float32Array(size);
+  const stampWidthB = new Float32Array(size);
 
-    const plateType = plates[pixelPlate].type;
-    const { elevDelta, mountainRange } = interactionElevation(
-      b.interactionType,
-      plateType,
-      b.intensity,
-      falloff,
-      isSubducting
+  for (let bi = 0; bi < boundaries.length; bi++) {
+    const b = boundaries[bi];
+    const ras = rasterizedBoundaries[bi];
+    if (ras.maxWidth <= 0) continue;
+    const maxDistRad = ras.maxWidth / radToEqPx;
+
+    // Initialize per-pixel width fields from the polyline rasterizer. Seed
+    // pixels get their polyline-vertex widths; everywhere else is zero and
+    // will be filled in by the Dijkstra's inheritance step.
+    stampDist.fill(Infinity);
+    stampVisited.fill(0);
+    stampWidthA.set(ras.widthA);
+    stampWidthB.set(ras.widthB);
+
+    boundaryStampDijkstra(
+      ras.seedMask,
+      plateMap,
+      b.plateA,
+      b.plateB,
+      maxDistRad,
+      cellCenters,
+      stampDist,
+      stampVisited,
+      stampWidthA,
+      stampWidthB,
+      width,
+      height
     );
 
-    // Apply interaction delta to every pixel in the falloff band, including
-    // boundaries (t=1 there, matching the previously pinned crest magnitude).
-    baseElevation[i] += elevDelta;
-    mountainRanges[i] = mountainRange;
-    faults[i] = b.intensity * falloff;
+    // Stamp contributions onto every reached pixel using the *propagated*
+    // per-pixel width, not a per-boundary constant. Width at a pixel reflects
+    // the polyline vertex that the Dijkstra's shortest path traces back to.
+    const warpAmpScale = tv.coastlineWarpAmplitude * 3;
+    for (let i = 0; i < size; i++) {
+      const dRad = stampDist[i];
+      if (!Number.isFinite(dRad)) continue;
+      const dEqPx = dRad * radToEqPx;
+
+      const pixelPlate = plateMap[i];
+      const isSubducting = b.subductingPlate === pixelPlate;
+      const sideWidth = pixelPlate === b.plateA ? stampWidthA[i] : stampWidthB[i];
+      if (sideWidth <= 0) continue;
+
+      const warpLim = 0.8 * sideWidth;
+      const rawOffset = warpSampleField[i] * sideWidth * warpAmpScale;
+      const distOffset = rawOffset > warpLim ? warpLim : rawOffset < -warpLim ? -warpLim : rawOffset;
+      const warpedDist = dEqPx + distOffset < 0 ? 0 : dEqPx + distOffset;
+      if (warpedDist >= sideWidth) continue;
+
+      const t = 1 - warpedDist / sideWidth;
+      const falloff = t * t;
+
+      const { elevDelta, mountainRange } = interactionElevation(
+        b.interactionType,
+        plates[pixelPlate].type,
+        b.intensity,
+        falloff,
+        isSubducting
+      );
+
+      interactionDelta[i] += elevDelta;
+      if (mountainRange > mountainRanges[i]) mountainRanges[i] = mountainRange;
+      const faultStrength = b.intensity * falloff;
+      if (faultStrength > faults[i]) faults[i] = faultStrength;
+    }
+  }
+
+  // Clamp accumulated interaction delta to a realistic envelope, then fold it
+  // into the base. Bounds chosen to match the strongest single-boundary stamps
+  // (Collision +0.4, OceanicConvergence trench −0.12·intensity capped further)
+  // with headroom for one extra overlapping boundary.
+  const DELTA_MAX = 0.8;
+  const DELTA_MIN = -0.3;
+  for (let i = 0; i < size; i++) {
+    let d = interactionDelta[i];
+    if (d > DELTA_MAX) d = DELTA_MAX;
+    else if (d < DELTA_MIN) d = DELTA_MIN;
+    baseElevation[i] += d;
   }
 
   return { baseElevation, faults, mountainRanges, continentalSubRelief, distToRidge, oceanAge };
 }
 
 /**
- * BFS from boundary pixels to propagate the nearest boundary index
- * outward to all pixels within falloff range.
+ * Precompute unit-vector positions for every cell on the sphere. Shared by
+ * every sphere-Dijkstra in this file so we allocate once per stage run.
  */
-function propagateBoundaryIndex(
-  nearestBoundary: Int16Array,
-  isBoundary: Uint8Array,
-  dist: Float32Array,
-  falloffWidth: number,
-  width: number,
-  height: number
-): void {
-  const queue: number[] = [];
-  const visited = new Uint8Array(width * height);
-
-  // Seed BFS with boundary pixels
-  for (let i = 0; i < isBoundary.length; i++) {
-    if (isBoundary[i]) {
-      visited[i] = 1;
-      queue.push(i);
-    }
-  }
-
-  let head = 0;
-  while (head < queue.length) {
-    const idx = queue[head++];
-    const x = idx % width;
-    const y = (idx - x) / width;
-
-    const neighborOffsets = [
-      y > 0 ? idx - width : -1,
-      y < height - 1 ? idx + width : -1,
-      x > 0 ? idx - 1 : y * width + width - 1,
-      x < width - 1 ? idx + 1 : y * width,
-    ];
-
-    for (const nIdx of neighborOffsets) {
-      if (nIdx < 0 || visited[nIdx]) continue;
-      if (dist[nIdx] >= falloffWidth) continue;
-
-      visited[nIdx] = 1;
-      nearestBoundary[nIdx] = nearestBoundary[idx];
-      queue.push(nIdx);
-    }
-  }
-}
-
-/**
- * Multi-source Dijkstra on the equirect grid with sphere-aware edge weights.
- * Returns great-circle distance (radians) from each cell to the nearest seed,
- * Infinity if unreachable. Pole rows route across the pole to their antipodal
- * longitude — crucial for fields read on the sphere view, where flat chamfer
- * pinches to a vertex at the poles.
- */
-function sphericalDistanceTransform(isSeed: Uint8Array, width: number, height: number): Float32Array {
+function computeCellCenters(width: number, height: number): Float32Array {
   const size = width * height;
-  const dist = new Float32Array(size);
-  for (let i = 0; i < size; i++) dist[i] = Infinity;
-  const visited = new Uint8Array(size);
-
-  // Cell-center unit vectors on the sphere, used for great-circle edge cost.
   const centers = new Float32Array(size * 3);
   const tmp = new Float32Array(3);
   for (let y = 0; y < height; y++) {
@@ -449,6 +509,30 @@ function sphericalDistanceTransform(isSeed: Uint8Array, width: number, height: n
       centers[o + 2] = tmp[2];
     }
   }
+  return centers;
+}
+
+/**
+ * Multi-source Dijkstra on the equirect grid with sphere-aware edge weights.
+ * Returns great-circle distance (radians) from each cell to the nearest seed,
+ * Infinity if unreachable. Pole rows route across the pole to their antipodal
+ * longitude — crucial for fields read on the sphere view, where flat chamfer
+ * pinches to a vertex at the poles.
+ *
+ * Pass precomputed `centers` to share the cell-center unit-vector table when
+ * running multiple transforms back-to-back.
+ */
+function sphericalDistanceTransform(
+  isSeed: Uint8Array,
+  width: number,
+  height: number,
+  centers?: Float32Array
+): Float32Array {
+  const size = width * height;
+  const dist = new Float32Array(size);
+  for (let i = 0; i < size; i++) dist[i] = Infinity;
+  const visited = new Uint8Array(size);
+  const cellCenters = centers ?? computeCellCenters(width, height);
 
   // Binary min-heap over (dist, idx) pairs. Capacity 4× cell count is
   // empirically safe — each cell is rarely relaxed more than a couple of times.
@@ -519,9 +603,9 @@ function sphericalDistanceTransform(isSeed: Uint8Array, width: number, height: n
     const x = i % width;
     const y = (i - x) / width;
     const ci = i * 3;
-    const cix = centers[ci];
-    const ciy = centers[ci + 1];
-    const ciz = centers[ci + 2];
+    const cix = cellCenters[ci];
+    const ciy = cellCenters[ci + 1];
+    const ciz = cellCenters[ci + 2];
 
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -536,7 +620,7 @@ function sphericalDistanceTransform(isSeed: Uint8Array, width: number, height: n
         const j = ny * width + nx;
         if (visited[j]) continue;
         const cj = j * 3;
-        let dot = cix * centers[cj] + ciy * centers[cj + 1] + ciz * centers[cj + 2];
+        let dot = cix * cellCenters[cj] + ciy * cellCenters[cj + 1] + ciz * cellCenters[cj + 2];
         if (dot > 1) dot = 1;
         else if (dot < -1) dot = -1;
         const step = Math.acos(dot);
@@ -550,4 +634,139 @@ function sphericalDistanceTransform(isSeed: Uint8Array, width: number, height: n
   }
 
   return dist;
+}
+
+/**
+ * Plate-restricted sphere-aware Dijkstra used by per-boundary stamping
+ * (Phase A3). Behaves like `sphericalDistanceTransform` but:
+ *   - Only expands into cells where `plateMap[j] === plateA || plateB`. Cells
+ *     on third plates are unreachable from this boundary's seeds, so the
+ *     boundary's stamp never crosses into unrelated plates.
+ *   - Bails as soon as the popped distance exceeds `maxDistRad`, so per-call
+ *     cost is O(falloff-area) instead of O(grid). Cells beyond that radius
+ *     keep their Infinity sentinel.
+ *
+ * Caller owns `dist` and `visited` buffers and is responsible for resetting
+ * them — `dist` to Infinity, `visited` to 0 — before each call.
+ */
+function boundaryStampDijkstra(
+  seedMask: Uint8Array,
+  plateMap: Int32Array,
+  plateA: number,
+  plateB: number,
+  maxDistRad: number,
+  centers: Float32Array,
+  dist: Float32Array,
+  visited: Uint8Array,
+  widthA: Float32Array,
+  widthB: Float32Array,
+  width: number,
+  height: number
+): void {
+  const size = width * height;
+  // Heap reused across boundaries — capacity scales with the largest possible
+  // falloff region, conservatively bounded by grid size.
+  const heapCap = Math.max(64, size);
+  const heapDist = new Float32Array(heapCap);
+  const heapIdx = new Int32Array(heapCap);
+  let heapSize = 0;
+  let poppedDist = 0;
+
+  const heapPush = (d: number, idx: number): void => {
+    let i = heapSize++;
+    heapDist[i] = d;
+    heapIdx[i] = idx;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (heapDist[parent] <= heapDist[i]) break;
+      const td = heapDist[i];
+      const ti = heapIdx[i];
+      heapDist[i] = heapDist[parent];
+      heapIdx[i] = heapIdx[parent];
+      heapDist[parent] = td;
+      heapIdx[parent] = ti;
+      i = parent;
+    }
+  };
+
+  const heapPop = (): number => {
+    poppedDist = heapDist[0];
+    const top = heapIdx[0];
+    heapSize--;
+    if (heapSize > 0) {
+      heapDist[0] = heapDist[heapSize];
+      heapIdx[0] = heapIdx[heapSize];
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1;
+        const r = l + 1;
+        let smallest = i;
+        if (l < heapSize && heapDist[l] < heapDist[smallest]) smallest = l;
+        if (r < heapSize && heapDist[r] < heapDist[smallest]) smallest = r;
+        if (smallest === i) break;
+        const td = heapDist[i];
+        const ti = heapIdx[i];
+        heapDist[i] = heapDist[smallest];
+        heapIdx[i] = heapIdx[smallest];
+        heapDist[smallest] = td;
+        heapIdx[smallest] = ti;
+        i = smallest;
+      }
+    }
+    return top;
+  };
+
+  for (let i = 0; i < size; i++) {
+    if (seedMask[i] && (plateMap[i] === plateA || plateMap[i] === plateB)) {
+      dist[i] = 0;
+      heapPush(0, i);
+    }
+  }
+
+  const halfW = width >> 1;
+
+  while (heapSize > 0) {
+    const i = heapPop();
+    if (visited[i]) continue;
+    if (poppedDist > dist[i]) continue;
+    if (poppedDist > maxDistRad) break; // entire heap is beyond falloff
+    visited[i] = 1;
+    const x = i % width;
+    const y = (i - x) / width;
+    const ci = i * 3;
+    const cix = centers[ci];
+    const ciy = centers[ci + 1];
+    const ciz = centers[ci + 2];
+
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        let ny = y + dy;
+        let nx = mod(x + dx, width);
+        if (ny < 0 || ny >= height) {
+          ny = y;
+          nx = mod(nx + halfW, width);
+        }
+        const j = ny * width + nx;
+        if (visited[j]) continue;
+        const jp = plateMap[j];
+        if (jp !== plateA && jp !== plateB) continue;
+        const cj = j * 3;
+        let dot = cix * centers[cj] + ciy * centers[cj + 1] + ciz * centers[cj + 2];
+        if (dot > 1) dot = 1;
+        else if (dot < -1) dot = -1;
+        const step = Math.acos(dot);
+        const nd = poppedDist + step;
+        if (nd < dist[j]) {
+          dist[j] = nd;
+          // Inherit widthA / widthB from the source cell — the cell whose
+          // relaxation just reached `j`. Seed cells get their widths from the
+          // polyline rasterizer; this propagates those values outward.
+          widthA[j] = widthA[i];
+          widthB[j] = widthB[i];
+          heapPush(nd, j);
+        }
+      }
+    }
+  }
 }
