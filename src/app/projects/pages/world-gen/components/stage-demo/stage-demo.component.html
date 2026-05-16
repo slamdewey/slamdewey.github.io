@@ -1,0 +1,18 @@
+<figure class="stage-demo">
+  @if (loading() || !imageData()) {
+    <div class="stage-demo__skeleton">
+      <x-skeleton-loader loadingMessage="Generating..." />
+    </div>
+  } @else {
+    <div
+      class="stage-demo__canvas"
+      (pointerdown)="onPanStart($event)"
+      (pointermove)="onPanMove($event)"
+      (pointerup)="onPanEnd()">
+      <canvas #canvas></canvas>
+    </div>
+  }
+  @if (caption()) {
+    <figcaption>{{ caption() }}</figcaption>
+  }
+</figure>

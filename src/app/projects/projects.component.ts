@@ -8,6 +8,9 @@ import { Title } from '@angular/platform-browser';
 import { ProjectTileData } from '../lib/projects';
 import { BannerComponent } from '../components/banner/banner.component';
 import { Backdrop } from '../components/backdrop';
+import { WorldGenPreviewBackdrop } from './pages/world-gen/rendering/world-gen-preview-backdrop';
+import { VoronoiBackdrop } from './pages/voronoi-demo/voronoi-backdrop';
+import { env } from 'src/environments/environment';
 
 @Component({
   selector: 'x-projects',
@@ -36,6 +39,7 @@ export class ProjectsComponent implements OnInit {
         routerLink: 'fragment-writer',
         labelText: 'GLSL Editor',
         backdrop: this.fragmentWriterTileBackdrop,
+        hovered: signal(false),
         onMouseEnter: () => {
           this.updateShaderCode(this.fragmentWriterTileBackdrop, MOUSE_POSITION_EXAMPLE);
         },
@@ -44,6 +48,27 @@ export class ProjectsComponent implements OnInit {
         },
       },
     ];
+
+    // World-gen and voronoi-demo are still under active development — hide
+    // their tiles in production builds until the underlying systems are
+    // ready to ship. The routes themselves remain registered so direct URL
+    // access still works for testing.
+    if (env.enviornment !== 'prod') {
+      this.projects.push(
+        {
+          routerLink: 'world-gen',
+          labelText: 'World Generation',
+          backdrop: new WorldGenPreviewBackdrop(),
+          hovered: signal(false),
+        },
+        {
+          routerLink: 'voronoi-demo',
+          labelText: 'Voronoi Tessellation',
+          backdrop: new VoronoiBackdrop(),
+          hovered: signal(false),
+        }
+      );
+    }
   }
 
   ngOnInit(): void {

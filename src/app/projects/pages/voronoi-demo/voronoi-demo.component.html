@@ -1,0 +1,192 @@
+<div class="voronoi-demo">
+  <x-banner>
+    <ng-container ngProjectAs="title">Voronoi Tessellation</ng-container>
+  </x-banner>
+
+  <article class="voronoi-demo__article">
+    <section class="voronoi-demo__section">
+      <p>
+        A <strong>Voronoi diagram</strong> partitions a plane into cells, one per seed point, where every pixel belongs
+        to the closest seed. Tweak the playground, then scroll for a quick tour of each step.
+      </p>
+    </section>
+
+    <!-- Interactive Playground -->
+    <section class="voronoi-demo__section">
+      <h2>Playground</h2>
+      <div class="voronoi-demo__playground">
+        <div class="voronoi-demo__playground-controls">
+          <mat-form-field appearance="outline">
+            <mat-label>Seed</mat-label>
+            <input matInput type="number" [ngModel]="pgSeed()" (ngModelChange)="pgSeed.set($event)" />
+          </mat-form-field>
+          <button mat-stroked-button (click)="randomizeSeed(); generatePlayground()">Randomize</button>
+
+          <label class="voronoi-demo__slider-label">
+            Cells: {{ pgSeedCount() }}
+            <mat-slider min="2" max="40" step="1" discrete>
+              <input matSliderThumb [ngModel]="pgSeedCount()" (ngModelChange)="pgSeedCount.set($event)" />
+            </mat-slider>
+          </label>
+
+          <label class="voronoi-demo__slider-label">
+            Relaxation: {{ pgRelaxation() }}
+            <mat-slider min="0" max="10" step="1" discrete>
+              <input matSliderThumb [ngModel]="pgRelaxation()" (ngModelChange)="pgRelaxation.set($event)" />
+            </mat-slider>
+          </label>
+
+          <mat-checkbox [ngModel]="pgWrapX()" (ngModelChange)="pgWrapX.set($event)">Cylindrical Wrapping</mat-checkbox>
+          <mat-checkbox [ngModel]="pgShowBoundaries()" (ngModelChange)="pgShowBoundaries.set($event)"
+            >Show Boundaries</mat-checkbox
+          >
+          <mat-checkbox [ngModel]="pgShowSeeds()" (ngModelChange)="pgShowSeeds.set($event)"
+            >Show Seed Points</mat-checkbox
+          >
+          <mat-checkbox [ngModel]="pgShowGraph()" (ngModelChange)="pgShowGraph.set($event)">Show Graph</mat-checkbox>
+
+          <button mat-flat-button color="primary" (click)="generatePlayground()">Generate</button>
+        </div>
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--wide"
+          [class.voronoi-demo__canvas-wrap--pannable]="pgWrapX()"
+          (pointerdown)="onPanStart($event)"
+          (pointermove)="onPanMove($event)"
+          (pointerup)="onPanEnd()">
+          <canvas #playgroundCanvas></canvas>
+        </div>
+      </div>
+    </section>
+
+    <hr class="voronoi-demo__divider" />
+
+    <!-- 1. Seeds -->
+    <section class="voronoi-demo__section voronoi-demo__showcase">
+      <h2>1. Seeds</h2>
+      <div class="voronoi-demo__text">
+        <p>Deterministic xorshift32 PRNG drops N points on the plane.</p>
+        <x-code-block [code]="codeSeeds" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <label class="voronoi-demo__slider-label">
+          Seed count: {{ s1Count() }}
+          <mat-slider [min]="s1Min" [max]="s1Max" step="1" discrete>
+            <input matSliderThumb [ngModel]="s1Count()" (ngModelChange)="setS1($event)" />
+          </mat-slider>
+        </label>
+        <div class="voronoi-demo__canvas-wrap">
+          <canvas #seedsCanvas></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Cells & Relaxation -->
+    <section class="voronoi-demo__section voronoi-demo__showcase">
+      <h2>2. Cells &amp; Lloyd Relaxation</h2>
+      <div class="voronoi-demo__text">
+        <p>
+          Every pixel claims its nearest seed (raw). Each iteration nudges seeds toward their cell's centroid, evening
+          out the sizes.
+        </p>
+        <x-code-block [code]="codeAssign" />
+        <x-code-block [code]="codeRelax" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <label class="voronoi-demo__slider-label">
+          Iterations: {{ s2Iterations() }}
+          <mat-slider [min]="s2Min" [max]="s2Max" step="1" discrete>
+            <input matSliderThumb [ngModel]="s2Iterations()" (ngModelChange)="setS2($event)" />
+          </mat-slider>
+        </label>
+        <div class="voronoi-demo__canvas-wrap">
+          <canvas #relaxCanvas></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Cylindrical Wrapping -->
+    <section class="voronoi-demo__section voronoi-demo__showcase">
+      <h2>3. Cylindrical Wrapping</h2>
+      <div class="voronoi-demo__text">
+        <p>
+          For world-map strips, the x-axis must seam. Distance and the centroid pass both go modulo width — angular
+          averaging in sin/cos space keeps the centroid pass from breaking at the wrap.
+        </p>
+        <x-code-block [code]="codeWrapCylindrical" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <div class="voronoi-demo__canvas-wrap">
+          <canvas #wrapOffCanvas></canvas>
+        </div>
+        <p class="voronoi-demo__caption">No wrapping — hard seams at left/right edges.</p>
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--pannable"
+          (pointerdown)="onWrapPanStart($event)"
+          (pointermove)="onWrapPanMove($event)"
+          (pointerup)="onWrapPanEnd()">
+          <canvas #wrapOnCanvas></canvas>
+        </div>
+        <p class="voronoi-demo__caption">Wrapping on — drag to pan across the seam.</p>
+      </div>
+    </section>
+
+    <!-- 4. Spherical Wrapping -->
+    <section class="voronoi-demo__section voronoi-demo__showcase">
+      <h2>4. Spherical Wrapping</h2>
+      <div class="voronoi-demo__text">
+        <p>
+          Cells live on a unit sphere. Seeds are unit vectors; the nearest-seed loop becomes a max-dot-product over
+          those vectors. The same data drives an orthographic globe and a mercator projection — drag either, both stay
+          in sync.
+        </p>
+        <x-code-block [code]="codeWrapSphere" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <label class="voronoi-demo__slider-label">
+          Seed count: {{ s5Count() }}
+          <mat-slider [min]="s5Min" [max]="s5Max" [step]="s5Step" discrete>
+            <input matSliderThumb [ngModel]="s5Count()" (ngModelChange)="setS5($event)" />
+          </mat-slider>
+        </label>
+        <div class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--square">
+          <x-sphere-view
+            class="voronoi-demo__sphere"
+            [texture]="sphereTexture()"
+            [(rotLon)]="sphereRotLon"
+            [(rotLat)]="sphereRotLat">
+            <canvas #sphereOverlayCanvas class="voronoi-demo__sphere-overlay"></canvas>
+          </x-sphere-view>
+        </div>
+        <p class="voronoi-demo__caption">Drag to rotate the globe.</p>
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--mercator voronoi-demo__canvas-wrap--pannable"
+          (pointerdown)="onMercatorPanStart($event)"
+          (pointermove)="onMercatorPanMove($event)"
+          (pointerup)="onMercatorPanEnd()">
+          <canvas #mercatorCanvas></canvas>
+        </div>
+        <p class="voronoi-demo__caption">Mercator — drag to pan; the globe rotates with it.</p>
+      </div>
+    </section>
+
+    <!-- 5. Adjacency Graph -->
+    <section class="voronoi-demo__section voronoi-demo__showcase">
+      <h2>5. Adjacency Graph</h2>
+      <div class="voronoi-demo__text">
+        <p>
+          One pass over the pixel grid yields the dual graph — who's neighbors with whom — for downstream simulation.
+        </p>
+        <x-code-block [code]="codeGraph" />
+      </div>
+      <div class="voronoi-demo__demo">
+        <div
+          class="voronoi-demo__canvas-wrap voronoi-demo__canvas-wrap--pannable"
+          (pointerdown)="onGraphPanStart($event)"
+          (pointermove)="onGraphPanMove($event)"
+          (pointerup)="onGraphPanEnd()">
+          <canvas #graphCanvas></canvas>
+        </div>
+      </div>
+    </section>
+  </article>
+</div>

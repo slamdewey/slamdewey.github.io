@@ -1,0 +1,345 @@
+<div class="param-controls">
+  <mat-accordion>
+    <mat-expansion-panel [expanded]="true">
+      <mat-expansion-panel-header>
+        <mat-panel-title>Tectonic Parameters</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-platecount">Plate Count: {{ tectonic().plateCount }}</label>
+        <mat-slider min="5" max="50" step="1" discrete>
+          <input
+            id="slider-platecount"
+            matSliderThumb
+            [ngModel]="tectonic().plateCount"
+            (ngModelChange)="updateTectonic('plateCount', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-cellcount">Cell Count: {{ tectonic().cellCount }}</label>
+        <mat-slider min="100" max="2000" step="50" discrete>
+          <input
+            id="slider-cellcount"
+            matSliderThumb
+            [ngModel]="tectonic().cellCount"
+            (ngModelChange)="updateTectonic('cellCount', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-relaxation">Relaxation: {{ tectonic().relaxationIterations }}</label>
+        <mat-slider min="0" max="1" step="1" discrete>
+          <input
+            id="slider-relaxation"
+            matSliderThumb
+            [ngModel]="tectonic().relaxationIterations"
+            (ngModelChange)="updateTectonic('relaxationIterations', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-falloff">Boundary Falloff: {{ tectonic().boundaryFalloffScale.toFixed(2) }}</label>
+        <mat-slider min="0.2" max="3" step="0.1">
+          <input
+            id="slider-falloff"
+            matSliderThumb
+            [ngModel]="tectonic().boundaryFalloffScale"
+            (ngModelChange)="updateTectonic('boundaryFalloffScale', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-warpamp">Coastline Warp Amp: {{ tectonic().coastlineWarpAmplitude.toFixed(2) }}</label>
+        <mat-slider min="0" max="1" step="0.05">
+          <input
+            id="slider-warpamp"
+            matSliderThumb
+            [ngModel]="tectonic().coastlineWarpAmplitude"
+            (ngModelChange)="updateTectonic('coastlineWarpAmplitude', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-warpfreq">Coastline Warp Freq: {{ tectonic().coastlineWarpFrequency.toFixed(1) }}</label>
+        <mat-slider min="0.5" max="15" step="0.5">
+          <input
+            id="slider-warpfreq"
+            matSliderThumb
+            [ngModel]="tectonic().coastlineWarpFrequency"
+            (ngModelChange)="updateTectonic('coastlineWarpFrequency', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-subrelief-amp"
+          >Sub-Relief Amp: {{ tectonic().continentalSubReliefAmplitude.toFixed(2) }}</label
+        >
+        <mat-slider min="0" max="1" step="0.05">
+          <input
+            id="slider-subrelief-amp"
+            matSliderThumb
+            [ngModel]="tectonic().continentalSubReliefAmplitude"
+            (ngModelChange)="updateTectonic('continentalSubReliefAmplitude', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-subrelief-freq"
+          >Sub-Relief Freq: {{ tectonic().continentalSubReliefFrequency.toFixed(2) }}</label
+        >
+        <mat-slider min="0.05" max="1.5" step="0.05">
+          <input
+            id="slider-subrelief-freq"
+            matSliderThumb
+            [ngModel]="tectonic().continentalSubReliefFrequency"
+            (ngModelChange)="updateTectonic('continentalSubReliefFrequency', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-ocean-age">Ocean Age Gradient: {{ tectonic().oceanicAgeGradientStrength.toFixed(2) }}</label>
+        <mat-slider min="0" max="2" step="0.1">
+          <input
+            id="slider-ocean-age"
+            matSliderThumb
+            [ngModel]="tectonic().oceanicAgeGradientStrength"
+            (ngModelChange)="updateTectonic('oceanicAgeGradientStrength', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__row">
+        <mat-checkbox
+          [checked]="tectonic().boundarySoftenPassive"
+          (change)="updateTectonic('boundarySoftenPassive', $event.checked)">
+          Soften passive boundaries
+        </mat-checkbox>
+      </div>
+    </mat-expansion-panel>
+
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Noise Parameters</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="param-controls__row">
+        <mat-form-field appearance="outline" class="param-controls__field">
+          <mat-label>Seed</mat-label>
+          <input matInput type="number" [ngModel]="noise().seed" (ngModelChange)="updateNoise('seed', $event)" />
+        </mat-form-field>
+        <button mat-stroked-button (click)="randomizeSeed()">Random</button>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-octaves">Octaves: {{ noise().octaves }}</label>
+        <mat-slider min="1" max="10" step="1" discrete>
+          <input
+            id="slider-octaves"
+            matSliderThumb
+            [ngModel]="noise().octaves"
+            (ngModelChange)="updateNoise('octaves', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-frequency">Frequency: {{ noise().frequency.toFixed(2) }}</label>
+        <mat-slider min="0.1" max="5" step="0.1">
+          <input
+            id="slider-frequency"
+            matSliderThumb
+            [ngModel]="noise().frequency"
+            (ngModelChange)="updateNoise('frequency', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-persistence">Persistence: {{ noise().persistence.toFixed(2) }}</label>
+        <mat-slider min="0.1" max="1" step="0.05">
+          <input
+            id="slider-persistence"
+            matSliderThumb
+            [ngModel]="noise().persistence"
+            (ngModelChange)="updateNoise('persistence', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-lacunarity">Lacunarity: {{ noise().lacunarity.toFixed(2) }}</label>
+        <mat-slider min="1" max="4" step="0.1">
+          <input
+            id="slider-lacunarity"
+            matSliderThumb
+            [ngModel]="noise().lacunarity"
+            (ngModelChange)="updateNoise('lacunarity', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-water">Water %: {{ (noise().waterPercentage * 100).toFixed(0) }}%</label>
+        <mat-slider min="0.1" max="0.9" step="0.05">
+          <input
+            id="slider-water"
+            matSliderThumb
+            [ngModel]="noise().waterPercentage"
+            (ngModelChange)="updateNoise('waterPercentage', $event)" />
+        </mat-slider>
+      </div>
+    </mat-expansion-panel>
+
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Climate Parameters</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-tilt">Seasonal Tilt: {{ climate().seasonalTilt.toFixed(1) }} °C</label>
+        <mat-slider min="0" max="30" step="0.5">
+          <input
+            id="slider-tilt"
+            matSliderThumb
+            [ngModel]="climate().seasonalTilt"
+            (ngModelChange)="updateClimate('seasonalTilt', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-itcz">ITCZ Shift: {{ climate().itczShift.toFixed(2) }}</label>
+        <mat-slider min="0" max="0.2" step="0.01">
+          <input
+            id="slider-itcz"
+            matSliderThumb
+            [ngModel]="climate().itczShift"
+            (ngModelChange)="updateClimate('itczShift', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-orographic">Orographic Lift: {{ climate().orographicLiftStrength.toFixed(1) }}</label>
+        <mat-slider min="0" max="10" step="0.5">
+          <input
+            id="slider-orographic"
+            matSliderThumb
+            [ngModel]="climate().orographicLiftStrength"
+            (ngModelChange)="updateClimate('orographicLiftStrength', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-rainshadow">Rain Shadow: {{ climate().rainShadowStrength.toFixed(1) }}</label>
+        <mat-slider min="0" max="10" step="0.5">
+          <input
+            id="slider-rainshadow"
+            matSliderThumb
+            [ngModel]="climate().rainShadowStrength"
+            (ngModelChange)="updateClimate('rainShadowStrength', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-frost">Frost Threshold: {{ climate().frostThreshold.toFixed(1) }} °C</label>
+        <mat-slider min="-15" max="10" step="0.5">
+          <input
+            id="slider-frost"
+            matSliderThumb
+            [ngModel]="climate().frostThreshold"
+            (ngModelChange)="updateClimate('frostThreshold', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-wilt">Wilt Point (AI): {{ climate().aridityWiltPoint.toFixed(2) }}</label>
+        <mat-slider min="0" max="1.5" step="0.05">
+          <input
+            id="slider-wilt"
+            matSliderThumb
+            [ngModel]="climate().aridityWiltPoint"
+            (ngModelChange)="updateClimate('aridityWiltPoint', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-conv">Convective Rain (/day): {{ climate().convectivePrecipPerDay.toFixed(2) }}</label>
+        <mat-slider min="0.05" max="1.0" step="0.05">
+          <input
+            id="slider-conv"
+            matSliderThumb
+            [ngModel]="climate().convectivePrecipPerDay"
+            (ngModelChange)="updateClimate('convectivePrecipPerDay', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-recycle">Land Evap Efficiency: {{ climate().landEvapEfficiency.toFixed(2) }}</label>
+        <mat-slider min="0" max="1.0" step="0.05">
+          <input
+            id="slider-recycle"
+            matSliderThumb
+            [ngModel]="climate().landEvapEfficiency"
+            (ngModelChange)="updateClimate('landEvapEfficiency', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-soiltau">Soil Bucket τ (days): {{ climate().soilMoistureTimescaleDays.toFixed(0) }}</label>
+        <mat-slider min="5" max="120" step="5">
+          <input
+            id="slider-soiltau"
+            matSliderThumb
+            [ngModel]="climate().soilMoistureTimescaleDays"
+            (ngModelChange)="updateClimate('soilMoistureTimescaleDays', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-storm">Storm-Track Boost: {{ climate().stormTrackBoost.toFixed(2) }}</label>
+        <mat-slider min="0" max="2" step="0.1">
+          <input
+            id="slider-storm"
+            matSliderThumb
+            [ngModel]="climate().stormTrackBoost"
+            (ngModelChange)="updateClimate('stormTrackBoost', $event)" />
+        </mat-slider>
+      </div>
+
+      <div class="param-controls__slider-row">
+        <label for="slider-iter">Moisture Iterations: {{ climate().moistureIterations }}</label>
+        <mat-slider min="40" max="300" step="10" discrete>
+          <input
+            id="slider-iter"
+            matSliderThumb
+            [ngModel]="climate().moistureIterations"
+            (ngModelChange)="updateClimate('moistureIterations', $event)" />
+        </mat-slider>
+      </div>
+    </mat-expansion-panel>
+
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Canvas Size</mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <div class="param-controls__row">
+        <mat-form-field appearance="outline" class="param-controls__field--small">
+          <mat-label>Width</mat-label>
+          <input matInput type="number" [ngModel]="mapWidth()" (ngModelChange)="mapWidth.set($event)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="param-controls__field--small">
+          <mat-label>Height</mat-label>
+          <input matInput type="number" [ngModel]="mapHeight()" (ngModelChange)="mapHeight.set($event)" />
+        </mat-form-field>
+      </div>
+
+      <div class="param-controls__row">
+        <mat-form-field appearance="outline" class="param-controls__field">
+          <mat-label>World Circumference (km)</mat-label>
+          <input matInput type="number" [ngModel]="circumferenceKm()" (ngModelChange)="circumferenceKm.set($event)" />
+        </mat-form-field>
+      </div>
+    </mat-expansion-panel>
+  </mat-accordion>
+
+  <button mat-flat-button color="primary" class="param-controls__generate" (click)="onRegenerate()">Regenerate</button>
+  <button mat-stroked-button class="param-controls__generate" (click)="onMultiSeedSweep()">
+    Stats Sweep (5 seeds)
+  </button>
+</div>

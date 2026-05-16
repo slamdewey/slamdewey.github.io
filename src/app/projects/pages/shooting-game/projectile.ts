@@ -1,13 +1,5 @@
-import {
-  EcsEntity,
-  EcsRenderableComponent,
-  EcsComponent,
-  Collider,
-  EcsScene,
-  EcsTransform,
-  Rectangle,
-} from 'src/app/lib/ecs';
-import { Vector2 } from 'src/app/lib/coordinate';
+import { EcsEntity, EcsRenderableComponent, EcsComponent, Collider, EcsScene, EcsTransform, Rectangle } from '@ecs';
+import { Vector2 } from '@lib/coordinate';
 import { Enemy } from './enemy';
 
 export class ProjectileRenderable extends EcsRenderableComponent {

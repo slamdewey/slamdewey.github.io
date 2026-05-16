@@ -1,4 +1,4 @@
-import { EcsRenderableComponent, EcsEntity, EcsTransform, EcsScene } from 'src/app/lib/ecs';
+import { EcsRenderableComponent, EcsEntity, EcsTransform, EcsScene } from '@ecs';
 
 export class ScoreRenderable extends EcsRenderableComponent {
   constructor(

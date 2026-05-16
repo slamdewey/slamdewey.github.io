@@ -1,0 +1,9 @@
+<div
+  class="sphere-view"
+  (pointerdown)="onRotateStart($event)"
+  (pointermove)="onRotateMove($event)"
+  (pointerup)="onRotateEnd($event)"
+  (pointercancel)="onRotateEnd($event)">
+  <canvas #glCanvas></canvas>
+  <ng-content />
+</div>

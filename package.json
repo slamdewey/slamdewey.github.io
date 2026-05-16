@@ -13,6 +13,18 @@
     "lint": "eslint . --fix",
     "prepare": "husky"
   },
+  "lint-staged": {
+    "src/**/*.{ts,html}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{js,mjs,cjs,json,css,scss,md,yml,yaml}": [
+      "prettier --write"
+    ],
+    "src/**/*.{css,scss,json}": [
+      "prettier --write"
+    ]
+  },
   "private": true,
   "dependencies": {
     "@angular/animations": "19.0.5",
@@ -45,6 +57,7 @@
     "eslint-plugin-unused-imports": "^4.1.4",
     "globals": "^15.9.0",
     "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.0.0",
     "prettier-eslint": "^16.4.2",
     "typescript": "~5.6.3",

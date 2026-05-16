@@ -1,18 +1,12 @@
 import { ChangeDetectionStrategy, Component, HostListener, OnDestroy } from '@angular/core';
-import { BackdropComponent, EcsSceneBackdrop } from 'src/app/components/backdrop';
-import {
-  CanvasContext2DRenderer,
-  EcsScene,
-  EcsEntity,
-  TransformFollowCamera,
-  DebugGridComponent,
-} from 'src/app/lib/ecs';
+import { BackdropComponent, EcsSceneBackdrop } from '@components/backdrop';
+import { CanvasContext2DRenderer, EcsScene, EcsEntity, TransformFollowCamera, DebugGridComponent } from '@ecs';
 import { Player } from './player';
 import { Enemy } from './enemy';
-import { Vector2 } from 'src/app/lib/coordinate';
+import { Vector2 } from '@lib/coordinate';
 import { ScoreRenderable } from './score';
 import { ShootingGameActions, ShootingGameAxes } from './game-input';
-import { ObjectPool } from 'src/app/lib/ecs/object-pool';
+import { ObjectPool } from '@ecs/object-pool';
 import { Projectile } from './projectile';
 
 /**

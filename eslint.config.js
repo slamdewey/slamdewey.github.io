@@ -7,7 +7,7 @@ import unusedImports from 'eslint-plugin-unused-imports';
 
 export default defineConfig([
   {
-    ignores: ['dist/', 'node_modules/'],
+    ignores: ['dist/', 'node_modules/', '.angular/'],
   },
   {
     files: ['src/**/*.ts'],

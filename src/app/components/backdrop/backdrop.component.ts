@@ -8,9 +8,12 @@ import {
   ChangeDetectionStrategy,
   signal,
   AfterViewInit,
+  inject,
+  effect,
 } from '@angular/core';
 import { Backdrop } from './backdrop';
-import { Vector2 } from 'src/app/lib/coordinate';
+import { Vector2 } from '@lib/coordinate';
+import { BackdropService, RenderableBackdrop } from '../../services/backdrop.service';
 
 @Component({
   selector: 'x-backdrop',
@@ -18,7 +21,7 @@ import { Vector2 } from 'src/app/lib/coordinate';
   styleUrls: ['./backdrop.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class BackdropComponent implements OnDestroy, AfterViewInit {
+export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBackdrop {
   backdrop = input.required<Backdrop>();
   shouldPauseAnimation = input<boolean>(false);
   fullscreen = input<boolean>(false);
@@ -30,18 +33,28 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
 
   public static isWebGlEnabled: boolean;
 
+  private readonly backdropService = inject(BackdropService);
   private canvasBufferSize = new Vector2();
   private canvasElement: HTMLCanvasElement;
   private ctx: RenderingContext;
-  private renderInterval: number;
-  private lastUpdate = 0;
   private resizeObserver: ResizeObserver;
+  private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     const e = document.createElement('canvas');
     BackdropComponent.isWebGlEnabled =
       !!window.WebGLRenderingContext || !!e.getContext('webgl') || !!e.getContext('experimental-webgl');
     e.remove();
+
+    effect(() => {
+      const paused = this.shouldPauseAnimation();
+      if (!this.isInitialized) return;
+      if (paused) {
+        this.backdropService.unregister(this);
+      } else {
+        this.backdropService.register(this);
+      }
+    });
   }
 
   ngAfterViewInit(): void {
@@ -65,12 +78,17 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
     backdrop.initialize();
     this.isInitialized = true;
 
-    this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
+    if (!this.shouldPauseAnimation()) {
+      this.backdropService.register(this);
+    }
   }
 
   ngOnDestroy() {
-    window.cancelAnimationFrame(this.renderInterval);
+    this.backdropService.unregister(this);
     this.resizeObserver?.disconnect();
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+    }
     this.backdrop().onDestroy();
   }
 
@@ -95,18 +113,14 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
     backdrop.scrollOffset.set([window.scrollX, window.scrollY]);
   }
 
-  public renderLoop(): void {
-    this.renderInterval = window.requestAnimationFrame(this.renderLoop.bind(this));
-    if (!this.isInitialized || this.shouldPauseAnimation() || this.isResizing()) {
+  public renderFrame(deltaTime: number): void {
+    if (!this.isInitialized || this.isResizing()) {
       return;
     }
-
-    const now = Date.now();
-    const deltaTime = (now - (this.lastUpdate || now)) / 1000;
-    this.lastUpdate = now;
-
     this.backdrop().tick(deltaTime);
   }
+
+  private static readonly RESIZE_DEBOUNCE_MS = 150;
 
   private onResize(entries: ResizeObserverEntry[]) {
     let newWidth: number, newHeight: number;
@@ -115,8 +129,8 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
       newWidth = window.innerWidth;
       newHeight = window.innerHeight;
     } else {
-      newWidth = entries[0].contentRect.width;
-      newHeight = entries[0].contentRect.height;
+      newWidth = Math.floor(entries[0].contentRect.width);
+      newHeight = Math.floor(entries[0].contentRect.height);
     }
 
     // ensure we actually resized, setting canvas buffer size is expensive
@@ -124,11 +138,24 @@ export class BackdropComponent implements OnDestroy, AfterViewInit {
       return;
     }
 
-    const backdrop = this.backdrop();
-    const canvas = this.ctx.canvas;
-    this.canvasBufferSize.set([newWidth, newHeight]);
-    [canvas.width, canvas.height] = [newWidth, newHeight];
+    this.isResizing.set(true);
 
-    backdrop.setSize(newWidth, newHeight);
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+    }
+
+    this.resizeTimeout = setTimeout(() => {
+      const backdrop = this.backdrop();
+      const canvas = this.ctx.canvas;
+      this.canvasBufferSize.set([newWidth, newHeight]);
+      [canvas.width, canvas.height] = [newWidth, newHeight];
+
+      backdrop.setSize(newWidth, newHeight);
+
+      this.isResizing.set(false);
+
+      // Render a frame after resize so paused backdrops are never blank
+      backdrop.tick(0);
+    }, BackdropComponent.RESIZE_DEBOUNCE_MS);
   }
 }

@@ -1,0 +1,67 @@
+import { ChangeDetectionStrategy, Component, model, output } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatSliderModule } from '@angular/material/slider';
+import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatExpansionModule } from '@angular/material/expansion';
+import {
+  NoiseVariables,
+  ClimateVariables,
+  TectonicVariables,
+  DEFAULT_NOISE,
+  DEFAULT_CLIMATE,
+  DEFAULT_TECTONIC,
+} from '../../lib/types';
+
+@Component({
+  selector: 'x-param-controls',
+  templateUrl: './param-controls.component.html',
+  styleUrls: ['./param-controls.component.scss'],
+  imports: [
+    FormsModule,
+    MatSliderModule,
+    MatInputModule,
+    MatFormFieldModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatExpansionModule,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ParamControlsComponent {
+  noise = model<NoiseVariables>({ ...DEFAULT_NOISE });
+  climate = model<ClimateVariables>({ ...DEFAULT_CLIMATE });
+  tectonic = model<TectonicVariables>({ ...DEFAULT_TECTONIC });
+  mapWidth = model<number>(512);
+  mapHeight = model<number>(256);
+  circumferenceKm = model<number>(40000);
+
+  regenerate = output<void>();
+  multiSeedSweep = output<void>();
+
+  randomizeSeed(): void {
+    this.noise.update((n) => ({ ...n, seed: Math.floor(Math.random() * 2147483647) }));
+  }
+
+  updateNoise(key: keyof NoiseVariables, value: number): void {
+    this.noise.update((n) => ({ ...n, [key]: value }));
+  }
+
+  updateClimate(key: keyof ClimateVariables, value: number): void {
+    this.climate.update((c) => ({ ...c, [key]: value }));
+  }
+
+  updateTectonic(key: keyof TectonicVariables, value: number | boolean): void {
+    this.tectonic.update((t) => ({ ...t, [key]: value }));
+  }
+
+  onRegenerate(): void {
+    this.regenerate.emit();
+  }
+
+  onMultiSeedSweep(): void {
+    this.multiSeedSweep.emit();
+  }
+}

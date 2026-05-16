@@ -1,0 +1,39 @@
+.param-controls {
+  margin: 1rem 0;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  &__slider-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.25rem;
+
+    label {
+      font-size: 0.85rem;
+      color: #ccc;
+      margin-bottom: 0.1rem;
+    }
+
+    mat-slider {
+      width: 100%;
+    }
+  }
+
+  &__field {
+    flex: 1;
+  }
+
+  &__field--small {
+    width: 120px;
+  }
+
+  &__generate {
+    margin-top: 1rem;
+    width: 100%;
+  }
+}
