@@ -1,6 +1,6 @@
-import { WebGLBackdrop } from './backdrop';
+import { ScreenEffectBackdrop } from './backdrop';
 
-export class UVColorCycleBackground extends WebGLBackdrop {
+export class UVColorCycleBackground extends ScreenEffectBackdrop {
   readonly FragmentShader: string = `\
 #version 300 es
 precision mediump float;
@@ -8,7 +8,7 @@ precision mediump float;
 const float TIME_SCALAR = 0.7;
 
 uniform vec2 screenSize;
-uniform float totalTime;
+uniform highp float totalTime;
 
 out vec4 fragColor;
 

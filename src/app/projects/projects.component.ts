@@ -40,6 +40,7 @@ export class ProjectsComponent implements OnInit {
         labelText: 'GLSL Editor',
         backdrop: this.fragmentWriterTileBackdrop,
         hovered: signal(false),
+        focused: signal(false),
         onMouseEnter: () => {
           this.updateShaderCode(this.fragmentWriterTileBackdrop, MOUSE_POSITION_EXAMPLE);
         },
@@ -60,12 +61,14 @@ export class ProjectsComponent implements OnInit {
           labelText: 'World Generation',
           backdrop: new WorldGenPreviewBackdrop(),
           hovered: signal(false),
+          focused: signal(false),
         },
         {
           routerLink: 'voronoi-demo',
           labelText: 'Voronoi Tessellation',
           backdrop: new VoronoiBackdrop(),
           hovered: signal(false),
+          focused: signal(false),
         }
       );
     }

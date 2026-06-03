@@ -1,7 +1,7 @@
-import { WebGLBackdrop } from '@components/backdrop/backdrop';
+import { ScreenEffectBackdrop } from '@components/backdrop/backdrop';
 import { DEFAULT_SHADER_PROGRAMS, SHADER_HEADER, ShaderProgramData, UNIFORM_DEFS } from './shader-programs';
 
-export class ReactiveWebGLBackground extends WebGLBackdrop {
+export class ReactiveWebGLBackground extends ScreenEffectBackdrop {
   public shaderProgramData: ShaderProgramData = DEFAULT_SHADER_PROGRAMS[0];
   public fragmentShaderOverride: string | undefined = undefined;
 

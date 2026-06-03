@@ -22,13 +22,11 @@ export class MapTextureBackdrop extends WebGLBackdrop {
     return MAP_FRAGMENT_SHADER;
   }
 
-  protected override initializeDrawVariables(gl: WebGL2RenderingContext, shaderProgram: WebGLProgram): void {
-    super.initializeDrawVariables(gl, shaderProgram);
+  protected override onProgramReady(gl: WebGL2RenderingContext, shaderProgram: WebGLProgram): void {
     this.mapSizeLocation = gl.getUniformLocation(shaderProgram, 'uMapSize');
     this.textureLocation = gl.getUniformLocation(shaderProgram, 'uDataTexture');
     this.panLocation = gl.getUniformLocation(shaderProgram, 'uPanOffset');
 
-    // Create texture
     this.dataTexture = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.dataTexture);
@@ -37,15 +35,15 @@ export class MapTextureBackdrop extends WebGLBackdrop {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    // If data was queued before GL was ready, upload it now
     if (this.pendingData) {
       this.doUpload(this.pendingData.data, this.pendingData.width, this.pendingData.height);
       this.pendingData = null;
     }
-    // Clear background so first frame isn't garbage
-    this.gl.clearColor(0.067, 0.067, 0.067, 1);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+    gl.clearColor(0.067, 0.067, 0.067, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
   }
+
+  protected override update(_deltaTime: number): void {}
 
   /**
    * Upload pre-colored RGBA data to the texture.

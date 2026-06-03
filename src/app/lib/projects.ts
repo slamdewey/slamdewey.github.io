@@ -6,6 +6,7 @@ export interface ProjectTileData {
   labelText: string;
   backdrop: Backdrop;
   hovered: WritableSignal<boolean>;
+  focused: WritableSignal<boolean>;
   onMouseEnter?: () => void;
   onMouseExit?: () => void;
 }

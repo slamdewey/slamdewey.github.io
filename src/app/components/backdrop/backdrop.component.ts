@@ -37,7 +37,7 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
   private canvasBufferSize = new Vector2();
   private canvasElement: HTMLCanvasElement;
   private ctx: RenderingContext;
-  private resizeObserver: ResizeObserver;
+  private resizeObserver?: ResizeObserver;
   private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -66,17 +66,24 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
     if (!context) {
       throw new Error(`Failed to create context: ${contextId}`);
     }
-    this.resizeObserver = new ResizeObserver(this.onResize.bind(this));
-    this.resizeObserver.observe(
-      this.fullscreen()
-        ? this.canvasElement.parentElement! // document.body
-        : this.canvasElement.parentElement!.parentElement! // host container
-    );
+    if (this.fullscreen()) {
+      // Fullscreen canvas uses position:fixed, so the host element doesn't
+      // resize with the viewport — observe window directly instead.
+      window.addEventListener('resize', this.onWindowResize, { passive: true });
+    } else {
+      this.resizeObserver = new ResizeObserver(this.onContainerResize);
+      this.resizeObserver.observe(this.canvasElement.parentElement!.parentElement!);
+    }
 
     this.ctx = context;
     backdrop.setContext(this.ctx);
     backdrop.initialize();
     this.isInitialized = true;
+
+    if (this.fullscreen()) {
+      // window.resize doesn't fire on mount; size the canvas now.
+      this.onWindowResize();
+    }
 
     if (!this.shouldPauseAnimation()) {
       this.backdropService.register(this);
@@ -86,6 +93,7 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
   ngOnDestroy() {
     this.backdropService.unregister(this);
     this.resizeObserver?.disconnect();
+    window.removeEventListener('resize', this.onWindowResize);
     if (this.resizeTimeout) {
       clearTimeout(this.resizeTimeout);
     }
@@ -122,17 +130,15 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
 
   private static readonly RESIZE_DEBOUNCE_MS = 150;
 
-  private onResize(entries: ResizeObserverEntry[]) {
-    let newWidth: number, newHeight: number;
+  private onWindowResize = (): void => {
+    this.scheduleResize(window.innerWidth, window.innerHeight);
+  };
 
-    if (this.fullscreen()) {
-      newWidth = window.innerWidth;
-      newHeight = window.innerHeight;
-    } else {
-      newWidth = Math.floor(entries[0].contentRect.width);
-      newHeight = Math.floor(entries[0].contentRect.height);
-    }
+  private onContainerResize = (entries: ResizeObserverEntry[]): void => {
+    this.scheduleResize(Math.floor(entries[0].contentRect.width), Math.floor(entries[0].contentRect.height));
+  };
 
+  private scheduleResize(newWidth: number, newHeight: number): void {
     // ensure we actually resized, setting canvas buffer size is expensive
     if (newWidth === this.canvasBufferSize.x && newHeight === this.canvasBufferSize.y) {
       return;

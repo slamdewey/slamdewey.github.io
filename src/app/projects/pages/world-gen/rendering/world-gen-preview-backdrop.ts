@@ -1,12 +1,12 @@
-import { WebGLBackdrop } from '@components/backdrop/backdrop';
+import { ScreenEffectBackdrop } from '@components/backdrop/backdrop';
 
-export class WorldGenPreviewBackdrop extends WebGLBackdrop {
+export class WorldGenPreviewBackdrop extends ScreenEffectBackdrop {
   private readonly FragmentShader = `\
 #version 300 es
 precision mediump float;
 
 uniform vec2 screenSize;
-uniform float totalTime;
+uniform highp float totalTime;
 
 out vec4 fragColor;
 
