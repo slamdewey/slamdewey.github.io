@@ -48,29 +48,27 @@ export class ProjectsComponent implements OnInit {
           this.updateShaderCode(this.fragmentWriterTileBackdrop, SHADER_TOY_UV);
         },
       },
+      {
+        routerLink: 'voronoi-demo',
+        labelText: 'Voronoi Tessellation',
+        backdrop: new VoronoiBackdrop(),
+        hovered: signal(false),
+        focused: signal(false),
+      },
     ];
 
-    // World-gen and voronoi-demo are still under active development — hide
-    // their tiles in production builds until the underlying systems are
-    // ready to ship. The routes themselves remain registered so direct URL
-    // access still works for testing.
+    // World-gen is still under active development — hide its tile in
+    // production builds until the underlying systems are ready to ship.
+    // The route itself remains registered so direct URL access still works
+    // for testing.
     if (env.enviornment !== 'prod') {
-      this.projects.push(
-        {
-          routerLink: 'world-gen',
-          labelText: 'World Generation',
-          backdrop: new WorldGenPreviewBackdrop(),
-          hovered: signal(false),
-          focused: signal(false),
-        },
-        {
-          routerLink: 'voronoi-demo',
-          labelText: 'Voronoi Tessellation',
-          backdrop: new VoronoiBackdrop(),
-          hovered: signal(false),
-          focused: signal(false),
-        }
-      );
+      this.projects.push({
+        routerLink: 'world-gen',
+        labelText: 'World Generation',
+        backdrop: new WorldGenPreviewBackdrop(),
+        hovered: signal(false),
+        focused: signal(false),
+      });
     }
   }
 
