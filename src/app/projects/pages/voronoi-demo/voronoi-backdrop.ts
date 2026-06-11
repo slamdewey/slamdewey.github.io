@@ -1,11 +1,11 @@
-import { Backdrop } from '@components/backdrop/backdrop';
+import { Canvas2dBackdrop } from '@components/backdrop/backdrop';
 import { generateVoronoi, voronoiToRGBA } from '@lib/voronoi';
 
 /**
  * A simple 2D canvas backdrop that renders a static Voronoi tessellation.
  * Used as the tile thumbnail on the projects page.
  */
-export class VoronoiBackdrop extends Backdrop {
+export class VoronoiBackdrop extends Canvas2dBackdrop {
   private imageData: ImageData | null = null;
 
   protected update(_deltaTime: number): void {}

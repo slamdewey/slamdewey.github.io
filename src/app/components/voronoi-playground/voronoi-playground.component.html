@@ -1,0 +1,75 @@
+<div class="voronoi-playground">
+  <div class="voronoi-playground__controls">
+    <mat-form-field appearance="outline">
+      <mat-label>Topology</mat-label>
+      <mat-select [value]="topology()" (selectionChange)="setTopology($event.value)">
+        <mat-option value="flat">Non-wrapping</mat-option>
+        <mat-option value="cylindrical">Cylindrical</mat-option>
+        <mat-option value="spherical">Spherical</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Seed</mat-label>
+      <input matInput type="number" [ngModel]="seed()" (ngModelChange)="seed.set($event)" />
+    </mat-form-field>
+    <button mat-stroked-button type="button" (click)="randomize()">Randomize</button>
+
+    <label class="voronoi-playground__slider-label">
+      Cells: {{ seedCount() }}
+      <mat-slider min="2" max="64" step="1" discrete>
+        <input
+          matSliderThumb
+          [ngModel]="seedCount()"
+          (ngModelChange)="seedCount.set($event)"
+          [attr.aria-label]="'Cell count: ' + seedCount()" />
+      </mat-slider>
+    </label>
+
+    <label class="voronoi-playground__slider-label">
+      Relaxation: {{ relaxation() }}
+      <mat-slider min="0" max="10" step="1" discrete>
+        <input
+          matSliderThumb
+          [ngModel]="relaxation()"
+          (ngModelChange)="relaxation.set($event)"
+          [attr.aria-label]="'Lloyd iterations: ' + relaxation()" />
+      </mat-slider>
+    </label>
+
+    <mat-checkbox [ngModel]="showBoundaries()" (ngModelChange)="showBoundaries.set($event)"
+      >Show boundaries</mat-checkbox
+    >
+
+    <label class="voronoi-playground__slider-label">
+      Edge thickness: {{ borderThickness().toFixed(2) }}px
+      <mat-slider min="0.25" max="4" step="0.25" discrete [disabled]="!showBoundaries()">
+        <input
+          matSliderThumb
+          [ngModel]="borderThickness()"
+          (ngModelChange)="borderThickness.set($event)"
+          [attr.aria-label]="'Edge thickness: ' + borderThickness().toFixed(2) + 'px'" />
+      </mat-slider>
+    </label>
+
+    <mat-checkbox [ngModel]="showSeeds()" (ngModelChange)="showSeeds.set($event)">Show seed points</mat-checkbox>
+    <mat-checkbox [ngModel]="showGraph()" (ngModelChange)="showGraph.set($event)">Show graph</mat-checkbox>
+  </div>
+
+  <div
+    #canvasWrap
+    class="voronoi-playground__canvas-wrap"
+    [class.voronoi-playground__canvas-wrap--square]="isSphere()"
+    [class.voronoi-playground__canvas-wrap--pannable]="isCylinder() || isSphere()"
+    [attr.role]="'img'"
+    [attr.aria-label]="ariaLabel()"
+    [attr.tabindex]="isCylinder() || isSphere() ? 0 : null"
+    (pointerdown)="onPointerDown($event)"
+    (pointermove)="onPointerMove($event)"
+    (pointerup)="onPointerUp($event)"
+    (pointercancel)="onPointerUp($event)"
+    (keydown)="onKeyDown($event)">
+    <canvas #glCanvas class="voronoi-playground__canvas"></canvas>
+    <canvas #overlayCanvas class="voronoi-playground__overlay"></canvas>
+  </div>
+</div>

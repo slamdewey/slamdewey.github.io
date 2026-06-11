@@ -1,11 +1,11 @@
-import { WebGLBackdrop } from './backdrop';
+import { ScreenEffectBackdrop } from './backdrop';
 
-export class ShaderTestAnimatedBackground extends WebGLBackdrop {
+export class ShaderTestAnimatedBackground extends ScreenEffectBackdrop {
   readonly FragmentShader: string = `
   precision mediump float;
   
   uniform vec2 screenSize;
-  uniform float totalTime;
+  uniform highp float totalTime;
 
   void main() {
     float brightness = 1.0;

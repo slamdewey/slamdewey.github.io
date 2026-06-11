@@ -1,7 +1,7 @@
 import { EcsScene } from '@ecs/ecs-scene';
-import { Backdrop } from './backdrop';
+import { Canvas2dBackdrop } from './backdrop';
 
-export class EcsSceneBackdrop extends Backdrop {
+export class EcsSceneBackdrop extends Canvas2dBackdrop {
   public scene: EcsScene<CanvasRenderingContext2D>;
 
   constructor(scene: EcsScene<CanvasRenderingContext2D>) {

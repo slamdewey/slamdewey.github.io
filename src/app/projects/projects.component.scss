@@ -35,13 +35,15 @@
   display: flex;
   justify-content: center;
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     box-shadow:
       0 4px 8px 0 black,
       0 6px 20px 0 black;
   }
 
-  &:hover .projects__gallery__item__hover {
+  &:hover .projects__gallery__item__hover,
+  &:focus-visible .projects__gallery__item__hover {
     background-color: transparent;
   }
 }

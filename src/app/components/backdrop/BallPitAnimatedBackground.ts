@@ -1,5 +1,5 @@
 import { Vector2 } from '@lib/coordinate';
-import { Backdrop } from './backdrop';
+import { Canvas2dBackdrop } from './backdrop';
 
 const COLORS = [
   //'#fb8537',
@@ -67,7 +67,7 @@ class Circle {
   }
 }
 
-export class BallPitAnimatedBackground extends Backdrop {
+export class BallPitAnimatedBackground extends Canvas2dBackdrop {
   circles: Circle[];
 
   override initialize(): void {

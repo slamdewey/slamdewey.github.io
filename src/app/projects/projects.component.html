@@ -6,8 +6,15 @@
 
   <div class="projects__gallery">
     @for (projectData of projects; track projectData.routerLink) {
-      <a [title]="projectData.labelText" class="projects__gallery__item" [routerLink]="projectData.routerLink">
-        <x-backdrop [backdrop]="projectData.backdrop" [shouldPauseAnimation]="!projectData.hovered()"></x-backdrop>
+      <a
+        [title]="projectData.labelText"
+        class="projects__gallery__item"
+        [routerLink]="projectData.routerLink"
+        (focus)="projectData.focused.set(true)"
+        (blur)="projectData.focused.set(false)">
+        <x-backdrop
+          [backdrop]="projectData.backdrop"
+          [shouldPauseAnimation]="!(projectData.hovered() || projectData.focused())"></x-backdrop>
         <div
           class="projects__gallery__item__hover"
           (mouseenter)="projectData.hovered.set(true); projectData.onMouseEnter?.()"
