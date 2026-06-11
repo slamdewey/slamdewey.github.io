@@ -1,14 +1,13 @@
 <div class="voronoi-demo">
   <x-banner>
-    <ng-container ngProjectAs="title">Voronoi Tessellation</ng-container>
+    <ng-container ngProjectAs="title">Voronoi</ng-container>
   </x-banner>
 
   <article class="voronoi-demo__article">
     <section class="voronoi-demo__section">
       <p>
-        A <strong>Voronoi diagram</strong> partitions a surface into cells, with every point belonging to its nearest
-        seed. This page is an interactive playground for three topologies — non-wrapping, cylindrical, and spherical —
-        backed by a small adapter that exposes a unified vector-edge data structure across all three.
+        A <strong>Voronoi diagram</strong> splits a surface into cells, one per seed: every point joins the seed it sits
+        closest to. This is an interactive playground for three surfaces — a flat plane, a cylinder, and a sphere.
       </p>
     </section>
 
@@ -20,28 +19,19 @@
     <hr class="voronoi-demo__divider" />
 
     <section class="voronoi-demo__section">
-      <h2>Adapter overview</h2>
+      <h2>How it works</h2>
       <p>
-        Planar and cylindrical tessellations are computed with
+        The plane and cylinder use
         <a href="https://github.com/d3/d3-delaunay" target="_blank" rel="noopener">d3-delaunay</a>; the sphere uses
-        <a href="https://github.com/Fil/d3-geo-voronoi" target="_blank" rel="noopener">d3-geo-voronoi</a>. The
-        <a [href]="voronoiEdgesUrl" target="_blank" rel="noopener"><code>voronoi-edges.ts</code></a>
-        adapter wraps both libraries and provides:
+        <a href="https://github.com/Fil/d3-geo-voronoi" target="_blank" rel="noopener">d3-geo-voronoi</a>. A small
+        adapter, <a [href]="voronoiEdgesUrl" target="_blank" rel="noopener"><code>voronoi-edges.ts</code></a
+        >, sits on top and gives every surface the same shape of output:
       </p>
       <ul>
-        <li>Unified types for cells, boundary edges, and shared-edge endpoints across all three topologies.</li>
-        <li>
-          Cylindrical-wrap support via ghost-copy preprocessing: each seed is replicated at
-          <code>x ± width</code> and planar Delaunay runs on the extended point set.
-        </li>
-        <li>
-          Adjacency by polygon-edge matching: two cells are reported as neighbors when their clipped polygons share a
-          boundary segment inside the canvas, so edge endpoints are always real polygon vertices.
-        </li>
-        <li>
-          Lloyd relaxation driven by the analytical tessellation, moving each seed toward its cell's centroid on every
-          iteration.
-        </li>
+        <li>One set of types for cells and edges, shared across all three surfaces.</li>
+        <li>Cylinder wrapping, by copying each seed one width left and right before tessellating.</li>
+        <li>Neighbors found by matching shared polygon edges, so every edge is a real, visible boundary.</li>
+        <li>Lloyd relaxation that nudges each seed toward the center of its cell to even things out.</li>
       </ul>
       <x-code-block [code]="codeAdapterTypes" />
     </section>

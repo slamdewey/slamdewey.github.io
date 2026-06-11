@@ -80,8 +80,8 @@ export const routes: Route[] = [
         loadComponent: () => import('./projects/pages/world-gen/world-gen.component').then((m) => m.WorldGenComponent),
       },
       {
-        path: 'voronoi-demo',
-        title: 'Voronoi Tessellation',
+        path: 'voronoi',
+        title: 'Voronoi',
         loadComponent: () =>
           import('./projects/pages/voronoi-demo/voronoi-demo.component').then((m) => m.VoronoiDemoComponent),
       },

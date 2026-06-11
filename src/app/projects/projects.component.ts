@@ -49,8 +49,8 @@ export class ProjectsComponent implements OnInit {
         },
       },
       {
-        routerLink: 'voronoi-demo',
-        labelText: 'Voronoi Tessellation',
+        routerLink: 'voronoi',
+        labelText: 'Voronoi',
         backdrop: new VoronoiBackdrop(),
         hovered: signal(false),
         focused: signal(false),

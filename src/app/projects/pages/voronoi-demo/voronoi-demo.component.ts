@@ -14,7 +14,7 @@ import { env } from 'src/environments/environment';
 export class VoronoiDemoComponent {
   readonly voronoiEdgesUrl = `${env.repoUrl}/blob/main/src/app/lib/voronoi-edges.ts`;
 
-  readonly codeAdapterTypes = `// Unified types across the three topologies.
+  readonly codeAdapterTypes = `// One set of edge types, shared across every surface.
 export interface PlanarEdge {
   cellA: number;
   cellB: number;
