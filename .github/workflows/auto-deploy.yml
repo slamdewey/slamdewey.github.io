@@ -1,55 +1,17 @@
 name: auto deploy
 
-env:
-  OUTPUT_DIR: dist
-  NODE_VERSION: '24'
-
 on:
   push:
-    branches:
-      - main
-  pull_request:
     branches:
       - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build site
-        run: npm run build:prod
-
-      - name: Ensure $OUTPUT_DIR exists
-        run: |
-          if [ ! -d "$OUTPUT_DIR" ]; then
-            echo "::error ::$OUTPUT_DIR does not exist!"
-            exit 1
-          fi
-          echo "::debug ::$OUTPUT_DIR exists!"
-
-      - name: Copy index.html into 404.html
-        run: |
-          echo "::debug ::Copying $OUTPUT_DIR/index.html into $OUTPUT_DIR/404.html"
-          cp $OUTPUT_DIR/index.html $OUTPUT_DIR/404.html
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: ${{ env.OUTPUT_DIR }}
+    uses: ./.github/workflows/build.yml
+    with:
+      output_dir: dist
 
   deploy:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: build
     permissions:

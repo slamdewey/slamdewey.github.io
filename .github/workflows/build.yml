@@ -1,0 +1,53 @@
+name: build
+
+on:
+  workflow_call:
+    inputs:
+      output_dir:
+        description: 'Build output directory to upload as a Pages artifact. Omit to skip artifact upload (build-only validation).'
+        required: false
+        type: string
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      OUTPUT_DIR: ${{ inputs.output_dir }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build site
+        run: npm run build:prod
+
+      - name: Ensure $OUTPUT_DIR exists
+        if: ${{ inputs.output_dir != '' }}
+        run: |
+          if [ ! -d "$OUTPUT_DIR" ]; then
+            echo "::error ::$OUTPUT_DIR does not exist!"
+            exit 1
+          fi
+          echo "::debug ::$OUTPUT_DIR exists!"
+
+      - name: Copy index.html into 404.html
+        if: ${{ inputs.output_dir != '' }}
+        run: |
+          echo "::debug ::Copying $OUTPUT_DIR/index.html into $OUTPUT_DIR/404.html"
+          cp $OUTPUT_DIR/index.html $OUTPUT_DIR/404.html
+
+      - name: Upload Pages artifact
+        if: ${{ inputs.output_dir != '' }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ inputs.output_dir }}
