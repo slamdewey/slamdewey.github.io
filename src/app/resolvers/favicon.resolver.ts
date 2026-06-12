@@ -1,5 +1,5 @@
-import { DOCUMENT, isPlatformServer } from '@angular/common';
-import { inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformServer } from '@angular/common';
+import { inject, PLATFORM_ID, DOCUMENT } from '@angular/core';
 import { ResolveFn } from '@angular/router';
 import { FAVICON_URL } from '../tokens/favicon-url.token';
 

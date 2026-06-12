@@ -110,7 +110,7 @@ export class BackdropComponent implements OnDestroy, AfterViewInit, RenderableBa
     backdrop.mousePosition.set([e.clientX - rect.left, rect.height - (e.clientY - rect.top)]);
   }
 
-  @HostListener('window:scroll', ['$event'])
+  @HostListener('window:scroll')
   onScroll() {
     if (!this.isInitialized) {
       return;
