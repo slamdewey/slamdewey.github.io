@@ -84,7 +84,7 @@ export class ShootingGameComponent implements OnDestroy {
     this.sceneBackdrop.scene.handleInput(e, 'up');
   }
 
-  @HostListener('mousewheel', ['$event'])
+  @HostListener('wheel', ['$event'])
   public onSroll(e: WheelEvent) {
     const camera = this.sceneBackdrop.scene.camera;
     if (!camera) {

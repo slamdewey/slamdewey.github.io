@@ -48,7 +48,7 @@ export class UnitTaskingComponent implements OnDestroy {
     this.sceneBackdrop.scene.handleInput(e, 'up');
   }
 
-  @HostListener('mousewheel', ['$event'])
+  @HostListener('wheel', ['$event'])
   public onSroll(e: WheelEvent) {
     e.preventDefault();
     const camera = this.sceneBackdrop.scene.camera;
