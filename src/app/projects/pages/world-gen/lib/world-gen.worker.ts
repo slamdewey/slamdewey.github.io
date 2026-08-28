@@ -26,9 +26,16 @@ const ALL_LAYERS: LayerName[] = [
   'koppen',
 ];
 
+// Fraction of the overall progress bar allotted to generation; the remainder
+// covers layer-image rendering.
+const GEN_PORTION = 0.85;
+
 addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
   const generator = new WorldGenerator(data.config);
-  const worldData = generator.generate();
+  const worldData = generator.generate((stage, fraction) => {
+    const msg: WorkerResponse = { type: 'progress', stage, fraction: fraction * GEN_PORTION };
+    postMessage(msg);
+  });
 
   // Render resolution is separate from physics resolution (Phase A5). Layer
   // images are materialized at renderW × renderH; if the config doesn't
@@ -38,7 +45,8 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
 
   const sampler = new WorldSampler(worldData);
   const layerImages = {} as Record<LayerName, Uint8Array>;
-  for (const layer of ALL_LAYERS) {
+  for (let i = 0; i < ALL_LAYERS.length; i++) {
+    const layer = ALL_LAYERS[i];
     const rgba = new Uint8Array(renderW * renderH * 4);
     if (layer === 'plates') {
       platesToRGBA(rgba, renderW, renderH, sampler);
@@ -46,9 +54,21 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
       layerToRGBA(rgba, renderW, renderH, layer, sampler);
     }
     layerImages[layer] = rgba;
+    const progress: WorkerResponse = {
+      type: 'progress',
+      stage: 'Rendering layers',
+      fraction: GEN_PORTION + (1 - GEN_PORTION) * ((i + 1) / ALL_LAYERS.length),
+    };
+    postMessage(progress);
   }
 
-  const response: WorkerResponse = { worldData, layerImages, renderWidth: renderW, renderHeight: renderH };
+  const response: WorkerResponse = {
+    type: 'result',
+    worldData,
+    layerImages,
+    renderWidth: renderW,
+    renderHeight: renderH,
+  };
 
   // Collect all typed array buffers for zero-copy transfer.
   // NOTE: temperature and precipitation alias temperatureMean / precipAnnual,
@@ -56,7 +76,10 @@ addEventListener('message', ({ data }: MessageEvent<WorkerRequest>) => {
   const transfer: ArrayBuffer[] = [
     worldData.plateMap.buffer,
     worldData.faultLines.buffer,
+    worldData.faultType.buffer,
     worldData.mountainRanges.buffer,
+    worldData.volcanicArcs.buffer,
+    worldData.riftFloorMask.buffer,
     worldData.continentalSubRelief.buffer,
     worldData.oceanAge.buffer,
     worldData.elevation.buffer,

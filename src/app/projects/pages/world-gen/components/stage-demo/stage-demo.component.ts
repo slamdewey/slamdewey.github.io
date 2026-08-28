@@ -18,6 +18,8 @@ export class StageDemoComponent {
   imageData = input<StageImage | null>(null);
   caption = input<string>('');
   loading = input<boolean>(false);
+  /** Overlay text shown while loading; defaults to a generic message. */
+  loadingMessage = input<string>('Generating…');
   /** Two-way model so multiple demos can share a single pan offset. */
   panOffset = model<number>(0);
 

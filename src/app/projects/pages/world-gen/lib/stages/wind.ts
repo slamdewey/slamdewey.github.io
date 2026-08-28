@@ -2,6 +2,7 @@ import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { clamp, sphericalEmbed3D, mod } from '@lib/math';
 import { ClimateVariables, NoiseVariables, WorldFields } from '../types';
 import { HADLEY_EXTENT, POLAR_EXTENT, FERREL_WIDTH, EKMAN_DEG } from '../physics';
+import { ELEV_RELIEF_REFERENCE_M } from './terrain-levels';
 import { WorldGeometry } from '../world-geometry';
 
 /**
@@ -284,7 +285,11 @@ export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array, 
   const { width, height } = fields;
   const elevation = fields.elevation!;
   const seaLevel = fields.seaLevel!;
+  // Gradients are normalized by the reference relief so this gain (and the
+  // `gMag < 1e-3` cutoff below) stay calibrated against a dimensionless unit
+  // of relief, exactly as before the elevation field became physical meters.
   const slopeScale = 8;
+  const invRelief = 1 / ELEV_RELIEF_REFERENCE_M;
   // East-west pixels shrink in km by cos(lat) toward the poles, so a constant
   // elevation gradient in pixel-space corresponds to a steeper slope in km
   // at higher latitudes. Dividing the x-gradient by cos(lat) puts gx and gy
@@ -305,8 +310,8 @@ export function applyTerrainDeflection(fields: WorldFields, wind: Float32Array, 
       const xR = mod(x + 1, width);
       const yT = clamp(y - 1, 0, height - 1);
       const yB = clamp(y + 1, 0, height - 1);
-      const gx = (elevation[y * width + xR] - elevation[y * width + xL]) * 0.5 * invCosLat;
-      const gy = (elevation[yB * width + x] - elevation[yT * width + x]) * 0.5;
+      const gx = (elevation[y * width + xR] - elevation[y * width + xL]) * 0.5 * invCosLat * invRelief;
+      const gy = (elevation[yB * width + x] - elevation[yT * width + x]) * 0.5 * invRelief;
       const gMag = Math.sqrt(gx * gx + gy * gy);
       if (gMag < 1e-3) continue;
 

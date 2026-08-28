@@ -1,5 +1,4 @@
-import { OpenSimplexNoise } from '@lib/noise';
-import { mod, sphericalEmbed3D } from '@lib/math';
+import { mod } from '@lib/math';
 import { type Vec3 } from '@lib/voronoi-sphere';
 import { PlateCentroid, PlateProperties, PlateType } from './types';
 import { xorshift32 } from './seeds';
@@ -94,34 +93,97 @@ export function computeIsostasy(thickness: number, density: number): number {
 }
 
 /**
- * Assign plate type and drift using a low-frequency noise field.
- * Sampling noise at each plate's centroid creates spatial coherence.
- * Thickness and density are derived from plate type with random variation,
- * representing geological age and composition differences.
+ * Decide which plates are continental by growing `continentCount` contiguous
+ * clusters until continental crust reaches `targetFraction` of the globe.
+ *
+ * Seeds are chosen by farthest-point sampling on the plate centroids (so the
+ * nuclei spread out), then continental crust grows outward along plate
+ * adjacency in random order. Because growth follows adjacency, each continent
+ * is a connected blob of plates — a few big landmasses instead of the scattered
+ * archipelago that per-plate noise produced. Clusters may merge if they grow
+ * into each other (a Pangaea), which is fine.
+ */
+export function assignContinentalPlates(
+  adjacency: number[][],
+  plateCellCount: Int32Array,
+  centroids: PlateCentroid[],
+  continentCount: number,
+  targetFraction: number,
+  totalCells: number,
+  rng: { s: number }
+): boolean[] {
+  const plateCount = centroids.length;
+  const isCont = new Array<boolean>(plateCount).fill(false);
+  if (plateCount === 0) return isCont;
+  const nSeeds = Math.max(1, Math.min(continentCount, plateCount));
+
+  // Farthest-point continent seeds on the centroid unit vectors.
+  const minDist = new Float64Array(plateCount).fill(Infinity);
+  const updateFrom = (p: number): void => {
+    const r = centroids[p].r;
+    for (let i = 0; i < plateCount; i++) {
+      const ri = centroids[i].r;
+      const d = 1 - (r[0] * ri[0] + r[1] * ri[1] + r[2] * ri[2]);
+      if (d < minDist[i]) minDist[i] = d;
+    }
+  };
+  const seeds: number[] = [Math.floor(xorshift32(rng) * plateCount)];
+  updateFrom(seeds[0]);
+  for (let m = 1; m < nSeeds; m++) {
+    let best = 0;
+    let bestD = -1;
+    for (let i = 0; i < plateCount; i++) {
+      if (minDist[i] > bestD) {
+        bestD = minDist[i];
+        best = i;
+      }
+    }
+    seeds.push(best);
+    updateFrom(best);
+  }
+
+  // Grow continental crust from the seeds along adjacency until the target area.
+  let contArea = 0;
+  const frontier: number[] = [];
+  for (const s of seeds) {
+    if (isCont[s]) continue;
+    isCont[s] = true;
+    contArea += plateCellCount[s];
+    for (const nb of adjacency[s]) if (!isCont[nb]) frontier.push(nb);
+  }
+
+  const targetArea = targetFraction * totalCells;
+  while (contArea < targetArea && frontier.length > 0) {
+    const k = Math.floor(xorshift32(rng) * frontier.length);
+    const p = frontier[k];
+    frontier[k] = frontier[frontier.length - 1];
+    frontier.pop();
+    if (isCont[p]) continue;
+    isCont[p] = true;
+    contArea += plateCellCount[p];
+    for (const nb of adjacency[p]) if (!isCont[nb]) frontier.push(nb);
+  }
+
+  return isCont;
+}
+
+/**
+ * Assign plate type, drift, thickness and density. Continentality is decided
+ * upstream (see {@link assignContinentalPlates}) and passed in as a per-plate
+ * boolean, so continents form a few contiguous clusters rather than a noisy
+ * scatter. Thickness and density are derived from the type with random
+ * variation, representing geological age and composition differences.
  */
 export function assignPlateProperties(
   centroids: PlateCentroid[],
-  plateCount: number,
-  width: number,
-  height: number,
+  isContinental: boolean[],
   seed: number
 ): PlateProperties[] {
+  const plateCount = centroids.length;
   const rng = { s: (seed ^ 0xdeadbeef) | 1 };
-  const continentNoise = new OpenSimplexNoise((seed ^ 0xcafebeef) | 0);
-  // The unit-vector embedding confines noise samples to the box [−1, 1]³, so
-  // freq must be high enough that multiple distinct features fit on the
-  // sphere. Below ~1.0 a single noise blob dominates the whole globe and its
-  // gradient along z = sin(lat) forces a hemispheric bias (one whole hemi
-  // continental, the other oceanic). 1.6 gives ~3 features pole-to-pole and
-  // ~1.6 around the equator — continent-sized chunks at all latitudes.
-  const CONTINENT_FREQ = 1.6;
 
-  const np = new Float32Array(3);
   const plates: PlateProperties[] = [];
   for (let i = 0; i < plateCount; i++) {
-    sphericalEmbed3D(centroids[i].x, centroids[i].y, width, height, np);
-    const sample = continentNoise.eval3D(np[0] * CONTINENT_FREQ, np[1] * CONTINENT_FREQ, np[2] * CONTINENT_FREQ);
-
     // Euler rotation vector: isotropic direction on S², magnitude in the same
     // 0.3–1.0 range as the legacy 2D drift so downstream intensity calibration
     // (which normalizes to [0, 1] across all boundaries anyway) stays comparable.
@@ -144,7 +206,7 @@ export function assignPlateProperties(
     const magnitude = 0.3 + xorshift32(rng) * 0.7;
     const omega: [number, number, number] = [ox * magnitude, oy * magnitude, oz * magnitude];
 
-    const type = sample > 0 ? PlateType.Continental : PlateType.Oceanic;
+    const type = isContinental[i] ? PlateType.Continental : PlateType.Oceanic;
 
     // Thickness & density vary by plate type with random spread
     let thickness: number;

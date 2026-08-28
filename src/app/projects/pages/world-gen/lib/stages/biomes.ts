@@ -1,7 +1,6 @@
 import { Biome, KoppenClass, WorldFields } from '../types';
+import { MOUNTAIN_LEVEL_M, SHALLOW_WATER_DEPTH_M } from './terrain-levels';
 
-const MOUNTAIN_LEVEL = 0.85;
-const SHALLOW_WATER_RANGE = 0.1;
 const RIVER_THRESHOLD = 0.5;
 
 /**
@@ -72,7 +71,7 @@ export function classifyBiomes(fields: WorldFields): Float32Array {
   const rivers = fields.rivers;
   const lakes = fields.lakes;
   const biomes = new Float32Array(width * height);
-  const shallowWaterLevel = seaLevel - SHALLOW_WATER_RANGE;
+  const shallowWaterLevel = seaLevel - SHALLOW_WATER_DEPTH_M;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -91,7 +90,7 @@ export function classifyBiomes(fields: WorldFields): Float32Array {
       }
 
       // Mountain override above all terrestrial classification.
-      if (elevation[idx] > MOUNTAIN_LEVEL) {
+      if (elevation[idx] > MOUNTAIN_LEVEL_M) {
         biomes[idx] = Biome.Mountain;
         continue;
       }

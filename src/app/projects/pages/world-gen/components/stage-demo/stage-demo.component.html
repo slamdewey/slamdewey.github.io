@@ -1,7 +1,7 @@
 <figure class="stage-demo">
   @if (loading() || !imageData()) {
     <div class="stage-demo__skeleton">
-      <x-skeleton-loader loadingMessage="Generating..." />
+      <x-skeleton-loader [loadingMessage]="loadingMessage()" />
     </div>
   } @else {
     <div

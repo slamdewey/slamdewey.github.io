@@ -14,7 +14,11 @@
 
       <div class="world-gen__preview-pair">
         <div class="world-gen__preview-equirect">
-          <x-stage-demo [imageData]="fullDemoImage()" [loading]="isGenerating()" [(panOffset)]="sharedPanOffset" />
+          <x-stage-demo
+            [imageData]="fullDemoImage()"
+            [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
+            [(panOffset)]="sharedPanOffset" />
         </div>
         <div
           class="world-gen__preview-sphere"
@@ -30,7 +34,7 @@
             [manualDrag]="true" />
           @if (isGenerating() || !fullDemoImage()) {
             <div class="world-gen__preview-sphere-skeleton">
-              <x-skeleton-loader loadingMessage="Generating..." />
+              <x-skeleton-loader [loadingMessage]="genStatus()" />
             </div>
           }
         </div>
@@ -99,6 +103,7 @@
           <x-stage-demo
             [imageData]="plateImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Tectonic plates (warm = continental, cool = oceanic; red/blue/yellow = boundary type)" />
         } @placeholder {
@@ -122,11 +127,36 @@
 
         <p>
           Each pixel near a boundary gets an elevation delta based on its interaction type, the boundary intensity (how
-          fast the plates are moving relative to each other), and a distance falloff from the boundary. The key insight
-          is that the pixel's own plate type determines which side of an asymmetric interaction it's on:
+          fast the plates are moving relative to each other), and a distance falloff from the boundary. Asymmetric
+          interactions also depend on which plate the pixel sits on. The six interactions &mdash; and the colors the
+          <strong>Faults</strong> layer paints them &mdash; are:
         </p>
 
-        <x-code-block [code]="codeInteractionElevation" />
+        <table class="world-gen__legend-table">
+          <thead>
+            <tr>
+              <th>Interaction</th>
+              <th>Motion</th>
+              <th>Plates</th>
+              <th>Terrain effect</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (it of faultInteractions; track it.name) {
+              <tr>
+                <td>
+                  <span class="world-gen__swatch" [style.background-color]="it.color"></span>
+                  {{ it.name }}
+                </td>
+                <td>{{ it.motion }}</td>
+                <td>{{ it.plates }}</td>
+                <td>{{ it.effect }}</td>
+                <td>{{ it.example }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
 
         <p>
           A Chamfer distance transform computes each pixel's distance to the nearest boundary, and a BFS propagation
@@ -147,8 +177,9 @@
           <x-stage-demo
             [imageData]="faultImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
-            caption="Boundary intensity (grayscale)" />
+            caption="Plate boundaries colored by interaction type (see legend); brightness = boundary intensity" />
         } @placeholder {
           <div class="world-gen__placeholder"></div>
         }
@@ -196,6 +227,7 @@
           <x-stage-demo
             [imageData]="elevationImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Elevation map (blue = water, white = high)" />
         } @placeholder {
@@ -207,6 +239,7 @@
           <x-stage-demo
             [imageData]="subReliefImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Continental sub-relief (red = swell, blue = basin, gray = neutral or oceanic)" />
         } @placeholder {
@@ -218,6 +251,7 @@
           <x-stage-demo
             [imageData]="oceanAgeImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Ocean age &mdash; distance from nearest divergent boundary (light = young ridge, dark = old abyss)" />
         } @placeholder {
@@ -267,6 +301,7 @@
           <x-stage-demo
             [imageData]="flowImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Flow accumulation after pass 2 (dark = dry, cyan = major river)" />
         } @placeholder {
@@ -339,6 +374,7 @@
           <x-stage-demo
             [imageData]="windImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Annual mean wind (R = eastward, G = southward)" />
         } @placeholder {
@@ -350,6 +386,7 @@
           <x-stage-demo
             [imageData]="windSummerImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Summer wind &mdash; NH June&ndash;August" />
         } @placeholder {
@@ -361,6 +398,7 @@
           <x-stage-demo
             [imageData]="windWinterImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Winter wind &mdash; NH December&ndash;February" />
         } @placeholder {
@@ -430,6 +468,7 @@
           <x-stage-demo
             [imageData]="temperatureImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Annual mean temperature (cyan = cold, red = hot)" />
         } @placeholder {
@@ -505,6 +544,7 @@
           <x-stage-demo
             [imageData]="precipitationImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Annual mean precipitation per cycle (white = wet, black = dry)" />
         } @placeholder {
@@ -567,6 +607,7 @@
           <x-stage-demo
             [imageData]="aridityImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Aridity index (tan = arid, green = humid)" />
         } @placeholder {
@@ -578,6 +619,7 @@
           <x-stage-demo
             [imageData]="seasonalityImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Precipitation seasonality (dark = uniform, gold = monsoonal)" />
         } @placeholder {
@@ -589,6 +631,7 @@
           <x-stage-demo
             [imageData]="growingSeasonImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Growing-season fraction (brown = none, green = full year)" />
         } @placeholder {
@@ -629,6 +672,7 @@
           <x-stage-demo
             [imageData]="koppenImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Köppen-Geiger climate classes" />
         } @placeholder {
@@ -659,6 +703,7 @@
           <x-stage-demo
             [imageData]="riverImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="River network, rain-weighted (blue overlay on land)" />
         } @placeholder {
@@ -670,6 +715,7 @@
           <x-stage-demo
             [imageData]="lakeImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Lakes (interior depressions detected during the fill pass)" />
         } @placeholder {
@@ -724,6 +770,7 @@
           <x-stage-demo
             [imageData]="biomeImage()"
             [loading]="isGenerating()"
+            [loadingMessage]="genStatus()"
             [(panOffset)]="sharedPanOffset"
             caption="Biomes — satellite-style global render (also viewable on the globe at the top of the page)" />
         } @placeholder {

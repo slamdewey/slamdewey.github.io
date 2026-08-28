@@ -20,6 +20,12 @@
 import { mod } from '@lib/math';
 import { type WorldData } from './types';
 import { KoppenClass } from './stages/climate/koppen';
+import { ELEV_RELIEF_REFERENCE_M } from './stages/terrain-levels';
+
+/** Hillshade slope gain. Elevation is in meters, so the neighbor difference is
+ *  normalized by the reference relief to keep the legacy gain of 2 (tuned for a
+ *  dimensionless [-1, 1] field) and the [0.6, 1.3] output clamp calibrated. */
+const HILLSHADE_GAIN = 2 / ELEV_RELIEF_REFERENCE_M;
 
 /**
  * Map a render pixel index (rx, ry) at render resolution (rw, rh) to physics
@@ -169,6 +175,11 @@ export class WorldSampler {
     return this.bilinearF32(this.world.faultLines, px, py);
   }
 
+  /** Nearest (categorical) InteractionType of the dominant fault, 255 = none. */
+  sampleFaultType(px: number, py: number): number {
+    return this.nearestU8(this.world.faultType, px, py);
+  }
+
   sampleContinentalSubRelief(px: number, py: number): number {
     return this.bilinearF32(this.world.continentalSubRelief, px, py);
   }
@@ -256,7 +267,7 @@ export class WorldSampler {
     const down = this.sampleElevation(px, py + stepPx);
     const dx = right - left;
     const dy = down - up;
-    const s = 1 + (-dx - dy) * 2;
+    const s = 1 + (-dx - dy) * HILLSHADE_GAIN;
     return Math.max(0.6, Math.min(1.3, s));
   }
 }

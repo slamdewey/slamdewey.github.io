@@ -1,6 +1,7 @@
 import { KoppenClass, type LayerName, type WorldData, type BoundaryInfo } from './types';
 import { mapToUnsignedRange } from '@lib/math';
-import { PlateType, BoundaryType } from './stages/tectonic';
+import { elevToUnit, MOUNTAIN_LEVEL_M, SNOW_ELEVATION_M, ELEV_MAX_M, ELEV_MIN_M } from './stages/terrain-levels';
+import { PlateType, BoundaryType, InteractionType } from './stages/tectonic';
 import { classifyKoppenAt } from './stages/climate/koppen';
 import type { WorldSampler } from './world-sampler';
 
@@ -247,12 +248,37 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 
 // ── Per-layer renderers ────────────────────────────────────────────────────
 
+// Fault-line colors keyed by InteractionType, so the Faults layer reads as a
+// plate-boundary map: warm = convergent, green/blue = divergent, purple =
+// transform. Index matches the InteractionType enum order.
+const FAULT_TYPE_COLOR: Record<InteractionType, readonly [number, number, number]> = {
+  [InteractionType.Collision]: [255, 64, 48], // cont–cont convergent (red)
+  [InteractionType.Subduction]: [255, 144, 32], // ocean–cont convergent (orange)
+  [InteractionType.OceanicConvergence]: [255, 208, 64], // ocean–ocean convergent (amber)
+  [InteractionType.ContinentalRift]: [96, 220, 96], // continental divergent (green)
+  [InteractionType.OceanicRidge]: [64, 168, 255], // mid-ocean ridge (blue)
+  [InteractionType.Transform]: [198, 96, 232], // strike-slip (purple)
+};
+const FAULT_BG: readonly [number, number, number] = [12, 14, 20];
+
 function colorFaultLines(rgba: Uint8Array, renderW: number, renderH: number, sampler: WorldSampler): void {
   forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
-    const v = Math.round(sampler.sampleFaultLines(px, py) * 255);
-    rgba[o] = v;
-    rgba[o + 1] = v;
-    rgba[o + 2] = v;
+    const intensity = sampler.sampleFaultLines(px, py);
+    const type = sampler.sampleFaultType(px, py) as InteractionType;
+    const color = FAULT_TYPE_COLOR[type];
+    if (!color || intensity <= 0) {
+      rgba[o] = FAULT_BG[0];
+      rgba[o + 1] = FAULT_BG[1];
+      rgba[o + 2] = FAULT_BG[2];
+      rgba[o + 3] = 255;
+      return;
+    }
+    // Brightness ramps with intensity but keeps a floor so faint faults still
+    // read in their type color. sqrt lifts the long tail of low-intensity bands.
+    const b = 0.4 + 0.6 * Math.min(1, Math.sqrt(intensity) * 1.1);
+    rgba[o] = Math.round(color[0] * b);
+    rgba[o + 1] = Math.round(color[1] * b);
+    rgba[o + 2] = Math.round(color[2] * b);
     rgba[o + 3] = 255;
   });
 }
@@ -292,12 +318,12 @@ function colorElevation(rgba: Uint8Array, renderW: number, renderH: number, samp
   forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
     const raw = sampler.sampleElevation(px, py);
     if (raw < seaLevel) {
-      const depth = mapToUnsignedRange(raw);
+      const depth = elevToUnit(raw);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);
     } else {
-      const v = Math.round(mapToUnsignedRange(raw) * 255);
+      const v = Math.round(elevToUnit(raw) * 255);
       rgba[o] = v;
       rgba[o + 1] = v;
       rgba[o + 2] = v;
@@ -419,10 +445,8 @@ const LAKE_COLOR: [number, number, number] = [50, 95, 150];
 const RIVER_COLOR: [number, number, number] = [70, 115, 165];
 const ROCK_COLOR: [number, number, number] = [120, 110, 95];
 const SNOW_COLOR: [number, number, number] = [248, 250, 252];
-const MOUNTAIN_LEVEL = 0.85;
 const SNOW_T_START_C = -2;
 const SNOW_T_FULL_C = -20;
-const SNOW_ELEVATION = 0.7;
 
 /**
  * Biomes layer. Per render pixel: sample elevation, re-classify Köppen
@@ -444,7 +468,7 @@ function colorBiomes(rgba: Uint8Array, renderW: number, renderH: number, sampler
 
     // Ocean.
     if (e < seaLevel) {
-      const depth = (seaLevel - e) / Math.max(0.01, seaLevel + 1);
+      const depth = (seaLevel - e) / (seaLevel - ELEV_MIN_M);
       const t = Math.min(1, depth * 2);
       let r: number;
       let g: number;
@@ -510,8 +534,8 @@ function colorBiomes(rgba: Uint8Array, renderW: number, renderH: number, sampler
     let cg = KOPPEN_NATURAL[koppen][1];
     let cb = KOPPEN_NATURAL[koppen][2];
 
-    if (e > MOUNTAIN_LEVEL) {
-      const k = Math.min(1, (e - MOUNTAIN_LEVEL) / (1 - MOUNTAIN_LEVEL));
+    if (e > MOUNTAIN_LEVEL_M) {
+      const k = Math.min(1, (e - MOUNTAIN_LEVEL_M) / (ELEV_MAX_M - MOUNTAIN_LEVEL_M));
       cr = cr * (1 - k) + ROCK_COLOR[0] * k;
       cg = cg * (1 - k) + ROCK_COLOR[1] * k;
       cb = cb * (1 - k) + ROCK_COLOR[2] * k;
@@ -519,7 +543,7 @@ function colorBiomes(rgba: Uint8Array, renderW: number, renderH: number, sampler
 
     const snowChance =
       Math.max(0, (SNOW_T_START_C - tMean) / (SNOW_T_START_C - SNOW_T_FULL_C)) +
-      Math.max(0, (e - SNOW_ELEVATION) / (1 - SNOW_ELEVATION)) * 0.6;
+      Math.max(0, (e - SNOW_ELEVATION_M) / (ELEV_MAX_M - SNOW_ELEVATION_M)) * 0.6;
     if (snowChance > 0) {
       const k = Math.min(1, snowChance);
       cr = cr * (1 - k) + SNOW_COLOR[0] * k;
@@ -559,14 +583,14 @@ function colorRivers(rgba: Uint8Array, renderW: number, renderH: number, sampler
   forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
     const e = sampler.sampleElevation(px, py);
     if (e < seaLevel) {
-      const depth = mapToUnsignedRange(e);
+      const depth = elevToUnit(e);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);
       rgba[o + 3] = 255;
       return;
     }
-    const base = Math.round(mapToUnsignedRange(e) * 255);
+    const base = Math.round(elevToUnit(e) * 255);
     const t = sampler.sampleRivers(px, py);
     const RIVER_R = 40;
     const RIVER_G = 120;
@@ -583,7 +607,7 @@ function colorLakes(rgba: Uint8Array, renderW: number, renderH: number, sampler:
   forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
     const e = sampler.sampleElevation(px, py);
     if (e < seaLevel) {
-      const depth = mapToUnsignedRange(e);
+      const depth = elevToUnit(e);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);
@@ -595,7 +619,7 @@ function colorLakes(rgba: Uint8Array, renderW: number, renderH: number, sampler:
       rgba[o + 1] = 90;
       rgba[o + 2] = 200;
     } else {
-      const v = Math.round(mapToUnsignedRange(e) * 255);
+      const v = Math.round(elevToUnit(e) * 255);
       rgba[o] = v;
       rgba[o + 1] = v;
       rgba[o + 2] = v;
@@ -680,7 +704,7 @@ function colorKoppen(rgba: Uint8Array, renderW: number, renderH: number, sampler
   forEachRenderPixel(renderW, renderH, sampler, (_rx, _ry, px, py, o) => {
     const e = sampler.sampleElevation(px, py);
     if (e < seaLevel) {
-      const depth = mapToUnsignedRange(e);
+      const depth = elevToUnit(e);
       rgba[o] = 0;
       rgba[o + 1] = Math.round(depth * 80);
       rgba[o + 2] = Math.round(100 + depth * 155);

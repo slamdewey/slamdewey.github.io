@@ -1,22 +1,29 @@
 /**
- * Vectorize plate boundaries as sub-pixel polylines on the sphere, with
- * per-vertex falloff widths that taper smoothly at triple-junctions.
+ * Plate-boundary polylines assembled from the PRE-CALCULATED Voronoi edges.
  *
- * Phase A4 of the spherical-math plan. Replaces the pixel-grid boundary
- * detection in rasterize.ts Pass 5 with smoothed, sub-pixel-accurate seed
- * geometry, and gives each polyline a per-side `widthA / widthB` that
- * shrinks toward the minimum of all converging boundaries at junctions —
- * fixing the "wide stamp wraps around the corner" taper artifact.
+ * Each plate boundary is the set of cell-edge great-circle arcs whose two cells
+ * landed on different plates (`InterPlateArc`). This module chains those arcs
+ * into ordered polylines per plate-pair (degree-2 walk in sphere-vertex space),
+ * projects them to equirectangular pixel-corner coordinates, and emits the same
+ * `BoundaryPolyline` shape the downstream rasterizer/Dijkstra stamp consumes.
  *
- * The trace operates in *pixel-corner* coordinates: corner (cx, cy) is the
- * point where pixels (cx-1, cy-1), (cx, cy-1), (cx-1, cy), (cx, cy) meet.
- * Pole rows (cy = 0 and cy = H) are *single* virtual junctions — every
- * polyline that reaches the pole terminates at one of these two virtual
- * corners, since the entire pole row maps to one geometric point on the
- * sphere.
+ * This replaces the old pixel-corner tracer that re-derived boundary geometry by
+ * walking the `plateMap` raster (with virtual pole-corner junctions and Chaikin
+ * smoothing to undo the staircase). The arcs are already the true smooth
+ * boundary, so there is no staircase to smooth and no pole singularity to
+ * special-case — chaining happens in 3D unit-vector space where the poles are
+ * ordinary points. The only raster-space concern left is the antimeridian seam,
+ * handled by the existing per-segment shortest-arc unwrap in `rasterizePolylines`
+ * plus slerp subdivision that keeps every emitted segment short.
+ *
+ * Equirect grid convention (matches `voronoi-sphere.ts` / `properties.ts`):
+ * row 0 = north pole, lat = π/2 − (row+0.5)/H·π; col 0 = lon = −π; wraps in x.
  */
 
 import { mod } from '@lib/math';
+import { arcLength, slerp } from '@lib/voronoi-edges';
+import { type Vec3 } from '@lib/voronoi-sphere';
+import { type InterPlateArc } from './boundaries';
 import { BoundaryInfo, InteractionType } from './types';
 
 // Duplicated from rasterize.ts. The two callers share the calibration; if
@@ -39,9 +46,7 @@ export interface BoundaryPolyline {
   plateB: number;
   /**
    * Pixel-corner coordinates of the vertices, packed as [cx0, cy0, cx1, cy1, ...].
-   * cx is taken mod width (longitude wrap); cy is in `[0, H]`. The two virtual
-   * pole "corners" use sentinel cy = 0 / cy = H with the polyline endpoint
-   * snapped to the corresponding pole-row crossing longitude.
+   * cx is taken mod width (longitude wrap); cy is in `[0, H]` (0 = north pole).
    */
   vertices: Float32Array;
   /**
@@ -56,8 +61,7 @@ export interface BoundaryPolyline {
 
 /**
  * Convenience: per-side falloff width in equator-pixel-equivalent for a
- * given boundary, evaluated on the requested side. Mirrors the inline logic
- * in rasterize.ts but lives here so polyline construction can call it.
+ * given boundary, evaluated on the requested side.
  */
 function falloffForSide(b: BoundaryInfo, pixelPlate: number, baseFalloff: number, falloffScale: number): number {
   const isSubducting = b.subductingPlate === pixelPlate;
@@ -68,301 +72,241 @@ function falloffForSide(b: BoundaryInfo, pixelPlate: number, baseFalloff: number
   return baseFalloff * mult * falloffScale;
 }
 
-/**
- * Iterate over corners in `[0, W) × [1, H-1]` (strictly interior in y) and
- * return the four plate ids surrounding each. Pixel positions use longitude
- * wrap. Corners at cy = 0 and cy = H are not handled here; the trace folds
- * polylines that reach those rows into two virtual pole junctions.
- */
-function plateAt(plateMap: Int32Array, width: number, x: number, y: number): number {
-  return plateMap[y * width + mod(x, width)];
+// ---------------------------------------------------------------------------
+// Arc chaining (sphere-vertex space)
+// ---------------------------------------------------------------------------
+
+/** A chained boundary as unit-vector vertices, before pixel projection. */
+export interface Vec3Polyline {
+  plateLo: number;
+  plateHi: number;
+  /** Chained boundary vertices (Voronoi vertices) as unit vectors. */
+  verts: Vec3[];
+  /** Global canonical vertex id per entry in `verts` (for junction keying). */
+  vertexIds: number[];
+  isClosed: boolean;
 }
 
-interface TraceContext {
-  width: number;
-  height: number;
-  plateMap: Int32Array;
-  /** Total corner count for indexing: width × (height + 1). */
-  cornerCount: number;
-  /** Two synthetic pole-corner ids appended after the normal corners. */
-  northPoleCorner: number;
-  southPoleCorner: number;
-}
+const VERTEX_KEY_PRECISION = 1e6;
 
-function cornerIdx(ctx: TraceContext, cx: number, cy: number): number {
-  return cy * ctx.width + mod(cx, ctx.width);
-}
-
-interface CornerEdge {
-  /** Index of the corner this edge leads to. May be a pole-corner sentinel. */
-  to: number;
-  /** Plate pair, lo < hi. */
-  lo: number;
-  hi: number;
-  /** Globally-unique edge id, set when emitted into the edge list. */
-  edgeId: number;
-}
-
-interface BoundaryEdge {
-  from: number;
-  to: number;
-  lo: number;
-  hi: number;
+function vertexKey3(v: Vec3): string {
+  return `${Math.round(v.x * VERTEX_KEY_PRECISION)},${Math.round(v.y * VERTEX_KEY_PRECISION)},${Math.round(
+    v.z * VERTEX_KEY_PRECISION
+  )}`;
 }
 
 /**
- * Enumerate all boundary edges (corner-to-corner segments where the two
- * adjacent pixels are on different plates). Each edge is emitted once,
- * with `from < to` for ordinary edges. Edges that cross into a pole row
- * use the pole-corner sentinel as `to`.
+ * Chain inter-plate arcs into ordered polylines per plate-pair.
+ *
+ * Vertex identity is global (quantized endpoints), so arcs of *different* plate
+ * pairs that meet at the same Voronoi vertex resolve to the same id — that's
+ * how triple-junctions are detected: within one pair's group such a vertex has
+ * incident degree ≠ 2 and terminates the walk.
  */
-function buildBoundaryEdges(ctx: TraceContext): { edges: BoundaryEdge[]; perCorner: CornerEdge[][] } {
-  const { width, height, plateMap, northPoleCorner, southPoleCorner } = ctx;
-  const edges: BoundaryEdge[] = [];
-  // Map from corner id (including pole sentinels) to its incident edges.
-  const perCorner: CornerEdge[][] = new Array(southPoleCorner + 1);
-  for (let i = 0; i < perCorner.length; i++) perCorner[i] = [];
-
-  const emit = (fromCorner: number, toCorner: number, a: number, b: number): void => {
-    if (a === b || a < 0 || b < 0) return;
-    const lo = a < b ? a : b;
-    const hi = a < b ? b : a;
-    const edgeId = edges.length;
-    edges.push({ from: fromCorner, to: toCorner, lo, hi });
-    perCorner[fromCorner].push({ to: toCorner, lo, hi, edgeId });
-    perCorner[toCorner].push({ to: fromCorner, lo, hi, edgeId });
+export function chainArcsIntoPolylines(arcs: InterPlateArc[], plateCount: number): Vec3Polyline[] {
+  const vertexIdByKey = new Map<string, number>();
+  const canonicalVerts: Vec3[] = [];
+  const idOf = (v: Vec3): number => {
+    const key = vertexKey3(v);
+    let id = vertexIdByKey.get(key);
+    if (id === undefined) {
+      id = canonicalVerts.length;
+      vertexIdByKey.set(key, id);
+      canonicalVerts.push(v);
+    }
+    return id;
   };
 
-  // Interior corners: cy ∈ [1, H-1], cx ∈ [0, W). For each, look at the 4
-  // surrounding pixels and emit boundary edges along N, E directions only
-  // (S and W are emitted by the corresponding neighbor). Edges that cross
-  // into rows -1 or H are redirected to a pole sentinel corner.
-  for (let cy = 1; cy < height; cy++) {
-    for (let cx = 0; cx < width; cx++) {
-      const fromId = cornerIdx(ctx, cx, cy);
-      const NW = plateAt(plateMap, width, cx - 1, cy - 1);
-      const NE = plateAt(plateMap, width, cx, cy - 1);
-      const SW = plateAt(plateMap, width, cx - 1, cy);
-      const SE = plateAt(plateMap, width, cx, cy);
-
-      // N edge: between NW (cx-1, cy-1) and NE (cx, cy-1). Target corner (cx, cy-1).
-      // If cy-1 === 0 the target is on the north-pole row → use sentinel.
-      // Each vertical inter-corner edge is owned by its south corner (this
-      // corner) so it's emitted exactly once; the corresponding S-edge
-      // emission only fires at the south pole row.
-      if (NW !== NE) {
-        const to = cy - 1 === 0 ? northPoleCorner : cornerIdx(ctx, cx, cy - 1);
-        emit(fromId, to, NW, NE);
-      }
-      // E edge: between NE (cx, cy-1) and SE (cx, cy). Target corner (cx+1, cy).
-      if (NE !== SE) {
-        const to = cornerIdx(ctx, cx + 1, cy);
-        emit(fromId, to, NE, SE);
-      }
-      // W edge: between NW (cx-1, cy-1) and SW (cx-1, cy). Target (cx-1, cy).
-      // Only emit if the target's column index hasn't already emitted us — i.e.,
-      // emit only when this corner's cx is the larger of (cx, cx-1) under wrap.
-      // Simpler: skip W (it gets emitted as E from corner (cx-1, cy)).
-      // S edge: between SW (cx-1, cy) and SE (cx, cy). Target (cx, cy+1).
-      // If cy === H-1 → target row is H → pole sentinel.
-      if (SW !== SE) {
-        const to = cy === height - 1 ? southPoleCorner : cornerIdx(ctx, cx, cy + 1);
-        if (to === southPoleCorner) emit(fromId, to, SW, SE);
-        // else: emitted as N edge from the south-neighbor corner already.
-      }
-    }
+  interface LocalArc {
+    v0: number;
+    v1: number;
+  }
+  const groups = new Map<number, LocalArc[]>();
+  for (const arc of arcs) {
+    const key = arc.plateLo * plateCount + arc.plateHi;
+    const la: LocalArc = { v0: idOf(arc.a), v1: idOf(arc.b) };
+    const g = groups.get(key);
+    if (g) g.push(la);
+    else groups.set(key, [la]);
   }
 
-  return { edges, perCorner };
+  const polylines: Vec3Polyline[] = [];
+  for (const [key, group] of groups) {
+    const plateLo = Math.floor(key / plateCount);
+    const plateHi = key % plateCount;
+    traceGroup(group, plateLo, plateHi, canonicalVerts, polylines);
+  }
+  return polylines;
 }
 
-/**
- * Trace polylines from the boundary-edge graph: walk through degree-2
- * single-pair corners until a junction (different plate pair count, or
- * a pole sentinel) is reached. Closed loops with no junctions become
- * cyclic polylines.
- *
- * Returns one entry per traced polyline. Each polyline's plate pair (lo, hi)
- * matches its boundary in the supplied `boundaries` array.
- */
-function tracePolylines(
-  ctx: TraceContext,
-  edges: BoundaryEdge[],
-  perCorner: CornerEdge[][],
-  plateCount: number,
-  boundariesByPair: Map<number, number>
-): BoundaryPolyline[] {
-  const polylines: BoundaryPolyline[] = [];
-  const edgeVisited = new Uint8Array(edges.length);
+/** Degree-2 walk over one plate-pair's arc set (mirrors the legacy corner walk). */
+function traceGroup(
+  group: { v0: number; v1: number }[],
+  plateLo: number,
+  plateHi: number,
+  canonicalVerts: Vec3[],
+  out: Vec3Polyline[]
+): void {
+  // Incident arcs per vertex within this pair group.
+  const incident = new Map<number, { local: number; other: number }[]>();
+  const add = (v: number, local: number, other: number): void => {
+    const arr = incident.get(v);
+    if (arr) arr.push({ local, other });
+    else incident.set(v, [{ local, other }]);
+  };
+  for (let i = 0; i < group.length; i++) {
+    add(group[i].v0, i, group[i].v1);
+    add(group[i].v1, i, group[i].v0);
+  }
 
-  const pairKey = (lo: number, hi: number): number => lo * plateCount + hi;
-
-  /**
-   * Find the unique other edge at `corner` matching plate pair (lo, hi),
-   * excluding the edge we arrived on. Returns null if the count isn't
-   * exactly 1 — meaning the polyline terminates here (junction).
-   */
-  const nextEdgeAt = (corner: number, lo: number, hi: number, excludeEdgeId: number): CornerEdge | null => {
-    const incident = perCorner[corner];
-    let found: CornerEdge | null = null;
-    for (const e of incident) {
-      if (e.edgeId === excludeEdgeId) continue;
-      if (e.lo === lo && e.hi === hi) {
-        if (found !== null) return null; // ≥2 candidates → junction
-        found = e;
-      }
+  // Unique continuation at `cur` excluding the arc we came on; null at a
+  // junction (degree ≠ 2 → not exactly one other incident arc).
+  const nextAt = (cur: number, excludeLocal: number): { local: number; other: number } | null => {
+    const arr = incident.get(cur);
+    if (!arr) return null;
+    let found: { local: number; other: number } | null = null;
+    for (const e of arr) {
+      if (e.local === excludeLocal) continue;
+      if (found !== null) return null; // ≥2 continuations → junction
+      found = e;
     }
     return found;
   };
 
-  for (let startId = 0; startId < edges.length; startId++) {
-    if (edgeVisited[startId]) continue;
-    const startEdge = edges[startId];
-    const lo = startEdge.lo;
-    const hi = startEdge.hi;
+  const visited = new Uint8Array(group.length);
+  for (let start = 0; start < group.length; start++) {
+    if (visited[start]) continue;
+    visited[start] = 1;
+    const a0 = group[start].v0;
+    const a1 = group[start].v1;
 
-    // Walk forward from startEdge.from in the direction of startEdge.to.
-    const forwardCorners: number[] = [startEdge.from];
-    edgeVisited[startId] = 1;
-    let curCorner = startEdge.to;
-    let cameFromEdge = startId;
+    // Walk forward from a0 → a1 and beyond.
+    const forward: number[] = [a0];
+    let cur = a1;
+    let came = start;
     let closed = false;
     while (true) {
-      forwardCorners.push(curCorner);
-      if (curCorner === ctx.northPoleCorner || curCorner === ctx.southPoleCorner) break;
-      const next = nextEdgeAt(curCorner, lo, hi, cameFromEdge);
+      forward.push(cur);
+      const next = nextAt(cur, came);
       if (!next) break;
-      if (edgeVisited[next.edgeId]) {
-        // Closed loop — we walked around back to startEdge.
+      if (visited[next.local]) {
         closed = true;
         break;
       }
-      edgeVisited[next.edgeId] = 1;
-      cameFromEdge = next.edgeId;
-      curCorner = next.to;
+      visited[next.local] = 1;
+      came = next.local;
+      cur = next.other;
     }
 
-    // Walk backward from startEdge.from in the opposite direction.
-    const backwardCorners: number[] = [];
+    // Walk backward from a0 (open polylines only).
+    const backward: number[] = [];
     if (!closed) {
-      let bwdCorner = startEdge.from;
-      let bwdFromEdge = startId;
+      let bcur = a0;
+      let bcame = start;
       while (true) {
-        if (bwdCorner === ctx.northPoleCorner || bwdCorner === ctx.southPoleCorner) break;
-        const next = nextEdgeAt(bwdCorner, lo, hi, bwdFromEdge);
+        const next = nextAt(bcur, bcame);
         if (!next) break;
-        if (edgeVisited[next.edgeId]) break;
-        edgeVisited[next.edgeId] = 1;
-        bwdFromEdge = next.edgeId;
-        bwdCorner = next.to;
-        backwardCorners.push(bwdCorner);
+        if (visited[next.local]) break;
+        visited[next.local] = 1;
+        bcame = next.local;
+        bcur = next.other;
+        backward.push(bcur);
       }
     }
 
-    // Concatenate: reversed-backward + forward.
-    const fullCorners = [...backwardCorners.reverse(), ...forwardCorners];
-
-    // Resolve the boundary index for this (lo, hi) pair.
-    const boundaryIndex = boundariesByPair.get(pairKey(lo, hi));
-    if (boundaryIndex === undefined) continue; // shouldn't happen for real plate pairs
-
-    // Convert corner indices to (cx, cy) pixel-corner coordinates.
-    const vertices = new Float32Array(fullCorners.length * 2);
-    for (let i = 0; i < fullCorners.length; i++) {
-      const c = fullCorners[i];
-      let cx: number;
-      let cy: number;
-      if (c === ctx.northPoleCorner) {
-        // Snap pole-corner to the longitude of the closest non-pole vertex.
-        const adj = i === 0 ? fullCorners[i + 1] : fullCorners[i - 1];
-        cx = adj === ctx.northPoleCorner || adj === ctx.southPoleCorner ? 0 : adj % ctx.width;
-        cy = 0;
-      } else if (c === ctx.southPoleCorner) {
-        const adj = i === 0 ? fullCorners[i + 1] : fullCorners[i - 1];
-        cx = adj === ctx.northPoleCorner || adj === ctx.southPoleCorner ? 0 : adj % ctx.width;
-        cy = ctx.height;
-      } else {
-        cx = c % ctx.width;
-        cy = (c - cx) / ctx.width;
-      }
-      vertices[i * 2] = cx;
-      vertices[i * 2 + 1] = cy;
-    }
-
-    polylines.push({
-      boundaryIndex,
-      plateA: lo,
-      plateB: hi,
-      vertices,
-      widths: new Float32Array(fullCorners.length * 2), // filled later
+    const ids = [...backward.reverse(), ...forward];
+    out.push({
+      plateLo,
+      plateHi,
+      verts: ids.map((id) => canonicalVerts[id]),
+      vertexIds: ids,
       isClosed: closed,
     });
   }
+}
 
-  return polylines;
+// ---------------------------------------------------------------------------
+// Vec3 polyline → pixel-corner BoundaryPolyline
+// ---------------------------------------------------------------------------
+
+/** Pairs a projected polyline with its endpoint vertex ids for junction keying. */
+interface PixelPolyline {
+  polyline: BoundaryPolyline;
+  startVid: number;
+  endVid: number;
+}
+
+function projectVec3(v: Vec3, width: number, height: number, prevLon: number): { cx: number; cy: number; lon: number } {
+  const z = v.z < -1 ? -1 : v.z > 1 ? 1 : v.z;
+  const lat = Math.asin(z);
+  // At a pole the longitude is undefined — inherit the previous vertex's lon.
+  const lon = Math.hypot(v.x, v.y) < 1e-9 ? prevLon : Math.atan2(v.y, v.x);
+  const cx = mod(((lon + Math.PI) / (2 * Math.PI)) * width, width);
+  const cy = ((Math.PI / 2 - lat) / Math.PI) * height;
+  return { cx, cy, lon };
 }
 
 /**
- * Chaikin corner-cutting in pixel-corner space. Each segment AB becomes A',
- * B' at the 1/4 and 3/4 points along AB. Junction endpoints (the first and
- * last vertices of an open polyline) are anchored — otherwise plate corners
- * would gap or overlap after smoothing. Closed cyclic polylines smooth all
- * vertices.
- *
- * Pixel-corner space is fine for short-distance smoothing because over a few
- * pixels the equirect projection is approximately a tangent plane, even at
- * high latitudes. Longer-range smoothing would need slerp on the sphere.
+ * Project a chained Vec3 polyline to a pixel-corner `BoundaryPolyline`, slerp-
+ * subdividing each arc to ≈2 px so every emitted segment is short in longitude
+ * (unambiguous seam unwrap) and curvature is preserved. Widths are sized but
+ * left zero — `initVertexWidths` fills them.
  */
-function chaikinSmooth(polylines: BoundaryPolyline[], width: number, iterations: number): void {
-  for (let it = 0; it < iterations; it++) {
-    for (const pl of polylines) {
-      const n = pl.vertices.length / 2;
-      if (n < 3) continue;
-      // Open polyline: keep first + last verts, plus 2 cut-corner verts per
-      // segment → 2 + 2(n-1) = 2n verts. Closed polyline: 2 cut-corner verts
-      // per segment → 2n verts. Both cases need 4n float slots; allocate
-      // 4(n+1) to absorb off-by-one issues from rounding step counts.
-      const out = new Float32Array(4 * (n + 1));
-      let outIdx = 0;
-      const writeVert = (x: number, y: number): void => {
-        out[outIdx++] = x;
-        out[outIdx++] = y;
-      };
-      const lerpX = (a: number, b: number, t: number): number => {
-        // Longitude lerp with shortest-arc handling.
-        let d = b - a;
-        if (d > width / 2) d -= width;
-        else if (d < -width / 2) d += width;
-        return mod(a + d * t, width);
-      };
-      if (!pl.isClosed) writeVert(pl.vertices[0], pl.vertices[1]);
-      const segCount = pl.isClosed ? n : n - 1;
-      for (let s = 0; s < segCount; s++) {
-        const i = s;
-        const j = pl.isClosed ? (s + 1) % n : s + 1;
-        const ax = pl.vertices[i * 2];
-        const ay = pl.vertices[i * 2 + 1];
-        const bx = pl.vertices[j * 2];
-        const by = pl.vertices[j * 2 + 1];
-        // Q at t=1/4, R at t=3/4.
-        const qx = lerpX(ax, bx, 0.25);
-        const qy = ay + (by - ay) * 0.25;
-        const rx = lerpX(ax, bx, 0.75);
-        const ry = ay + (by - ay) * 0.75;
-        writeVert(qx, qy);
-        writeVert(rx, ry);
-      }
-      if (!pl.isClosed) writeVert(pl.vertices[(n - 1) * 2], pl.vertices[(n - 1) * 2 + 1]);
-      pl.vertices = out.subarray(0, outIdx);
-      pl.widths = new Float32Array((outIdx / 2) * 2); // resized; will be refilled
+function vec3PolylineToPixelPolyline(
+  pl: Vec3Polyline,
+  boundaryIndex: number,
+  width: number,
+  height: number
+): PixelPolyline {
+  const pixelsPerRad = width / (2 * Math.PI);
+  const n = pl.verts.length;
+
+  const pts: Vec3[] = [];
+  const segCount = pl.isClosed ? n : n - 1;
+  for (let s = 0; s < segCount; s++) {
+    const a = pl.verts[s];
+    const b = pl.verts[(s + 1) % n];
+    const steps = Math.max(1, Math.ceil((arcLength(a, b) * pixelsPerRad) / 2));
+    // Emit [0, steps) per segment; the endpoint is the next segment's start.
+    for (let k = 0; k < steps; k++) {
+      pts.push(k === 0 ? a : slerp(a, b, k / steps));
     }
   }
+  if (!pl.isClosed) pts.push(pl.verts[n - 1]);
+
+  // Seed prevLon from the first non-pole point so a leading pole vertex gets a
+  // sane longitude.
+  let prevLon = 0;
+  for (const p of pts) {
+    if (Math.hypot(p.x, p.y) >= 1e-9) {
+      prevLon = Math.atan2(p.y, p.x);
+      break;
+    }
+  }
+
+  const vertices = new Float32Array(pts.length * 2);
+  for (let i = 0; i < pts.length; i++) {
+    const pr = projectVec3(pts[i], width, height, prevLon);
+    prevLon = pr.lon;
+    vertices[i * 2] = pr.cx;
+    vertices[i * 2 + 1] = pr.cy;
+  }
+
+  const polyline: BoundaryPolyline = {
+    boundaryIndex,
+    plateA: pl.plateLo,
+    plateB: pl.plateHi,
+    vertices,
+    widths: new Float32Array(pts.length * 2),
+    isClosed: pl.isClosed,
+  };
+  return { polyline, startVid: pl.vertexIds[0], endVid: pl.vertexIds[n - 1] };
 }
 
 /**
  * Initialize per-vertex (widthA, widthB) for every polyline from its
  * boundary's own per-side falloff width. The junction-min taper is applied
- * by `taperWidthsAtJunctions` afterwards.
+ * afterwards.
  */
 function initVertexWidths(
   polylines: BoundaryPolyline[],
@@ -384,20 +328,14 @@ function initVertexWidths(
 }
 
 /**
- * Apply junction-min taper to per-vertex widths: at each junction (pixel-
- * corner shared by ≥2 polylines' endpoints), replace each polyline's
- * endpoint width with the minimum width across all converging polylines
- * for the matching plate. Then 1D-smooth along the polyline so the taper
- * spans several vertices instead of dropping at the endpoint.
+ * Apply junction-min taper to per-vertex widths, keyed on the shared Voronoi
+ * vertex id (exact topological junctions — no pixel-corner rounding). At each
+ * junction (a vertex shared by ≥2 polylines' endpoints), replace each
+ * polyline's endpoint width with the minimum across all converging polylines
+ * for the matching plate, then 1-D box-smooth so the taper spans several
+ * vertices instead of dropping at the endpoint.
  */
-function taperWidthsAtJunctions(polylines: BoundaryPolyline[], width: number, taperIterations: number): void {
-  // Junction key: round (cx, cy) to integer corner id with longitude wrap.
-  const junctionKey = (cx: number, cy: number): number => {
-    const ix = mod(Math.round(cx) | 0, width);
-    const iy = Math.round(cy) | 0;
-    return iy * width + ix;
-  };
-
+function taperWidthsAtJunctionsByVertex(items: PixelPolyline[], taperIterations: number): void {
   interface JunctionRef {
     pi: number;
     endpoint: 'first' | 'last';
@@ -405,32 +343,26 @@ function taperWidthsAtJunctions(polylines: BoundaryPolyline[], width: number, ta
     plateB: number;
   }
   const junctionRefs = new Map<number, JunctionRef[]>();
-  for (let pi = 0; pi < polylines.length; pi++) {
-    const pl = polylines[pi];
+  for (let pi = 0; pi < items.length; pi++) {
+    const it = items[pi];
+    const pl = it.polyline;
     if (pl.isClosed) continue;
     const n = pl.vertices.length / 2;
     if (n < 1) continue;
-    const firstKey = junctionKey(pl.vertices[0], pl.vertices[1]);
-    const lastKey = junctionKey(pl.vertices[(n - 1) * 2], pl.vertices[(n - 1) * 2 + 1]);
     const ref = (key: number, ep: 'first' | 'last'): void => {
       const arr = junctionRefs.get(key) ?? [];
       arr.push({ pi, endpoint: ep, plateA: pl.plateA, plateB: pl.plateB });
       junctionRefs.set(key, arr);
     };
-    ref(firstKey, 'first');
-    if (n > 1) ref(lastKey, 'last');
+    ref(it.startVid, 'first');
+    if (n > 1) ref(it.endVid, 'last');
   }
 
-  // At each junction, compute the min width per *plate* across all
-  // converging polylines. Apply that min to each polyline's endpoint on
-  // the matching plate side.
   for (const refs of junctionRefs.values()) {
     if (refs.length < 2) continue;
-    // Gather minimum width per plate id (the plate on which the stamp would
-    // land for that polyline's side).
     const minWByPlate = new Map<number, number>();
     for (const r of refs) {
-      const pl = polylines[r.pi];
+      const pl = items[r.pi].polyline;
       const vIdx = r.endpoint === 'first' ? 0 : pl.vertices.length / 2 - 1;
       const wA = pl.widths[vIdx * 2];
       const wB = pl.widths[vIdx * 2 + 1];
@@ -439,9 +371,8 @@ function taperWidthsAtJunctions(polylines: BoundaryPolyline[], width: number, ta
       if (wA < prevA) minWByPlate.set(r.plateA, wA);
       if (wB < prevB) minWByPlate.set(r.plateB, wB);
     }
-    // Apply the per-plate min to each polyline's endpoint slot.
     for (const r of refs) {
-      const pl = polylines[r.pi];
+      const pl = items[r.pi].polyline;
       const vIdx = r.endpoint === 'first' ? 0 : pl.vertices.length / 2 - 1;
       const minA = minWByPlate.get(r.plateA);
       const minB = minWByPlate.get(r.plateB);
@@ -450,10 +381,9 @@ function taperWidthsAtJunctions(polylines: BoundaryPolyline[], width: number, ta
     }
   }
 
-  // 1D box-smoothing along each polyline so the junction-min taper spreads
-  // over several vertices instead of jumping at one endpoint.
   for (let it = 0; it < taperIterations; it++) {
-    for (const pl of polylines) {
+    for (const item of items) {
+      const pl = item.polyline;
       const n = pl.vertices.length / 2;
       if (n < 3) continue;
       const tmp = new Float32Array(pl.widths.length);
@@ -475,29 +405,21 @@ function taperWidthsAtJunctions(polylines: BoundaryPolyline[], width: number, ta
 }
 
 /**
- * Public entry point: trace + smooth + width-taper.
+ * Public entry point: project the pre-chained arc polylines to pixel-corner
+ * `BoundaryPolyline`s, init widths, and taper at junctions. The chaining itself
+ * (`chainArcsIntoPolylines`) runs once upstream so the result can be shared with
+ * the exposed `boundaryArcs` geometry channel.
  */
-export function buildBoundaryPolylines(
-  plateMap: Int32Array,
+export function buildBoundaryPolylinesFromArcs(
+  chains: Vec3Polyline[],
   boundaries: BoundaryInfo[],
   plateCount: number,
   baseFalloff: number,
   falloffScale: number,
   width: number,
   height: number,
-  chaikinIterations = 2,
   widthTaperIterations = 20
 ): BoundaryPolyline[] {
-  const cornerCount = width * (height + 1);
-  const ctx: TraceContext = {
-    width,
-    height,
-    plateMap,
-    cornerCount,
-    northPoleCorner: cornerCount,
-    southPoleCorner: cornerCount + 1,
-  };
-
   // Boundary lookup table: plate-pair (lo, hi) → index into `boundaries`.
   const boundariesByPair = new Map<number, number>();
   for (let i = 0; i < boundaries.length; i++) {
@@ -507,13 +429,23 @@ export function buildBoundaryPolylines(
     boundariesByPair.set(lo * plateCount + hi, i);
   }
 
-  const { edges, perCorner } = buildBoundaryEdges(ctx);
-  const polylines = tracePolylines(ctx, edges, perCorner, plateCount, boundariesByPair);
-  chaikinSmooth(polylines, width, chaikinIterations);
+  const items: PixelPolyline[] = [];
+  for (const chain of chains) {
+    if (chain.verts.length < 1) continue;
+    const boundaryIndex = boundariesByPair.get(chain.plateLo * plateCount + chain.plateHi);
+    if (boundaryIndex === undefined) continue; // shouldn't happen for real plate pairs
+    items.push(vec3PolylineToPixelPolyline(chain, boundaryIndex, width, height));
+  }
+
+  const polylines = items.map((it) => it.polyline);
   initVertexWidths(polylines, boundaries, baseFalloff, falloffScale);
-  taperWidthsAtJunctions(polylines, width, widthTaperIterations);
+  taperWidthsAtJunctionsByVertex(items, widthTaperIterations);
   return polylines;
 }
+
+// ---------------------------------------------------------------------------
+// Rasterization (unchanged from the pixel-tracer era — consumes BoundaryPolyline)
+// ---------------------------------------------------------------------------
 
 /**
  * Rasterize every polyline into per-boundary seed pixel coordinates +

@@ -20,7 +20,7 @@ import {
   WorldConfig,
   WorldData,
 } from './lib/types';
-import { WorkerResponse } from './lib/worker-types';
+import { WorkerResponse, WorkerResult } from './lib/worker-types';
 import { aggregateMultiSeed, computeWorldStats, printWorldStats } from './lib/debug';
 
 // Layer toggles follow pipeline execution order with the final synthesis
@@ -111,38 +111,67 @@ if (tColdest > T_TROPICAL_COLDEST) {
 // ... C and D groups follow the same shape, splitting on s/w/f sub-letter
 // (summer-dry, winter-dry, no-dry-season) and a/b/c warmth tiers.`;
 
-  readonly codeInteractionElevation = `function interactionElevation(
-  interaction: InteractionType,
-  pixelPlateType: PlateType,
-  intensity: number,
-  t: number // 1.0 at boundary, 0.0 at falloff edge
-): { elevDelta: number; mountainRange: number } {
-  const f = intensity * t;
-  switch (interaction) {
-    case InteractionType.Collision:
-      // Both sides crumple upward
-      return { elevDelta: 0.4 * f, mountainRange: 0.8 * t };
-    case InteractionType.Subduction:
-      if (pixelPlateType === PlateType.Continental) {
-        // Continental side: coastal mountain range
-        return { elevDelta: 0.35 * f, mountainRange: 0.6 * t };
-      }
-      // Oceanic side: trench — elevation drops
-      return { elevDelta: -0.15 * f, mountainRange: 0 };
-    case InteractionType.OceanicConvergence:
-      // Subtle trench, stays underwater
-      return { elevDelta: -0.05 * f, mountainRange: 0 };
-    case InteractionType.ContinentalRift:
-      // Rift valley — depression
-      return { elevDelta: -0.1 * f, mountainRange: 0 };
-    case InteractionType.OceanicRidge:
-      // Subtle underwater rise
-      return { elevDelta: 0.03 * f, mountainRange: 0 };
-    case InteractionType.Transform:
-      // Grinding — minimal elevation change
-      return { elevDelta: 0, mountainRange: 0 };
-  }
-}`;
+  // Reference + color legend for the six plate interactions. Colors mirror
+  // FAULT_TYPE_COLOR in color-maps.ts (the Faults layer paints boundaries by
+  // interaction type), so this table doubles as the legend for that layer.
+  readonly faultInteractions: readonly {
+    color: string;
+    name: string;
+    motion: string;
+    plates: string;
+    effect: string;
+    example: string;
+  }[] = [
+    {
+      color: 'rgb(255, 64, 48)',
+      name: 'Collision',
+      motion: 'Convergent',
+      plates: 'Cont – Cont',
+      effect: 'Mountain belt — both sides crumple upward',
+      example: 'Himalayas',
+    },
+    {
+      color: 'rgb(255, 144, 32)',
+      name: 'Subduction',
+      motion: 'Convergent',
+      plates: 'Ocean – Cont',
+      effect:
+        'Arc mountains on the continent, deep trench on the ocean side (asymmetric; trench deepens with convergence speed)',
+      example: 'Andes',
+    },
+    {
+      color: 'rgb(255, 208, 64)',
+      name: 'Oceanic convergence',
+      motion: 'Convergent',
+      plates: 'Ocean – Ocean',
+      effect: 'Volcanic island arc on the overriding plate, trench on the subducting plate',
+      example: 'Mariana Islands',
+    },
+    {
+      color: 'rgb(96, 220, 96)',
+      name: 'Continental rift',
+      motion: 'Divergent',
+      plates: 'Cont – Cont / Ocean',
+      effect: 'Rift valley with raised horst shoulders; floors can fill into rift lakes',
+      example: 'East African Rift',
+    },
+    {
+      color: 'rgb(64, 168, 255)',
+      name: 'Oceanic ridge',
+      motion: 'Divergent',
+      plates: 'Ocean – Ocean',
+      effect: 'Mid-ocean ridge — seafloor lifts at the spreading axis and sinks with age',
+      example: 'Mid-Atlantic Ridge',
+    },
+    {
+      color: 'rgb(198, 96, 232)',
+      name: 'Transform',
+      motion: 'Transform',
+      plates: 'Any',
+      effect: 'Strike-slip — plates grind laterally with little vertical motion',
+      example: 'San Andreas',
+    },
+  ];
 
   // Configuration signals
   noiseConfig = signal<NoiseVariables>({ ...DEFAULT_NOISE });
@@ -231,6 +260,15 @@ if (tColdest > T_TROPICAL_COLDEST) {
 
   // State
   isGenerating = signal(false);
+  // Progress reported by the worker while a generation runs.
+  genStage = signal('');
+  genFraction = signal(0);
+  /** Loading-overlay text: current stage + overall percent. */
+  genStatus = computed(() => {
+    const stage = this.genStage();
+    if (!stage) return 'Generating…';
+    return `${stage}… ${Math.round(this.genFraction() * 100)}%`;
+  });
 
   // Worker
   private worker: Worker | null = null;
@@ -296,14 +334,26 @@ if (tColdest > T_TROPICAL_COLDEST) {
 
   regenerate(): void {
     this.isGenerating.set(true);
+    this.genStage.set('');
+    this.genFraction.set(0);
     this.sharedPanOffset.set(0);
 
-    if (!this.worker) {
-      this.worker = new Worker(new URL('./lib/world-gen.worker', import.meta.url), { type: 'module' });
-      this.worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => this.onWorkerResult(data);
-    }
-
-    this.worker.postMessage({ config: this.buildConfig() });
+    // Abandon any in-flight generation. The worker runs generate() synchronously,
+    // so a freshly posted message just queues behind the running one — it can't
+    // cancel it. Terminating and respawning kills the stale computation so we
+    // don't waste cores rendering a result we're about to throw away.
+    this.worker?.terminate();
+    const worker = new Worker(new URL('./lib/world-gen.worker', import.meta.url), { type: 'module' });
+    worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
+      if (data.type === 'progress') {
+        this.genStage.set(data.stage);
+        this.genFraction.set(data.fraction);
+      } else {
+        this.onWorkerResult(data);
+      }
+    };
+    this.worker = worker;
+    worker.postMessage({ config: this.buildConfig() });
   }
 
   private buildConfig(seedOverride?: number): WorldConfig {
@@ -360,6 +410,7 @@ if (tColdest > T_TROPICAL_COLDEST) {
     return new Promise((resolve) => {
       const w = new Worker(new URL('./lib/world-gen.worker', import.meta.url), { type: 'module' });
       w.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
+        if (data.type !== 'result') return; // ignore progress pings
         w.terminate();
         resolve(data.worldData);
       };
@@ -367,7 +418,7 @@ if (tColdest > T_TROPICAL_COLDEST) {
     });
   }
 
-  private onWorkerResult(result: WorkerResponse): void {
+  private onWorkerResult(result: WorkerResult): void {
     const { worldData, layerImages, renderWidth, renderHeight } = result;
 
     // Texture dimensions follow the *render* resolution (Phase A5). Physics

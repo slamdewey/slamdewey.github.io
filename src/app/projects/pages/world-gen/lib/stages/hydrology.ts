@@ -50,23 +50,42 @@ export interface HydrologyVariables {
   /** Minimum connected-component size (cells) for a basin to be rendered as
    *  a lake. Filters out 1-cell slivers and numerical noise. */
   lakeMinCells: number;
+  /** River fault affinity: bonus added to the D8 downslope drop per unit of
+   *  tectonic faultLines intensity, so rivers exploit fault/boundary weak zones
+   *  (Rhine graben, Nile). 0 disables. Kept above the D8 tie-jitter (~6e-5) but
+   *  below natural gradients so it only steers, never misroutes. */
+  faultRiverAffinity: number;
+  /** Rift-lake budget relaxation in [0, 1]: a depression that overlaps a rift
+   *  floor has its water-budget gate multiplied by (1 − riftLakeRelax·overlap),
+   *  so continental-rift grabens fill into lakes more readily. 0 disables. */
+  riftLakeRelax: number;
 }
 
 export const DEFAULT_HYDROLOGY: HydrologyVariables = {
-  erosionIterations: 8,
+  // Higher than the legacy 8 because erosion now re-routes flow every iteration
+  // (see runHydrology) — more steps let the drainage network develop dendritic
+  // valleys. This is the main quality/perf knob: each iteration adds one full
+  // priority-flood + flow solve.
+  erosionIterations: 15,
   // Calibrated for slope expressed in elev-units / km (geom.d8KmDist). The old
   // pixel-distance default was 0.02; at the default world settings 1 equator
   // pixel ≈ 40 km, so K_km = K_pixel · 40^slopeExponent (n = 1) keeps the
-  // equator-erosion-per-iteration the same.
+  // equator-erosion-per-iteration the same. The switch to a physical-meters
+  // elevation field needs NO change here: with n = 1 the slope and the erodible
+  // relief both scale by the meters-per-unit factor, so fractional incision per
+  // iteration (and thus the drainage topology) is invariant.
   erosionStrength: 0.8,
   flowExponent: 0.5,
   slopeExponent: 1.0,
   diffusionStrength: 0.1,
   riverLogThreshold: 4.0,
-  lakeDepthEpsilon: 0.008,
+  // Meters: a filled-minus-original depth above this marks a depression cell.
+  lakeDepthEpsilon: 40,
   lakeBudgetRatio: 0.5,
   lakeMaxAreaFraction: 0.03,
   lakeMinCells: 6,
+  faultRiverAffinity: 0.02,
+  riftLakeRelax: 0.6,
 };
 
 export interface HydrologyResult {
@@ -87,7 +106,8 @@ const D8_DIST = [1, Math.SQRT2, 1, Math.SQRT2, 1, Math.SQRT2, 1, Math.SQRT2];
 const D8_DIFF_SLOT = [1, 2, 0, 2, 1, 2, 0, 2];
 
 const FILL_EPSILON = 1e-6;
-const EROSION_FLOOR_BELOW_SEA = 0.1;
+/** Erosion can lower land no further than this many meters below sea level. */
+const EROSION_FLOOR_BELOW_SEA = 500;
 
 /**
  * Bundle of intermediate fields produced by the fill → D8 → accumulate chain.
@@ -105,10 +125,12 @@ function routeFlow(
   height: number,
   seaLevel: number,
   geom: WorldGeometry,
-  rainfall?: Float32Array
+  rainfall?: Float32Array,
+  faultLines?: Float32Array,
+  faultAffinity = 0
 ): FlowState {
   const filled = priorityFloodFill(elevation, width, height, seaLevel);
-  const flowDir = computeD8FlowDir(filled, width, height, seaLevel);
+  const flowDir = computeD8FlowDir(filled, width, height, seaLevel, faultLines, faultAffinity);
   const flowAcc = computeFlowAccumulation(filled, flowDir, width, height, seaLevel, geom, rainfall);
   return { filled, flowDir, flowAcc };
 }
@@ -121,18 +143,24 @@ export function runHydrology(fields: WorldFields, geom: WorldGeometry, config: H
   //    isn't known yet). Pass-1 lake detection is skipped; the visible lake
   //    mask comes from pass 2 (buildLakeMaskGated) which has the climate
   //    data it needs to decide which basins are real lakes.
+  const faultLines = fields.faultLines;
   const lakes = new Uint8Array(elevation.length);
-  const initial = routeFlow(elevation, width, height, seaLevel, geom);
-  const flowDir = initial.flowDir;
-  let flowAcc = initial.flowAcc;
 
-  // 2. Erosion iterations on the original (un-filled) elevation.
+  // Erosion with per-iteration flow RE-ROUTING. Re-solving the drainage network
+  // on the current surface every step is what lets it self-organize — channels
+  // grow headward and divides migrate — so the noise-defined relief is reworked
+  // into a dendritic valley network instead of merely incising the channels the
+  // initial (noisy) surface happened to define. This is the realism-critical
+  // step: without re-routing, erosion can deepen cells but never reshape them.
   const erosionFloor = seaLevel - EROSION_FLOOR_BELOW_SEA;
+  let flowAcc: Float32Array;
   for (let i = 0; i < config.erosionIterations; i++) {
+    const fs = routeFlow(elevation, width, height, seaLevel, geom, undefined, faultLines, config.faultRiverAffinity);
+    flowAcc = fs.flowAcc;
     applyStreamPowerErosion(
       elevation,
       flowAcc,
-      flowDir,
+      fs.flowDir,
       width,
       height,
       seaLevel,
@@ -145,9 +173,8 @@ export function runHydrology(fields: WorldFields, geom: WorldGeometry, config: H
     applyHillslopeDiffusion(elevation, width, height, seaLevel, geom, config.diffusionStrength);
   }
 
-  // 3. Final flow on the eroded surface. Re-route so trapped basins don't
-  //    break the topological walk after erosion reshapes things.
-  ({ flowAcc } = routeFlow(elevation, width, height, seaLevel, geom));
+  // Final flow on the fully-eroded surface for the river/flow outputs.
+  ({ flowAcc } = routeFlow(elevation, width, height, seaLevel, geom, undefined, faultLines, config.faultRiverAffinity));
 
   const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
 
@@ -237,11 +264,14 @@ function buildLakeMaskGated(
   epsilon: number,
   budgetRatio: number,
   maxAreaFraction: number,
-  minCells: number
+  minCells: number,
+  riftFloorMask?: Float32Array,
+  riftLakeRelax = 0
 ): Uint8Array {
   const size = elevation.length;
   const out = new Uint8Array(size);
   const maxArea = Math.floor(size * maxAreaFraction);
+  const useRift = riftFloorMask !== undefined && riftLakeRelax > 0;
 
   const isDepression = new Uint8Array(size);
   for (let i = 0; i < size; i++) {
@@ -264,6 +294,7 @@ function buildLakeMaskGated(
 
     let maxFlow = 0;
     let petSum = 0;
+    let maxRift = 0;
 
     while (stack.length > 0) {
       const idx = stack.pop()!;
@@ -272,6 +303,7 @@ function buildLakeMaskGated(
       const f = flowAccumulation[idx];
       if (f > maxFlow) maxFlow = f;
       petSum += petAnnual[idx];
+      if (useRift && riftFloorMask![idx] > maxRift) maxRift = riftFloorMask![idx];
 
       const y = (idx / width) | 0;
       const x = idx - y * width;
@@ -306,7 +338,11 @@ function buildLakeMaskGated(
     const area = component.length;
     if (area < minCells) continue;
     if (area > maxArea) continue;
-    if (maxFlow < budgetRatio * petSum) continue;
+    // Continental-rift grabens relax the water-budget gate in proportion to how
+    // strongly the basin overlaps a rift floor, so rift lakes (East African
+    // Great Lakes, Baikal) form where a plain depression otherwise wouldn't.
+    const effRatio = budgetRatio * (1 - riftLakeRelax * maxRift);
+    if (maxFlow < effRatio * petSum) continue;
 
     for (let i = 0; i < area; i++) out[component[i]] = 1;
   }
@@ -332,8 +368,16 @@ function d8TieJitter(nx: number, ny: number, d: number): number {
   return (h & 0xffff) * 1e-9;
 }
 
-function computeD8FlowDir(filled: Float32Array, width: number, height: number, seaLevel: number): Int8Array {
+function computeD8FlowDir(
+  filled: Float32Array,
+  width: number,
+  height: number,
+  seaLevel: number,
+  faultLines?: Float32Array,
+  faultAffinity = 0
+): Int8Array {
   const flowDir = new Int8Array(filled.length).fill(-1);
+  const useFault = faultLines !== undefined && faultAffinity > 0;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -347,9 +391,17 @@ function computeD8FlowDir(filled: Float32Array, width: number, height: number, s
         const ny = y + D8_DY[d];
         if (ny < 0 || ny >= height) continue;
         const nIdx = ny * width + nx;
-        const drop = (filled[idx] - filled[nIdx]) / D8_DIST[d] + d8TieJitter(nx, ny, d);
-        if (drop > bestDrop) {
-          bestDrop = drop;
+        // Base downslope score (gradient + tie-jitter). A neighbor must clear
+        // this > 0 test to be a candidate — i.e. be genuinely downhill — BEFORE
+        // any fault bias, so the priority-flood monotonic-descent guarantee and
+        // the accumulation topological order are preserved.
+        const base = (filled[idx] - filled[nIdx]) / D8_DIST[d] + d8TieJitter(nx, ny, d);
+        if (base <= 0) continue;
+        // Fault affinity only re-ranks among already-downhill neighbors, biasing
+        // flow toward fault/boundary weak zones.
+        const score = useFault ? base + faultLines![nIdx] * faultAffinity : base;
+        if (score > bestDrop) {
+          bestDrop = score;
           bestDir = d;
         }
       }
@@ -566,7 +618,16 @@ export function computeFlowAndRivers(
     petFlow[i] = petAnnual[i] * invRef;
   }
 
-  const { filled, flowAcc } = routeFlow(elevation, width, height, seaLevel, geom, rainfallFlow);
+  const { filled, flowAcc } = routeFlow(
+    elevation,
+    width,
+    height,
+    seaLevel,
+    geom,
+    rainfallFlow,
+    fields.faultLines,
+    config.faultRiverAffinity
+  );
   const lakes = buildLakeMaskGated(
     elevation,
     filled,
@@ -578,7 +639,9 @@ export function computeFlowAndRivers(
     config.lakeDepthEpsilon,
     config.lakeBudgetRatio,
     config.lakeMaxAreaFraction,
-    config.lakeMinCells
+    config.lakeMinCells,
+    fields.riftFloorMask,
+    config.riftLakeRelax
   );
   const rivers = buildRiverMask(flowAcc, elevation, seaLevel, config.riverLogThreshold);
   return { flowAccumulation: flowAcc, rivers, lakes };
