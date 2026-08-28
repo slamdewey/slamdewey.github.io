@@ -1,0 +1,68 @@
+.mmd {
+  margin: 1.25rem 0 0;
+
+  &__viewport {
+    position: relative;
+    overflow: hidden;
+    height: 440px;
+    background: #12162a;
+    border: 1px solid #2a2f4a;
+    border-radius: 8px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &__canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+  }
+
+  &__controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+
+    button {
+      min-width: 28px;
+      background: #1a1a2e;
+      color: #8be9fd;
+      border: 1px solid #2a2f4a;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.85rem;
+      line-height: 1;
+      cursor: pointer;
+
+      &:hover {
+        border-color: #8be9fd;
+      }
+    }
+  }
+
+  &__error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    color: #ff6b6b;
+  }
+
+  figcaption {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    color: #9aa0c0;
+    text-align: center;
+  }
+}

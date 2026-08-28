@@ -10,6 +10,7 @@ import { BannerComponent } from '../components/banner/banner.component';
 import { Backdrop } from '../components/backdrop';
 import { WorldGenPreviewBackdrop } from './pages/world-gen/rendering/world-gen-preview-backdrop';
 import { VoronoiBackdrop } from './pages/voronoi-demo/voronoi-backdrop';
+import { ScryBackdrop } from './pages/scry/scry-backdrop';
 import { env } from 'src/environments/environment';
 
 @Component({
@@ -52,6 +53,13 @@ export class ProjectsComponent implements OnInit {
         routerLink: 'voronoi',
         labelText: 'Voronoi',
         backdrop: new VoronoiBackdrop(),
+        hovered: signal(false),
+        focused: signal(false),
+      },
+      {
+        routerLink: 'scry',
+        labelText: 'Scry',
+        backdrop: new ScryBackdrop(),
         hovered: signal(false),
         focused: signal(false),
       },

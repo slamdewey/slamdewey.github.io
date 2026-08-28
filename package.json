@@ -40,6 +40,7 @@
     "alea": "1.0.1",
     "d3-delaunay": "^6.0.4",
     "d3-geo-voronoi": "^2.1.0",
+    "mermaid": "^11.17.2",
     "monaco-editor": "0.55.1",
     "ngx-monaco-editor-v2": "21.1.4",
     "rxjs": "7.8.2",

@@ -1,0 +1,26 @@
+<figure class="mmd">
+  <div
+    #viewport
+    class="mmd__viewport"
+    (wheel)="onWheel($event)"
+    (pointerdown)="onPointerDown($event)"
+    (pointermove)="onPointerMove($event)"
+    (pointerup)="onPointerUp()"
+    (pointerleave)="onPointerUp()">
+    <div #canvas class="mmd__canvas"></div>
+
+    <div class="mmd__controls" (pointerdown)="$event.stopPropagation()">
+      <button type="button" (click)="zoomByButton(1.2)" aria-label="Zoom in">+</button>
+      <button type="button" (click)="zoomByButton(1 / 1.2)" aria-label="Zoom out">&minus;</button>
+      <button type="button" (click)="reset()" aria-label="Reset view">reset</button>
+    </div>
+
+    @if (errored()) {
+      <p class="mmd__error">Diagram failed to render.</p>
+    }
+  </div>
+
+  @if (caption()) {
+    <figcaption>{{ caption() }}</figcaption>
+  }
+</figure>
