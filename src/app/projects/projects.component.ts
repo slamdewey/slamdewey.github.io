@@ -37,6 +37,13 @@ export class ProjectsComponent implements OnInit {
 
     this.projects = [
       {
+        routerLink: 'scry',
+        labelText: 'Scry',
+        backdrop: new ScryBackdrop(),
+        hovered: signal(false),
+        focused: signal(false),
+      },
+      {
         routerLink: 'fragment-writer',
         labelText: 'GLSL Editor',
         backdrop: this.fragmentWriterTileBackdrop,
@@ -53,13 +60,6 @@ export class ProjectsComponent implements OnInit {
         routerLink: 'voronoi',
         labelText: 'Voronoi',
         backdrop: new VoronoiBackdrop(),
-        hovered: signal(false),
-        focused: signal(false),
-      },
-      {
-        routerLink: 'scry',
-        labelText: 'Scry',
-        backdrop: new ScryBackdrop(),
         hovered: signal(false),
         focused: signal(false),
       },

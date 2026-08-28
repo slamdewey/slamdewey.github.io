@@ -1,6 +1,5 @@
 import { drawPolygon, FillStyleFn, TileTerrainFillStyles } from '../util/rendering';
 import { AxialCoordinate, Coordinate, Vector2 } from './coordinate';
-import { EcsRenderableComponent } from './ecs/ecs';
 
 export const ALL_TILE_TERRAINS = [
   'void',
@@ -90,13 +89,12 @@ export class HexTile implements Tile<AxialCoordinate> {
   speedModifier: number;
 }
 
-export abstract class TileMap<C extends Coordinate> extends EcsRenderableComponent {
+export abstract class TileMap<C extends Coordinate> {
   public readonly columns: number;
   public readonly columnHeight: number;
   protected readonly numTiles: number;
 
   constructor(columns: number, columnHeight: number) {
-    super();
     this.columns = columns;
     this.columnHeight = columnHeight;
     this.numTiles = columns * columnHeight;
