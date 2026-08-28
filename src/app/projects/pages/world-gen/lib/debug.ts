@@ -74,6 +74,9 @@ interface BandStats {
 
 export interface WorldStats {
   map: { width: number; height: number; totalCells: number; landCells: number; landPct: number };
+  /** Tectonic plate size distribution (area-weighted % of the globe), to catch
+   *  a single plate dominating. `areaPct` is sorted descending. */
+  plates: { count: number; largestPct: number; smallestPct: number; areaPct: number[] };
   koppen: Record<string, { sim: number; earth: number; delta: number }>;
   groups: Record<string, { sim: number; earth: number; delta: number }>;
   aridityHistogram: Record<string, number>;
@@ -105,6 +108,8 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
     height,
     elevation,
     seaLevel,
+    plateMap,
+    plates,
     koppenClass,
     precipAnnual,
     precipSummer,
@@ -146,6 +151,25 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
       }
     }
   }
+
+  // --- Tectonic plate size distribution (area-weighted, land + ocean) ---
+  const plateAreaWeight = new Float64Array(plates.length);
+  for (let y = 0; y < height; y++) {
+    const w = cosLatRow[y];
+    const rowBase = y * width;
+    for (let x = 0; x < width; x++) {
+      const p = plateMap[rowBase + x];
+      if (p >= 0 && p < plates.length) plateAreaWeight[p] += w;
+    }
+  }
+  const invTotalArea = totalAreaWeight > 0 ? 1 / totalAreaWeight : 0;
+  const plateAreaPct = Array.from(plateAreaWeight, (w) => round2(100 * w * invTotalArea)).sort((a, b) => b - a);
+  const plateStats = {
+    count: plates.length,
+    largestPct: plateAreaPct[0] ?? 0,
+    smallestPct: plateAreaPct[plateAreaPct.length - 1] ?? 0,
+    areaPct: plateAreaPct,
+  };
 
   // --- Köppen distribution (area-weighted) ---
   const koppenWeight = new Float64Array(Object.keys(KoppenClass).length / 2);
@@ -194,6 +218,9 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
 
   // --- Field statistics ---
   const fields: Record<string, FieldStats> = {
+    // Land-only elevation in meters — the hypsometry histogram for tuning the
+    // two-slope transfer and context-detail amplitudes.
+    elevation: fieldStats(elevation, landIndices),
     precipAnnual: fieldStats(precipAnnual, landIndices),
     precipSummer: fieldStats(precipSummer, landIndices),
     precipWinter: fieldStats(precipWinter, landIndices),
@@ -253,6 +280,7 @@ export function computeWorldStats(worldData: WorldData): WorldStats {
       landCells: landCount,
       landPct: round2((100 * landAreaWeight) / totalAreaWeight),
     },
+    plates: plateStats,
     koppen,
     groups,
     aridityHistogram,

@@ -3,11 +3,14 @@ import { mod, sphericalEmbed3D } from '@lib/math';
 import { NoiseVariables, TectonicVariables } from '../../types';
 import { BoundaryInfo, InteractionType, PlateProperties, PlateType } from './types';
 import { interactionElevation } from './boundaries';
-import { buildBoundaryPolylines, rasterizePolylines } from './boundary-polylines';
+import { buildBoundaryPolylinesFromArcs, rasterizePolylines, type Vec3Polyline } from './boundary-polylines';
 
 // Per-interaction falloff width multipliers moved to boundary-polylines.ts
 // (Phase A4) — each polyline carries its boundary's per-side widths at the
 // vertex level so this stage only consumes them via the rasterized seeds.
+
+/** Sentinel for "no boundary fault stamped at this pixel" in the faultType field. */
+export const FAULT_TYPE_NONE = 255;
 
 // ── Continental shelf ─────────────────────────────────────────────────────
 
@@ -30,6 +33,7 @@ const SHELF_TARGET = -0.25;
 export function rasterizePlateInteractions(
   plateMap: Int32Array,
   boundaries: BoundaryInfo[],
+  chains: Vec3Polyline[],
   plates: PlateProperties[],
   width: number,
   height: number,
@@ -38,6 +42,7 @@ export function rasterizePlateInteractions(
 ): {
   baseElevation: Float32Array;
   faults: Float32Array;
+  faultType: Uint8Array;
   mountainRanges: Float32Array;
   continentalSubRelief: Float32Array;
   distToRidge: Float32Array;
@@ -47,6 +52,9 @@ export function rasterizePlateInteractions(
   const size = width * height;
   const baseElevation = new Float32Array(size);
   const faults = new Float32Array(size);
+  // Per-pixel InteractionType of the strongest boundary stamped here (255 = no
+  // fault). Drives the type-colored Faults layer.
+  const faultType = new Uint8Array(size).fill(FAULT_TYPE_NONE);
   const mountainRanges = new Float32Array(size);
 
   const plateCount = plates.length;
@@ -102,11 +110,14 @@ export function rasterizePlateInteractions(
               bestIntensity = nb.intensity;
               nearestBoundary[idx] = bi;
             }
+            // True passive (wide-shelf) margins form where a continent rifted
+            // away from oceanic crust (ContinentalRift). Strike-slip (Transform)
+            // continental–oceanic margins are active and do NOT build a wide
+            // passive shelf, so they're excluded — giving narrow active margins.
             if (
               plates[plate].type === PlateType.Continental &&
               plates[neighbor].type === PlateType.Oceanic &&
-              (nb.interactionType === InteractionType.Transform ||
-                nb.interactionType === InteractionType.ContinentalRift)
+              nb.interactionType === InteractionType.ContinentalRift
             ) {
               hasPassiveOceanicNeighbor = true;
             }
@@ -334,6 +345,15 @@ export function rasterizePlateInteractions(
   const subReliefFreq = nv.frequency * tv.continentalSubReliefFrequency;
   const subReliefAmp = tv.continentalSubReliefAmplitude;
   const ageStrength = tv.oceanicAgeGradientStrength;
+  // Intra-plate ridged ranges: a separate noise at a sub-continental scale so
+  // continent interiors get linear mountain belts, not just smooth swells.
+  // `rangeWarpNoise` domain-warps the ridge field so belts meander organically
+  // instead of forming a periodic lattice (the classic ridged-noise artifact).
+  const rangeNoise = new OpenSimplexNoise((nv.seed ^ 0x0a0b1c2d) | 0);
+  const rangeWarpNoise = new OpenSimplexNoise((nv.seed ^ 0x51f2a3b4) | 0);
+  const rangeFreq = nv.frequency * 2.5;
+  const rangeWarpFreq = nv.frequency * 1.0;
+  const rangeAmp = tv.intraContinentalRangeAmplitude;
 
   const npSub = new Float32Array(3);
   for (let y = 0; y < height; y++) {
@@ -361,6 +381,47 @@ export function rasterizePlateInteractions(
         const delta = signed * subReliefAmp;
         continentalSubRelief[idx] = delta;
         baseElevation[idx] += delta;
+
+        // Intra-plate ridged relief: ancient-orogeny ranges inside continents
+        // (Appalachian/Ural analogue). The active-boundary passes only build
+        // relief at current margins, leaving interiors flat; ridged multifractal
+        // noise (1 − |fBm|, cubed to sharpen) adds linear belts that rise above
+        // the swells while leaving the plains low.
+        if (rangeAmp > 0) {
+          // Domain warp: displace the sample point by a low-frequency noise
+          // vector so ridge belts meander instead of tiling a regular lattice.
+          const wf = rangeWarpFreq;
+          const wAmp = 0.22;
+          const wx =
+            npSub[0] + rangeWarpNoise.eval3D(npSub[0] * wf + 19.1, npSub[1] * wf + 3.7, npSub[2] * wf - 5.3) * wAmp;
+          const wy =
+            npSub[1] + rangeWarpNoise.eval3D(npSub[0] * wf - 7.4, npSub[1] * wf + 11.2, npSub[2] * wf + 8.6) * wAmp;
+          const wz =
+            npSub[2] + rangeWarpNoise.eval3D(npSub[0] * wf + 4.8, npSub[1] * wf - 9.5, npSub[2] * wf + 2.2) * wAmp;
+
+          let rsum = 0;
+          let rrange = 0;
+          let rf = rangeFreq;
+          let ra = 1;
+          for (let o = 0; o < 5; o++) {
+            // Per-octave offset decorrelates octaves (each samples a different
+            // region) so they don't beat into a grid.
+            const off = o * 13.0;
+            let rn = rangeNoise.eval3D(wx * rf + off, wy * rf + off, wz * rf - off);
+            rn = 1 - Math.abs(rn);
+            rsum += rn * ra;
+            rrange += ra;
+            rf *= 2.13; // non-integer lacunarity — octaves never re-align
+            ra *= 0.5;
+          }
+          let ridged = rsum / Math.max(rrange, 1);
+          ridged = ridged * ridged * ridged; // sharpen into belts, suppress plains
+          baseElevation[idx] += ridged * rangeAmp;
+          if (ridged > 0.35) {
+            const mr = ((ridged - 0.35) / 0.65) * 0.7;
+            if (mr > mountainRanges[idx]) mountainRanges[idx] = mr;
+          }
+        }
       } else if (hasRidgeSeeds) {
         // Oceanic age-from-ridge gradient: ridges lift, abyssal plains sink.
         const d = distToRidge[idx];
@@ -370,15 +431,22 @@ export function rasterizePlateInteractions(
     }
   }
 
-  // Pass 5: Per-boundary stamping driven by vectorized polylines (Phase A4).
-  // Each boundary is represented as a Chaikin-smoothed sub-pixel polyline; the
-  // polyline carries per-vertex (widthA, widthB) that taper down to `min` of
-  // converging boundaries at triple-junctions. Rasterizing the polyline gives
-  // per-pixel seed widths that the plate-restricted Dijkstra propagates
-  // outward. Pass 5 then stamps elevation at every pixel reached, using the
-  // *propagated* width so wide stamps narrow gracefully as they approach
-  // narrow neighbors.
-  const polylines = buildBoundaryPolylines(plateMap, boundaries, plateCount, baseFalloff, falloffScale, width, height);
+  // Pass 5: Per-boundary stamping driven by the pre-calculated boundary arcs.
+  // The arcs (chained once upstream) are projected to sub-pixel polylines whose
+  // per-vertex (widthA, widthB) taper down to `min` of converging boundaries at
+  // triple-junctions. Rasterizing the polyline gives per-pixel seed widths that
+  // the plate-restricted Dijkstra propagates outward. Pass 5 then stamps
+  // elevation at every pixel reached, using the *propagated* width so wide
+  // stamps narrow gracefully as they approach narrow neighbors.
+  const polylines = buildBoundaryPolylinesFromArcs(
+    chains,
+    boundaries,
+    plateCount,
+    baseFalloff,
+    falloffScale,
+    width,
+    height
+  );
   const rasterizedBoundaries = rasterizePolylines(polylines, boundaries.length, plateMap, width, height);
 
   // Distance is warped per-pixel by a low-amplitude noise so the interaction
@@ -472,7 +540,10 @@ export function rasterizePlateInteractions(
       interactionDelta[i] += elevDelta;
       if (mountainRange > mountainRanges[i]) mountainRanges[i] = mountainRange;
       const faultStrength = b.intensity * falloff;
-      if (faultStrength > faults[i]) faults[i] = faultStrength;
+      if (faultStrength > faults[i]) {
+        faults[i] = faultStrength;
+        faultType[i] = b.interactionType;
+      }
     }
   }
 
@@ -489,7 +560,7 @@ export function rasterizePlateInteractions(
     baseElevation[i] += d;
   }
 
-  return { baseElevation, faults, mountainRanges, continentalSubRelief, distToRidge, oceanAge };
+  return { baseElevation, faults, faultType, mountainRanges, continentalSubRelief, distToRidge, oceanAge };
 }
 
 /**

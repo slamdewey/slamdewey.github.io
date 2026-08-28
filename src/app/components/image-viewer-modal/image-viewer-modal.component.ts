@@ -51,6 +51,10 @@ export class ImageViewerModalComponent {
     this.zoomOptions.set({ ...DEFAULT_ZOOM });
   }
 
+  public resetZoom(): void {
+    this.resetZoomOptions();
+  }
+
   public zoomOptionsViewTransform = computed<string>(() => {
     const z = this.zoomOptions();
     return `translate(${z.pointX}px, ${z.pointY}px) scale(${z.scale}`;

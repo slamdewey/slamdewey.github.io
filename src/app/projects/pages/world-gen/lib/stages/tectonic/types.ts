@@ -4,6 +4,8 @@
  * else is internal to the stage.
  */
 
+import { type Vec3 } from '@lib/voronoi-sphere';
+
 export enum PlateType {
   Continental,
   Oceanic,
@@ -51,7 +53,8 @@ export interface BoundaryInfo {
   interactionType: InteractionType;
   /** Relative velocity magnitude, normalized to [0, 1] across all edges. */
   intensity: number;
-  /** Shared boundary length in pixels. */
+  /** Shared boundary length as great-circle arc length (radians), summed over
+   * the pair's Voronoi edges. (Was a pixel count under the legacy raster graph.) */
   length: number;
   typeA: PlateType;
   typeB: PlateType;
@@ -59,19 +62,49 @@ export interface BoundaryInfo {
   subductingPlate: number;
 }
 
+/**
+ * Pre-calculated vector geometry of a plate-pair boundary. Index-aligned with
+ * the matching `BoundaryInfo` in `TectonicResult.boundaries`. This is the
+ * structured "geometry channel" the rewire exposes — boundary arcs as real
+ * unit-vector polylines, available to downstream / future simulation stages
+ * without re-deriving them from the pixel `plateMap`.
+ */
+export interface BoundaryArc {
+  plateA: number;
+  plateB: number;
+  /** One or more chained great-circle polylines (unit vectors). More than one
+   * when triple junctions split the plate-pair boundary into disjoint runs. */
+  segments: Vec3[][];
+  /** Parallel to `segments`: whether each polyline is a closed loop. */
+  isClosed: boolean[];
+}
+
 export interface TectonicResult {
   baseElevation: Float32Array;
   faults: Float32Array;
+  /** Per-pixel InteractionType of the dominant boundary fault (255 = none).
+   *  Drives the type-colored Faults layer. */
+  faultType: Uint8Array;
   mountainRanges: Float32Array;
   plateMap: Int32Array;
   plates: PlateProperties[];
   boundaries: BoundaryInfo[];
+  /** Plate → sorted neighbor-plate list (from the pre-calculated Voronoi edges). */
+  plateAdjacency: number[][];
+  /** Per-boundary vector arc geometry, index-aligned with `boundaries`. */
+  boundaryArcs: BoundaryArc[];
   /** Signed intra-continental perturbation (positive = swell, negative = basin). */
   continentalSubRelief: Float32Array;
   /** Pixel distance to nearest ridge/rift seed (Chamfer). Feeds the ocean age gradient. */
   distToRidge: Float32Array;
   /** distToRidge normalized to [0, 1] (1 = farthest abyssal plain from any ridge). */
   oceanAge: Float32Array;
+  /** Geomorphology: volcanic island-arc intensity [0, 1] stamped on the
+   *  overriding plate alongside oceanic subduction boundaries. */
+  volcanicArcs: Float32Array;
+  /** Geomorphology: rift-floor membership [0, 1] along continental rifts.
+   *  Consumed by hydrology to bias rift-lake formation. */
+  riftFloorMask: Float32Array;
 }
 
 /**

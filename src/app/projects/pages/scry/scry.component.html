@@ -1,0 +1,147 @@
+<div class="scry">
+  <x-banner>
+    <ng-container ngProjectAs="title">Scry</ng-container>
+  </x-banner>
+
+  <x-image-viewer-modal [imageSource]="screenshot.img_src" />
+
+  <div class="scry__repo-link">
+    <a [href]="repoUrl" target="_blank" rel="noopener">View on GitHub &nearr;</a>
+  </div>
+
+  <article class="scry__article">
+    <section class="scry__section">
+      <p>
+        <strong>Scry</strong> is a self-hosted viewer for IP cameras — RTSP for the streams, ONVIF for pan/tilt/zoom,
+        anything that speaks both. It's built for a single household: a few cameras, a few devices, watched on the LAN
+        or over whatever VPN you already run. No cloud account, no vendor app, no footage leaving the house.
+      </p>
+    </section>
+
+    <!--
+      Optional screenshot: a thumbnail that opens the shared image-viewer modal.
+      Toggle `showScreenshot` in scry.component.ts, or delete this <section>.
+      Image lives at src/assets/scry_viewer.png.
+    -->
+    @if (showScreenshot) {
+      <section class="scry__section">
+        <div class="scry__thumb">
+          <x-image-tile [imageData]="screenshot" (tileClick)="openViewer()" />
+        </div>
+        <p class="scry__thumb-hint">Screenshot of live camera view</p>
+      </section>
+    }
+
+    <section class="scry__section">
+      <h2>Architecture</h2>
+      <p>
+        Everything runs on a single Raspberry Pi. A browser on the LAN asks for a page, the request walks down a short
+        stack of services, and — the part worth pausing on — the video itself never walks back up. Media streams
+        <strong>directly</strong> from the relay to the browser over WebRTC/UDP, bypassing the HTTP layers entirely.
+      </p>
+      <x-mermaid-diagram
+        [definition]="architectureDiagram"
+        caption="Requests fan down the stack; media (dashed) comes straight back over WebRTC. Drag to pan, scroll to zoom." />
+    </section>
+
+    <section class="scry__section">
+      <h2>How a stream comes together</h2>
+      <p>
+        The same request that loads the page ends with live video — but it takes a few hops to get there. The browser
+        loads the Angular bundle, the app boots and asks for the camera list, then a click on a camera opens a
+        <code>/stream</code> request that lands at <code>go2rtc</code>, which pulls RTSP from the camera and hands the
+        browser a WebRTC stream:
+      </p>
+      <x-mermaid-diagram
+        [definition]="flowDiagram"
+        caption="From first page load to live video. Drag to pan, scroll to zoom." />
+    </section>
+
+    <hr class="scry__divider" />
+
+    <section class="scry__section">
+      <h2>Decisions I'm happy with</h2>
+      <ul>
+        <li>
+          <strong>Media bypasses the app stack.</strong> Proxying video through Node would waste the Pi's headroom, so
+          only the control plane goes through Caddy and <code>scry-server</code>. <code>go2rtc</code> hands WebRTC
+          straight to the browser over UDP — the part that has to be fast doesn't touch the slow path.
+        </li>
+        <li>
+          <strong>Cameras are declared, not clicked.</strong> A single <code>cameras.yaml</code> is the whole inventory;
+          a per-model <code>models.yaml</code> knows each camera's stream paths and whether it supports PTZ or audio.
+          Adding a camera is IaC.
+        </li>
+        <li>
+          <strong>One command to ship.</strong> <code>npm run deploy</code> builds the server and web bundles, copies
+          them to the Pi over SSH, regenerates the <code>go2rtc</code> config from those YAMLs, and runs an idempotent
+          install script before restarting the services. No manual steps to forget.
+        </li>
+        <li>
+          <strong>It's just a hostname.</strong> <code>dnsmasq</code> resolves <code>scry</code> on the LAN, so the
+          whole thing lives at <code>http://s.cry</code> with no IPs to memorize — and it still works over a VPN.
+        </li>
+        <li>
+          <strong>Controlled network paths.</strong> Nearly all commercially sold IP cameras will channel your streams
+          through their cloud infrastructure before sending to you. There are no encryption standards and these streams
+          are notoriously insecure. This system works entirely within your LAN, which eliminates nearly all conventional
+          attack vectors.
+        </li>
+      </ul>
+    </section>
+
+    <section class="scry__section">
+      <h2>Declaring a camera</h2>
+      <p>
+        <code>cameras.yaml</code> is gitignored and user-specific; a <code>cameras.example.yaml</code> ships as the
+        template. Each entry keys into <code>models.yaml</code> for the model-specific stream paths and capabilities:
+      </p>
+      <x-code-block [code]="camerasYaml" />
+    </section>
+
+    <section class="scry__section">
+      <h2>Stack</h2>
+      <ul>
+        <li><strong>Frontend:</strong> Angular — live view, camera list, PTZ overlay.</li>
+        <li><strong>Backend:</strong> Node / Express — API plus the reverse proxy to the relay.</li>
+        <li><strong>Streaming:</strong> go2rtc — RTSP → WebRTC relay.</li>
+        <li><strong>Edge:</strong> Caddy (reverse proxy) and dnsmasq (local DNS).</li>
+        <li><strong>Host:</strong> a single Raspberry Pi.</li>
+      </ul>
+    </section>
+
+    <hr class="scry__divider" />
+
+    <section class="scry__section">
+      <h2>Weird things I ran into</h2>
+      <ul>
+        <li>
+          <strong>Windows won't resolve a dotless hostname.</strong> <code>http://scry</code> works fine on phones and
+          most devices, but Windows refuses to resolve single-label names with no dot in them. The fix was petty and
+          perfect: register it as <code>s.cry</code> as well, so <code>http://s.cry</code> resolves everywhere.
+        </li>
+        <li>
+          <strong>Mobile Safari has no real fullscreen.</strong> iOS Safari's fullscreen video player does not support
+          arbitrary controls. Scry fakes fullscreen on Safari by rendering the stream view sized to the viewport.
+        </li>
+        <li>
+          <strong>Most cameras won't stream locally at all.</strong> The majority of commercial IP cameras only stream
+          to the manufacturer's cloud first — local access isn't a given. Mine happened to speak <code>RTSP</code>,
+          which <code>go2rtc</code> can pull; other cameras may need a different relay stood up on the Pi.
+          <code>RTSP</code> is also grim security-wise — the password rides in the stream URL in plaintext.
+        </li>
+        <li>
+          <strong>Local control APIs are thin.</strong> Even cameras that do stream locally expose very little control.
+          Mine gave me pan and tilt over ONVIF but no optical zoom and no night-vision toggle — those live only in the
+          vendor app, which means handing the camera back to their servers. I added <strong>digital</strong> zoom in the
+          Scry viewer as a consolation prize.
+        </li>
+        <li>
+          <strong>Caddy exists so I never type a port.</strong> The Node server listens on <code>:8080</code>, but
+          nobody wants to remember that. Caddy sits on <code>:80</code> and reverse-proxies to it, so a single server
+          plus a single hostname gets you <code>http://s.cry</code> with nothing tacked on the end.
+        </li>
+      </ul>
+    </section>
+  </article>
+</div>

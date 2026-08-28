@@ -1,13 +1,7 @@
 import { OpenSimplexNoise, fBm3D } from '@lib/noise';
 import { sphericalEmbed3D } from '@lib/math';
 import { NoiseVariables, WorldFields } from '../../types';
-import {
-  T_EQUATOR_C,
-  T_POLE_C,
-  LAPSE_C_PER_NORM_ELEVATION,
-  OCEAN_SEASONAL_DAMPING,
-  OCEAN_MERIDIONAL_DAMPING,
-} from '../../physics';
+import { T_EQUATOR_C, T_POLE_C, LAPSE_C_PER_M, OCEAN_SEASONAL_DAMPING, OCEAN_MERIDIONAL_DAMPING } from '../../physics';
 
 export type Season = 'summer' | 'winter' | 'mean';
 
@@ -80,8 +74,9 @@ export function generateTemperature(
           temp += seasonalSwing * continentalityStrength * proximity;
         }
 
-        // Additive lapse rate — physical, not multiplicative.
-        temp -= elevation[idx] * LAPSE_C_PER_NORM_ELEVATION;
+        // Additive lapse rate — physical, not multiplicative. Elevation is in
+        // meters above sea level here (this branch is land, elevation>seaLevel).
+        temp -= elevation[idx] * LAPSE_C_PER_M;
 
         // Coastal moderation: blend toward local ocean temperature
         // (boundary-current modifier already applied to the ocean cell).

@@ -321,6 +321,55 @@ export function voronoiSphere(seeds: Vec3[]): SphereVoronoi {
 }
 
 /**
+ * Cell adjacency as a neighbor list, derived directly from the pre-calculated
+ * edge list — no raster pixel scan. `voronoiSphere` emits each adjacent pair
+ * exactly once (via d3-geo-voronoi's authoritative `d.edges`), so a single
+ * push per endpoint is enough. Each list is sorted ascending so any downstream
+ * tie-break that iterates neighbors (e.g. the plate-partition Dijkstra) is
+ * deterministic run-to-run regardless of edge emission order.
+ */
+export function neighborsFromEdges(edges: SphereEdge[], cellCount: number): number[][] {
+  const neighbors: number[][] = new Array(cellCount);
+  for (let i = 0; i < cellCount; i++) neighbors[i] = [];
+  for (const e of edges) {
+    if (e.cellA < cellCount && e.cellB < cellCount) {
+      neighbors[e.cellA].push(e.cellB);
+      neighbors[e.cellB].push(e.cellA);
+    }
+  }
+  for (let i = 0; i < cellCount; i++) neighbors[i].sort((a, b) => a - b);
+  return neighbors;
+}
+
+/** Great-circle arc length (radians) between two unit vectors. */
+export function arcLength(a: Vec3, b: Vec3): number {
+  const dot = a.x * b.x + a.y * b.y + a.z * b.z;
+  return Math.acos(dot < -1 ? -1 : dot > 1 ? 1 : dot);
+}
+
+/**
+ * Spherical linear interpolation between two unit vectors. Falls back to a
+ * normalized lerp when the endpoints are nearly coincident (sin Ω → 0), which
+ * keeps short-arc subdivision numerically stable.
+ */
+export function slerp(a: Vec3, b: Vec3, t: number): Vec3 {
+  const dot = a.x * b.x + a.y * b.y + a.z * b.z;
+  const clamped = dot < -1 ? -1 : dot > 1 ? 1 : dot;
+  const omega = Math.acos(clamped);
+  const sin = Math.sin(omega);
+  if (sin < 1e-9) {
+    const x = a.x + (b.x - a.x) * t;
+    const y = a.y + (b.y - a.y) * t;
+    const z = a.z + (b.z - a.z) * t;
+    const len = Math.hypot(x, y, z) || 1;
+    return { x: x / len, y: y / len, z: z / len };
+  }
+  const wa = Math.sin((1 - t) * omega) / sin;
+  const wb = Math.sin(t * omega) / sin;
+  return { x: wa * a.x + wb * b.x, y: wa * a.y + wb * b.y, z: wa * a.z + wb * b.z };
+}
+
+/**
  * Spherical midpoint between two Voronoi vertices on the *correct* half of
  * the bisector great circle.
  *

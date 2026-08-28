@@ -35,13 +35,11 @@ export const T_EQUATOR_C = 26;
  *  Real-Earth poles average ~-18°C at sea level (Vostok winter dips much
  *  colder; this is the parabola floor before noise/seasonal swing). */
 export const T_POLE_C = -18;
-/** Lapse-rate-equivalent °C drop per unit of normalized elevation. Elevation
- *  field is roughly [0, 1] where 1 ≈ 5 km altitude; with a real lapse rate of
- *  6.5 °C/km the maximum-elevation drop is ~32 °C. We use a slightly softer
- *  value because most "land" cells sit at low altitudes (0.05–0.3 normalized)
- *  and the visualization gets overwhelming if every continental interior
- *  drops 6+ °C below its latitude baseline. */
-export const LAPSE_C_PER_NORM_ELEVATION = 22;
+/** Environmental lapse rate — °C drop per meter of altitude above sea level.
+ *  Elevation is now a physical-meters field, so this is the real-Earth
+ *  6.5 °C/km expressed per meter (0.0065). A 4 km plateau therefore sits ~26 °C
+ *  below its sea-level latitude baseline. */
+export const LAPSE_C_PER_M = 0.0065;
 /** Ocean seasonal-swing damping factor: how much of the latitude tilt
  *  amplitude actually swings on water cells. Earth's open ocean swings ~50 %
  *  as much as same-latitude land due to high thermal mass. */

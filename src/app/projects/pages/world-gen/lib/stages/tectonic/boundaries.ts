@@ -1,33 +1,72 @@
-import { type VoronoiEdge } from '@lib/voronoi';
+import { type SphereEdge, arcLength } from '@lib/voronoi-edges';
+import { type Vec3 } from '@lib/voronoi-sphere';
 import { BoundaryInfo, BoundaryType, InteractionType, PlateCentroid, PlateProperties, PlateType } from './types';
 
 /**
- * Aggregate cell-level voronoi edges into plate-level boundaries.
- * Only edges between cells belonging to different plates are included.
+ * One inter-plate Voronoi edge: a great-circle arc segment of a plate boundary,
+ * with its endpoints as unit vectors. Derived from the pre-calculated
+ * `voronoiSphere` edge list — no pixel re-tracing.
+ */
+export interface InterPlateArc {
+  plateLo: number;
+  plateHi: number;
+  a: Vec3;
+  b: Vec3;
+}
+
+/**
+ * Filter the cell-level Voronoi edges down to the inter-plate ones — those
+ * whose two cells were assigned to different plates. Each surviving edge is one
+ * arc segment of the boundary between its plate pair, carrying real geometry.
+ */
+export function collectInterPlateArcs(edges: SphereEdge[], cellToPlate: Int32Array): InterPlateArc[] {
+  const arcs: InterPlateArc[] = [];
+  for (const e of edges) {
+    const pA = cellToPlate[e.cellA];
+    const pB = cellToPlate[e.cellB];
+    if (pA === pB || pA < 0 || pB < 0) continue; // intra-plate or unassigned
+    const lo = pA < pB ? pA : pB;
+    const hi = pA < pB ? pB : pA;
+    arcs.push({ plateLo: lo, plateHi: hi, a: e.a, b: e.b });
+  }
+  return arcs;
+}
+
+/** Plate → sorted neighbor-plate list, derived from the inter-plate arcs. */
+export function plateAdjacencyFromArcs(arcs: InterPlateArc[], plateCount: number): number[][] {
+  const sets: Set<number>[] = new Array(plateCount);
+  for (let i = 0; i < plateCount; i++) sets[i] = new Set<number>();
+  for (const arc of arcs) {
+    sets[arc.plateLo].add(arc.plateHi);
+    sets[arc.plateHi].add(arc.plateLo);
+  }
+  return sets.map((s) => Array.from(s).sort((a, b) => a - b));
+}
+
+/**
+ * Aggregate inter-plate arcs into plate-level boundaries. The boundary "length"
+ * is the sum of its arcs' great-circle lengths (radians) — the true edge length
+ * on the sphere, replacing the legacy pixel-count proxy.
  */
 export function aggregatePlateBoundaries(
-  cellEdges: VoronoiEdge[],
-  cellToPlate: Int32Array,
+  arcs: InterPlateArc[],
   plateCount: number
 ): { plateA: number; plateB: number; length: number }[] {
   const edgeMap = new Map<number, number>(); // packed key -> index
   const plateBoundaries: { plateA: number; plateB: number; length: number }[] = [];
 
-  for (const edge of cellEdges) {
-    const pA = cellToPlate[edge.cellA];
-    const pB = cellToPlate[edge.cellB];
-    if (pA === pB) continue; // intra-plate edge
-
-    const lo = Math.min(pA, pB);
-    const hi = Math.max(pA, pB);
+  for (const arc of arcs) {
+    const lo = arc.plateLo;
+    const hi = arc.plateHi;
     const key = lo * plateCount + hi;
+    const len = arcLength(arc.a, arc.b);
 
     const idx = edgeMap.get(key);
     if (idx !== undefined) {
-      plateBoundaries[idx].length += edge.length;
+      plateBoundaries[idx].length += len;
     } else {
       edgeMap.set(key, plateBoundaries.length);
-      plateBoundaries.push({ plateA: lo, plateB: hi, length: edge.length });
+      plateBoundaries.push({ plateA: lo, plateB: hi, length: len });
     }
   }
 
@@ -183,11 +222,15 @@ export function interactionElevation(
       if (pixelPlateType === PlateType.Continental) {
         return { elevDelta: 0.35 * f, mountainRange: 0.6 * t };
       }
-      return { elevDelta: -0.15 * f, mountainRange: 0 };
+      // Trench on the subducting (oceanic) side. Depth scales with convergence
+      // intensity — fast/steep subduction carves a deeper trench (Mariana-style)
+      // than a slow one.
+      return { elevDelta: -(0.12 + 0.1 * intensity) * f, mountainRange: 0 };
     case InteractionType.OceanicConvergence:
-      // Denser plate subducts → trench; lighter plate gets volcanic island arc
+      // Denser plate subducts → trench; lighter plate gets volcanic island arc.
+      // Trench depth scales with convergence intensity (same as above).
       if (isSubductingSide) {
-        return { elevDelta: -0.12 * f, mountainRange: 0 };
+        return { elevDelta: -(0.1 + 0.1 * intensity) * f, mountainRange: 0 };
       }
       return { elevDelta: 0.1 * f, mountainRange: 0.3 * t };
     case InteractionType.ContinentalRift:

@@ -85,6 +85,11 @@ export const routes: Route[] = [
         loadComponent: () =>
           import('./projects/pages/voronoi-demo/voronoi-demo.component').then((m) => m.VoronoiDemoComponent),
       },
+      {
+        path: 'scry',
+        title: 'Scry — self-hosted IP camera viewer',
+        loadComponent: () => import('./projects/pages/scry/scry.component').then((m) => m.ScryComponent),
+      },
     ],
     providers: [
       {

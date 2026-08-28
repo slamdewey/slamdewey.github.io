@@ -1,5 +1,6 @@
 import { clamp, mod } from '@lib/math';
 import { ClimateVariables } from '../../types';
+import { ELEV_RELIEF_REFERENCE_M } from '../terrain-levels';
 import { WorldGeometry } from '../../world-geometry';
 
 const SECONDS_PER_DAY = 86400;
@@ -270,7 +271,10 @@ export function simulateHumidity(
           const upX = x - wind[wIdx] * xStep;
           const upY = y - wind[wIdx + 1] * stepFactor;
           const upwindE = bilinearSample(elevation, upX, upY, width, height);
-          const rise = elevation[idx] - upwindE;
+          // Normalize the along-wind rise by the reference relief so the
+          // orographic / Föhn tunings stay calibrated against a dimensionless
+          // unit of relief now that elevation is in physical meters.
+          const rise = (elevation[idx] - upwindE) / ELEV_RELIEF_REFERENCE_M;
           if (rise > 0) {
             const frac = rise * cv.orographicCondensation;
             const take = q[idx] * (frac > 0.6 ? 0.6 : frac);

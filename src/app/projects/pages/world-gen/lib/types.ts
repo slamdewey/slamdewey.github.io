@@ -103,8 +103,20 @@ export interface ClimateVariables {
 }
 
 export interface TectonicVariables {
+  /** Number of MAJOR plates — the large plates that tile the whole globe and
+   *  cover most of its area. Realistic range ~7–15. */
   plateCount: number;
+  /** Number of MINOR (micro) plates carved out at the junctions BETWEEN major
+   *  plates, the way real microplates form along boundaries. They share a small
+   *  fixed fraction of the surface, so majors stay dominant and minors never
+   *  appear as islands stranded inside one major. 0 disables them. */
+  minorPlateCount: number;
   cellCount: number;
+  /** Number of continents: continental crust is grown as this many contiguous
+   *  clusters of plates (from spread-out seeds) rather than assigned per-plate
+   *  by noise, so land forms a few big landmasses instead of a scattered
+   *  archipelago. 1 ≈ a single supercontinent; higher = more, smaller continents. */
+  continentCount: number;
   relaxationIterations: number;
   /** Global multiplier for all boundary falloff widths. Default 1.0. */
   boundaryFalloffScale: number;
@@ -112,27 +124,59 @@ export interface TectonicVariables {
   coastlineWarpAmplitude: number;
   /** Domain-warp frequency, as a multiplier of the elevation base frequency. Fix A. */
   coastlineWarpFrequency: number;
-  /** Ridged-fBm amplitude added to continental plate interiors. Fix B. */
+  /** Smooth-fBm amplitude of continental swells/basins. Fix B. */
   continentalSubReliefAmplitude: number;
-  /** Ridged-fBm frequency, as a multiplier of nv.frequency. Fix B. */
+  /** Continental sub-relief frequency, as a multiplier of nv.frequency. Fix B. */
   continentalSubReliefFrequency: number;
+  /** Amplitude of intra-plate ridged mountain belts inside continents
+   *  (ancient-orogeny relief — Appalachian/Ural analogue). 0 disables. Active
+   *  margins still build their own relief; this fills flat plate interiors. */
+  intraContinentalRangeAmplitude: number;
   /** Multiplier on the oceanic age-from-ridge elevation gradient. Fix C. */
   oceanicAgeGradientStrength: number;
   /** If true, Jacobi smoothing blends passive boundaries instead of pinning them. Fix D. */
   boundarySoftenPassive: boolean;
+
+  // ── Geomorphology sub-stage (vector-data driven features) ────────────────
+  /** Arc–trench gap: offset of the volcanic island arc from the subduction
+   *  boundary toward the overriding plate, in equator-pixel multiples of
+   *  baseFalloff. 0 disables volcanic arcs. */
+  volcanicArcGap: number;
+  /** Peak elevation lift stamped along the volcanic island arc. */
+  volcanicArcStrength: number;
+  /** Offset of the rift horst shoulders from the rift axis, in baseFalloff
+   *  multiples. 0 disables shoulder uplift. */
+  riftShoulderDist: number;
+  /** Peak uplift added on the rift shoulders. */
+  riftShoulderHeight: number;
+  /** Half-width of the rift floor mask band, in baseFalloff multiples. Feeds
+   *  the hydrology rift-lake bias (see HydrologyVariables.riftLakeRelax). */
+  riftFloorWidth: number;
 }
 
 export const DEFAULT_TECTONIC: TectonicVariables = {
-  plateCount: 32,
+  plateCount: 9,
+  minorPlateCount: 24,
   cellCount: 1500,
+  continentCount: 3,
   relaxationIterations: 1,
   boundaryFalloffScale: 1.0,
   coastlineWarpAmplitude: 0.25,
   coastlineWarpFrequency: 4.0,
-  continentalSubReliefAmplitude: 0.35,
-  continentalSubReliefFrequency: 0.3,
+  // Lowered so continental sub-relief basins don't dip below sea level and
+  // shatter continents into archipelagos; raise for more inland seas / lakes.
+  continentalSubReliefAmplitude: 0.3,
+  continentalSubReliefFrequency: 1.0,
+  // Lowered now that erosion is the primary texture source — the ridged belts
+  // act as gentle uplift the fluvial network dissects, not the final relief.
+  intraContinentalRangeAmplitude: 0.2,
   oceanicAgeGradientStrength: 1.0,
   boundarySoftenPassive: true,
+  volcanicArcGap: 2.5,
+  volcanicArcStrength: 0.5,
+  riftShoulderDist: 2.0,
+  riftShoulderHeight: 0.12,
+  riftFloorWidth: 2.5,
 };
 
 import { DEFAULT_HYDROLOGY, type HydrologyVariables } from './stages/hydrology';
@@ -140,8 +184,8 @@ export { DEFAULT_HYDROLOGY, type HydrologyVariables };
 
 export { KoppenClass } from './stages/climate/koppen';
 
-import type { BoundaryInfo, PlateProperties } from './stages/tectonic';
-export type { BoundaryInfo, PlateProperties };
+import type { BoundaryArc, BoundaryInfo, PlateProperties } from './stages/tectonic';
+export type { BoundaryArc, BoundaryInfo, PlateProperties };
 
 export interface WorldConfig {
   width: number;
@@ -198,8 +242,24 @@ export interface WorldData {
   /** Classified inter-plate boundaries (convergent/divergent/transform with
    *  derived InteractionType). Same usage scope as `plates`. */
   boundaries: BoundaryInfo[];
+  /** Plate → sorted neighbor-plate list, from the pre-calculated Voronoi edges.
+   *  Part of the structured geometry channel for downstream / future sims. */
+  plateAdjacency: number[][];
+  /** Per-boundary vector arc geometry (unit-vector polylines), index-aligned
+   *  with `boundaries`. The pre-calculated plate edges, available to future
+   *  stages without re-deriving them from the pixel plateMap. */
+  boundaryArcs: BoundaryArc[];
   faultLines: Float32Array;
+  /** Per-pixel InteractionType of the dominant boundary fault (255 = none).
+   *  Drives the type-colored Faults layer. */
+  faultType: Uint8Array;
   mountainRanges: Float32Array;
+  /** Volcanic island-arc intensity [0, 1] along oceanic subduction zones
+   *  (geomorphology sub-stage). Debug/structured-data channel. */
+  volcanicArcs: Float32Array;
+  /** Rift-floor membership [0, 1] along continental rifts. Read by hydrology
+   *  to bias rift-lake formation. */
+  riftFloorMask: Float32Array;
   /** Signed intra-continental perturbation (red = swell, blue = basin). Fix B. */
   continentalSubRelief: Float32Array;
   /** Distance-to-ridge, normalized to [0, 1] where 0 is a ridge and 1 is the farthest abyssal plain. Fix C. */
